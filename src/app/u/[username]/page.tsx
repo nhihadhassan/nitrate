@@ -130,7 +130,7 @@ export default async function ProfileOverviewPage({ params }: Params) {
                 {stats.ratingHistogram.map((bucket) => (
                   <div
                     key={bucket.rating}
-                    className="flex-1"
+                    className="flex h-full flex-1 items-end"
                     title={`${bucket.rating / 2}★ — ${pluralize(bucket.count, 'film')}`}
                   >
                     <div

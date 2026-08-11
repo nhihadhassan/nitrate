@@ -49,6 +49,17 @@ export function FilmActions({
     logCount: 0,
   };
   const [current, setCurrent] = useState(base);
+
+  // Logging happens in a sheet elsewhere on the page, which refreshes the server
+  // component but does not remount this one. Re-sync when the server disagrees,
+  // otherwise the buttons keep showing pre-log state.
+  const serverSignature = `${base.watched}|${base.liked}|${base.rating}|${base.inWatchlist}|${base.logCount}`;
+  const [lastSignature, setLastSignature] = useState(serverSignature);
+  if (serverSignature !== lastSignature) {
+    setLastSignature(serverSignature);
+    setCurrent(base);
+  }
+
   const [optimistic, applyOptimistic] = useOptimistic(
     current,
     (prev: ViewerFilmState, patch: Partial<ViewerFilmState>) => ({ ...prev, ...patch }),

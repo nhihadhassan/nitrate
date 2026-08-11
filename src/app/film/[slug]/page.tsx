@@ -476,7 +476,7 @@ function RatingPanel({
             {histogram.map((bucket) => (
               <div
                 key={bucket.rating}
-                className="group relative flex-1"
+                className="group relative flex h-full flex-1 items-end"
                 title={`${bucket.rating / 2} stars — ${bucket.count}`}
               >
                 <div
