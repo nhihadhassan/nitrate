@@ -1840,7 +1840,12 @@ export async function countClubsFor(userId: string): Promise<number> {
 export type WeeklyOpenResult = { clubId: string; clubName: string; roundId: string }[];
 
 /**
- * Opens a wheel round for every club whose weekly slot has arrived.
+ * Opens a wheel round for every club whose weekly day has arrived.
+ *
+ * The gate is the club's local *weekday*, not a precise hour: the job runs once
+ * a day, so requiring a specific hour would permanently skip clubs whose
+ * timezone puts that hour after the run. `weeklyPickHour` is kept as a stored
+ * preference for a finer schedule later.
  *
  * Idempotent in two ways, because a cron can fire late, twice, or overlap a
  * manual round: clubs that already have a live round are skipped, and
@@ -1857,22 +1862,19 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
   for (const club of candidates) {
     // Evaluate the club's own weekday/hour in its own timezone.
     let localDay: number;
-    let localHour: number;
     try {
       const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: club.timezone,
         weekday: 'short',
-        hour: 'numeric',
-        hour12: false,
       }).formatToParts(now);
-      const weekday = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+      const weekday = parts.find((part) => part.type === 'weekday')?.value ?? 'Sun';
       localDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
-      localHour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
     } catch {
+      // An invalid timezone should skip one club, not break the whole job.
       continue;
     }
 
-    if (localDay !== club.weeklyPickDay || localHour < club.weeklyPickHour) continue;
+    if (localDay !== club.weeklyPickDay) continue;
 
     const sixDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
     if (club.weeklyPickLastOpenedAt && club.weeklyPickLastOpenedAt > sixDaysAgo) continue;

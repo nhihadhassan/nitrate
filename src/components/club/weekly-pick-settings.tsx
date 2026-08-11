@@ -23,7 +23,8 @@ export function WeeklyPickSettings({
   const toast = useToast();
   const [enabled, setEnabled] = useState(initial.enabled);
   const [day, setDay] = useState(initial.day);
-  const [hour, setHour] = useState(initial.hour);
+  // Stored but not editable while the job runs once a day; kept for a finer schedule later.
+  const hour = initial.hour;
   const [pending, startTransition] = useTransition();
 
   return (
@@ -50,8 +51,12 @@ export function WeeklyPickSettings({
       </label>
 
       {enabled ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Field label="Open submissions on" htmlFor="weekly-day">
+        <div className="mt-4 max-w-xs">
+          <Field
+            label="Open submissions on"
+            htmlFor="weekly-day"
+            hint={`Each ${DAYS[day]}, in ${timezone}.`}
+          >
             <select
               id="weekly-day"
               value={day}
@@ -61,20 +66,6 @@ export function WeeklyPickSettings({
               {DAYS.map((label, index) => (
                 <option key={label} value={index}>
                   {label}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="At" htmlFor="weekly-hour" hint={`In ${timezone}`}>
-            <select
-              id="weekly-hour"
-              value={hour}
-              onChange={(event) => setHour(Number(event.target.value))}
-              className={inputClass}
-            >
-              {Array.from({ length: 24 }, (_, h) => (
-                <option key={h} value={h}>
-                  {String(h).padStart(2, '0')}:00
                 </option>
               ))}
             </select>
