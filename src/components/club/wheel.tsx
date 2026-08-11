@@ -106,19 +106,25 @@ export function Wheel({
         }
       >
         {segments.map((segment, index) => {
-          // Rotate each label to the centre of its own slice.
+          // Labels sit at the polar centre of their slice but stay upright.
+          // Rotating them radially would leave everything on the left half
+          // upside down, which is exactly the half people squint at.
           const angle = index * sliceAngle + sliceAngle / 2;
+          const radians = ((angle - 90) * Math.PI) / 180;
+          const radius = size * 0.3;
           return (
             <span
               key={segment.nominationId}
-              className="absolute left-1/2 top-1/2 origin-left text-[0.6875rem] font-semibold text-black/85"
+              className="absolute text-center text-[0.6875rem] font-semibold leading-tight text-black/85"
               style={{
-                transform: `rotate(${angle - 90}deg) translateX(${size * 0.14}px)`,
-                width: size * 0.32,
-                textShadow: '0 1px 2px rgb(255 255 255 / 0.35)',
+                left: `${50 + (Math.cos(radians) * radius * 100) / size}%`,
+                top: `${50 + (Math.sin(radians) * radius * 100) / size}%`,
+                transform: 'translate(-50%, -50%)',
+                width: Math.min(size * 0.34, (size * Math.PI) / Math.max(segments.length, 3)),
+                textShadow: '0 1px 2px rgb(255 255 255 / 0.4)',
               }}
             >
-              <span className="block truncate">{segment.movieTitle}</span>
+              <span className="line-clamp-2">{segment.movieTitle}</span>
             </span>
           );
         })}
