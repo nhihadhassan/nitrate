@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { BRAND } from '@/lib/brand';
 import { env } from '@/env';
 
 import type { OutboundEmail } from './types';
@@ -42,7 +43,7 @@ function layout({
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#0e1013;border:1px solid #24282f;border-radius:10px;">
         <tr><td style="padding:28px 28px 0;">
-          <span style="font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#ff5b2e;font-weight:700;">Nitrate</span>
+          <span style="font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#ff5b2e;font-weight:700;">${escapeHtml(BRAND.short)}</span>
         </td></tr>
         <tr><td style="padding:16px 28px 0;">
           <h1 style="margin:0;font-size:28px;line-height:1.15;font-weight:400;color:#f4f4f5;">${heading}</h1>
@@ -59,7 +60,7 @@ function layout({
           <hr style="border:0;border-top:1px solid #24282f;margin:0 0 14px;">
           <p style="margin:0;font-size:12px;line-height:1.5;color:#6d7480;">
             ${footnote ? `${escapeHtml(footnote)}<br>` : ''}
-            You're getting this because you're in this Movie Club on Nitrate.
+            You're getting this because you're a member of ${escapeHtml(BRAND.name)}.
             <a href="${env.siteUrl}/settings" style="color:#a1a7b0;">Manage notifications</a>.
           </p>
         </td></tr>

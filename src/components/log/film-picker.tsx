@@ -154,7 +154,7 @@ export function FilmPicker({
 
       {degraded ? (
         <p className="mt-2 text-xs text-amber">
-          Showing films already in Nitrate — the film database is unreachable right now.
+          Showing films we already have — the film database is unreachable right now.
         </p>
       ) : null}
 

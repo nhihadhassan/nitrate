@@ -41,7 +41,7 @@ export default async function ClubsPage() {
           </Button>
         ) : (
           <Button asChild variant="iris" size="lg">
-            <Link href="/signup">Join Nitrate to start one</Link>
+            <Link href="/signup">Join to start one</Link>
           </Button>
         )}
       </header>

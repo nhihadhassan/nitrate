@@ -9,6 +9,7 @@ import { getCurrentUser } from '@/server/auth/session';
 import { getHomeFeed } from '@/server/services/feed';
 import { getUserClubs } from '@/server/services/clubs';
 import { getWatchlistPreview } from '@/server/services/profile';
+import { BRAND } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ export default async function HomePage({
         <div className="min-w-0">
           <div className="mb-2 flex items-end justify-between gap-4">
             <h1 className="text-2xl sm:text-3xl">
-              {feedScope === 'following' ? 'From people you follow' : 'Across Nitrate'}
+              {feedScope === 'following' ? 'From people you follow' : `Across ${BRAND.short}`}
             </h1>
             <div className="flex shrink-0 rounded-md border border-line p-0.5 text-xs">
               <ScopeTab href="/" active={feedScope === 'following'}>

@@ -35,7 +35,7 @@ export default async function SearchPage({
         <div className="mt-10">
           <EmptyState
             title="Find films, people, lists and clubs"
-            description="Type at least two characters. Film results come from TMDB; everything else is from Nitrate."
+            description="Type at least two characters. Film results come from TMDB; everything else is from the club."
           />
         </div>
       ) : (
@@ -67,7 +67,7 @@ export default async function SearchPage({
 
           {results.users.length ? (
             <section>
-              <SectionHeading title="People on Nitrate" />
+              <SectionHeading title="People here" />
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {results.users.map((person) => (
                   <li key={person.id} className="rounded-lg border border-line p-3">

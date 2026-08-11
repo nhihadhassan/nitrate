@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { createInviteAction } from '@/server/actions/clubs';
+import { BRAND } from '@/lib/brand';
 
 /**
  * Invites are the club growth loop, so this stays a one-tap affordance: the
@@ -39,7 +40,7 @@ export function ClubInvitePanel({
   async function share(value: string) {
     if (navigator.share) {
       try {
-        await navigator.share({ url: value, title: 'Join my movie club on Nitrate' });
+        await navigator.share({ url: value, title: `Join ${BRAND.name}` });
         return;
       } catch {
         /* dismissed */

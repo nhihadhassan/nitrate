@@ -32,7 +32,7 @@ export const env = {
     return process.env.RESEND_API_KEY?.trim() || null;
   },
   get emailFrom() {
-    return process.env.EMAIL_FROM?.trim() || 'Nitrate <onboarding@resend.dev>';
+    return process.env.EMAIL_FROM?.trim() || 'NBD Movie Club <onboarding@resend.dev>';
   },
   get cronSecret() {
     return process.env.CRON_SECRET?.trim() || null;

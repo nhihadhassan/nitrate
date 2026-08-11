@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { BRAND } from '@/lib/brand';
 
 export const metadata: Metadata = { title: 'Terms of service' };
 
@@ -9,7 +10,7 @@ export default function TermsPage() {
       <h1 className="text-4xl">Terms of service</h1>
       <p className="text-sm text-dim">Last updated 11 August 2026.</p>
 
-      <h2>1. Who can use Nitrate</h2>
+      <h2>1. Who can use it</h2>
       <p>
         You must be at least 13 years old, or the minimum age of digital consent where you live if
         that is higher. You are responsible for everything done through your account, so keep your
@@ -19,7 +20,7 @@ export default function TermsPage() {
       <h2>2. Your content</h2>
       <p>
         Your reviews, lists, diary entries and club messages remain yours. By posting them you give
-        us a non-exclusive licence to store and display them on Nitrate so the product can work —
+        us a non-exclusive licence to store and display them on {BRAND.name} so the product can work —
         showing your review on a film page, in a feed, or to your club. That licence ends when you
         delete the content, except where we must retain a copy for moderation or legal reasons.
       </p>
@@ -50,7 +51,7 @@ export default function TermsPage() {
 
       <h2>6. No warranty</h2>
       <p>
-        Nitrate is provided as is. We do not guarantee that it will be uninterrupted or error free,
+        {BRAND.name} is provided as is. We do not guarantee that it will be uninterrupted or error free,
         and we are not liable for indirect or consequential losses arising from your use of it.
         Nothing here limits liability that cannot be limited by law.
       </p>
@@ -58,7 +59,7 @@ export default function TermsPage() {
       <h2>7. Changes</h2>
       <p>
         We may update these terms. Material changes will be announced in the product before they
-        take effect. Continuing to use Nitrate after that means you accept the new terms.
+        take effect. Continuing to use it after that means you accept the new terms.
       </p>
     </>
   );

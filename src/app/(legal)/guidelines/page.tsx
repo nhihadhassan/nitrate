@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { BRAND } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: 'Community guidelines',
@@ -10,7 +11,7 @@ export default function GuidelinesPage() {
     <>
       <h1 className="text-4xl">Community guidelines</h1>
       <p>
-        Nitrate is a place to talk about films. These rules exist so it stays that way. They apply
+        {BRAND.name} is a place to talk about films. These rules exist so it stays that way. They apply
         to reviews, comments, lists, profiles, club names and club discussions alike.
       </p>
 
@@ -23,7 +24,7 @@ export default function GuidelinesPage() {
           caste, disability, sex, gender identity, sexual orientation or serious disease is removed
           and the account is suspended.
         </li>
-        <li>Do not impersonate other people, critics, filmmakers or Nitrate staff.</li>
+        <li>Do not impersonate other people, critics, filmmakers or club staff.</li>
       </ul>
 
       <h2>Spoilers</h2>

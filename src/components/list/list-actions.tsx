@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { deleteListAction } from '@/server/actions/lists';
 import { toggleListLikeAction } from '@/server/actions/social';
+import { BRAND } from '@/lib/brand';
 
 export function ListActions({
   listId,
@@ -76,7 +77,7 @@ export function ListActions({
           const url = `${window.location.origin}/list/${listId}`;
           if (navigator.share) {
             try {
-              await navigator.share({ url, title: 'A list on Nitrate' });
+              await navigator.share({ url, title: `A list on ${BRAND.short}` });
               return;
             } catch {
               /* dismissed */

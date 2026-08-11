@@ -1,8 +1,8 @@
 {
-  "name": "nitrate",
+  "name": "nhach-bule-dick-movie-club",
   "version": "1.0.0",
   "private": true,
-  "description": "Nitrate — a social film diary, and the movie club that runs itself.",
+  "description": "A social film diary for our group, with weekly wheel picks and movie clubs.",
   "engines": {
     "node": ">=20"
   },

@@ -8,6 +8,7 @@ import { LogButton } from '@/components/log/log-button';
 import { ThemeToggle } from '@/components/nav/theme-toggle';
 import { BellIcon, ChevronDownIcon, SearchIcon, ShieldIcon } from '@/components/ui/icons';
 import { Avatar } from '@/components/user/avatar';
+import { BRAND } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 export type NavUser = {
@@ -32,7 +33,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
   return (
     <header className="sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-xl">
       <div className="mx-auto flex h-14 max-w-[86rem] items-center gap-3 px-4 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 pr-1" aria-label="Nitrate home">
+        <Link href="/" className="flex items-center gap-2 pr-1" aria-label={`${BRAND.name} home`}>
           <Wordmark />
         </Link>
 
@@ -110,10 +111,15 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
   );
 }
 
+/**
+ * The name is long, so the wordmark degrades rather than wrapping or squashing
+ * the nav: full name on wide screens, initials-plus-"Movie Club" on narrower
+ * ones, and the film-reel mark alone on the smallest.
+ */
 function Wordmark() {
   return (
     <span className="flex items-center gap-2">
-      <span className="relative flex h-6 w-6 items-center justify-center">
+      <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
         <span className="absolute inset-0 rounded-[4px] bg-ember" />
         <span className="absolute inset-x-[5px] inset-y-[3px] rounded-[1px] bg-canvas" />
         <span className="absolute left-[3px] top-[5px] h-[2px] w-[2px] rounded-full bg-canvas" />
@@ -121,7 +127,12 @@ function Wordmark() {
         <span className="absolute right-[3px] top-[5px] h-[2px] w-[2px] rounded-full bg-canvas" />
         <span className="absolute bottom-[5px] right-[3px] h-[2px] w-[2px] rounded-full bg-canvas" />
       </span>
-      <span className="font-display text-[1.35rem] leading-none tracking-tight">Nitrate</span>
+      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight xl:inline">
+        {BRAND.name}
+      </span>
+      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight xs:inline xl:hidden">
+        {BRAND.short}
+      </span>
     </span>
   );
 }

@@ -57,7 +57,7 @@ export function SearchField({ initialQuery }: { initialQuery: string }) {
           autoFocus
           onChange={(event) => setValue(event.target.value)}
           placeholder="Films, people, lists, clubs…"
-          aria-label="Search Nitrate"
+          aria-label="Search"
           className={cn(inputClass, 'h-11 pl-9 text-base')}
         />
       </div>

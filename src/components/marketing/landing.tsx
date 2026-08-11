@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Container } from '@/components/ui/primitives';
+import { BRAND } from '@/lib/brand';
 
 const LOOPS = [
   {
@@ -13,8 +14,8 @@ const LOOPS = [
     body: 'Follow the friends and strangers whose taste you trust. Their films, reviews and lists are the feed. On any film page you see what the people you follow thought before you see the crowd.',
   },
   {
-    title: 'Run movie night without the group chat',
-    body: 'Movie Clubs give your friends a shared queue, nominations, blind voting, a scheduled night with RSVPs, and a private discussion. Everyone rates it independently — nobody sees the spread until they commit.',
+    title: 'Let the wheel settle it',
+    body: 'Every week everyone submits one film. Spin the wheel, it picks at random, and the group gets an email telling them what you are watching. No campaigning, no deadlock, nobody to blame.',
   },
 ];
 
@@ -31,13 +32,13 @@ export function LandingPage() {
           }}
         />
         <Container className="relative py-20 text-center sm:py-28">
-          <p className="eyebrow">A social film diary</p>
+          <p className="eyebrow">A film diary for the group</p>
           <h1 className="mx-auto mt-4 max-w-3xl text-balance text-5xl leading-[1.02] sm:text-6xl lg:text-7xl">
-            Your life in film, and the movie club that runs itself.
+            {BRAND.name}
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-pretty text-base leading-relaxed text-muted sm:text-lg">
             Track everything you watch. Find your next film through people whose taste you trust.
-            Then get your friends to actually agree on something.
+            Then stop arguing about it — everyone puts one film in, and the wheel decides.
           </p>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Button asChild variant="primary" size="lg">
@@ -73,10 +74,12 @@ export function LandingPage() {
             <h2 className="text-3xl sm:text-4xl">The bit nobody else does properly</h2>
             <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
               A Movie Club is a real place, not a tab. Suggest films to a shared queue that shows who
-              already wants to see them and who has already seen them. Open a nomination round, vote
-              without seeing the totals, and reveal the winner together. Schedule the night, RSVP,
-              watch, then rate it blind before the reveal. Every screening becomes a permanent entry
-              in your club&apos;s shared history — attendees, ratings, discussion and all.
+              already wants to see them and who has already seen them. Every week everyone puts one
+              film forward, then <span className="text-text">spin the wheel</span> — it picks at
+              random, emails the group, and nobody gets blamed. Or put it to a blind vote if you
+              prefer. Schedule the night, RSVP, watch, then rate it blind before the reveal. Every
+              screening becomes a permanent entry in your club&apos;s shared history — attendees,
+              ratings, discussion and all.
             </p>
             <Button asChild variant="iris" size="lg" className="mt-8">
               <Link href="/signup">Start a club</Link>
@@ -87,7 +90,7 @@ export function LandingPage() {
 
       <Container className="py-16 text-center">
         <p className="text-xs text-dim">
-          Film data and artwork from TMDB. Nitrate is not endorsed or certified by TMDB.
+          Film data and artwork from TMDB. {BRAND.name} is not endorsed or certified by TMDB.
         </p>
       </Container>
     </div>

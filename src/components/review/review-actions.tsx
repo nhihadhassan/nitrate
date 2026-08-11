@@ -10,6 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { deleteEntryAction } from '@/server/actions/films';
 import { toggleReviewLikeAction } from '@/server/actions/social';
+import { BRAND } from '@/lib/brand';
 
 export function ReviewActions({
   entryId,
@@ -38,7 +39,7 @@ export function ReviewActions({
     const url = `${window.location.origin}/review/${entryId}`;
     if (navigator.share) {
       try {
-        await navigator.share({ url, title: 'A review on Nitrate' });
+        await navigator.share({ url, title: `A review on ${BRAND.short}` });
         return;
       } catch {
         // User dismissed the sheet; fall through to copying.

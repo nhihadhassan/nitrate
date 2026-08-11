@@ -457,7 +457,7 @@ function RatingPanel({
     <div className="rounded-lg border border-line bg-surface/60 p-4">
       <div className="flex items-baseline justify-between gap-3">
         <div>
-          <p className="eyebrow">Nitrate rating</p>
+          <p className="eyebrow">Club rating</p>
           <p className="mt-1 font-display text-4xl leading-none tabular">
             {average ? (average / 2).toFixed(1) : '—'}
           </p>
@@ -493,7 +493,7 @@ function RatingPanel({
         </div>
       ) : (
         <p className="mt-3 text-xs text-dim">
-          Ratings from Nitrate members will appear here as people log this film.
+          Ratings from members will appear here as people log this film.
         </p>
       )}
 

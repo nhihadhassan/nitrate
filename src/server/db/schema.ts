@@ -1,5 +1,5 @@
 /**
- * Nitrate database schema.
+ * Nhach Bule Dick Movie Club — database schema.
  *
  * Everything lives in a dedicated `nitrate` Postgres schema so the app can share
  * a cluster without colliding with anything else, and so the runtime role can be

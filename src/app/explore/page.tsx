@@ -187,7 +187,7 @@ export default async function ExplorePage() {
                 href="/signup"
                 className="inline-block rounded-md bg-ember px-4 py-2 text-sm font-medium text-white hover:bg-ember-soft"
               >
-                Join Nitrate
+                Join us
               </Link>
             }
           />

@@ -1,8 +1,8 @@
-# Nitrate
+# Nhach Bule Dick Movie Club
 
-A social film diary, and the movie club that runs itself.
+A social film diary for our group — and the movie club that runs itself.
 
-Nitrate does the things a film-tracking network has to do — log what you watch,
+It does the things a film-tracking network has to do — log what you watch,
 keep a diary worth re-reading, rate and review, build lists and watchlists,
 follow people whose taste you trust — and adds the part nobody else does
 properly: **Movie Clubs**, where a group gets a shared queue, nomination rounds,

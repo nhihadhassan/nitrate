@@ -23,6 +23,7 @@ import {
   updateProfileAction,
 } from '@/server/actions/profile';
 import { toggleFollowAction } from '@/server/actions/social';
+import { BRAND } from '@/lib/brand';
 
 type StarterFilm = { slug: string; title: string; year: number | null; posterPath: string | null };
 
@@ -114,7 +115,7 @@ export function OnboardingFlow({
       {step === 0 ? (
         <section>
           <h1 className="text-4xl leading-tight sm:text-5xl">
-            Welcome to Nitrate{invite ? `, and to ${invite.name}` : ''}
+            Welcome{invite ? ` to ${invite.name}` : ` to ${BRAND.name}`}
           </h1>
           <ul className="mt-8 space-y-5">
             {[

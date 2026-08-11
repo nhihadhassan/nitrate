@@ -3,6 +3,7 @@ import { Inter, Instrument_Serif } from 'next/font/google';
 
 import { AppShell } from '@/components/nav/app-shell';
 import { Providers } from '@/components/providers';
+import { BRAND, titleTemplate } from '@/lib/brand';
 import { env } from '@/env';
 import { getCurrentUser } from '@/server/auth/session';
 import { getUnreadNotificationCount } from '@/server/services/notifications';
@@ -25,16 +26,15 @@ const display = Instrument_Serif({
 export const metadata: Metadata = {
   metadataBase: new URL(env.siteUrl),
   title: {
-    default: 'Nitrate — a social film diary',
-    template: '%s · Nitrate',
+    default: BRAND.name,
+    template: titleTemplate,
   },
-  description:
-    'Track the films you watch, keep a diary worth re-reading, and run movie night with your friends. Nitrate is a social film diary with movie clubs built in.',
-  applicationName: 'Nitrate',
+  description: BRAND.description,
+  applicationName: BRAND.name,
   openGraph: {
-    title: 'Nitrate',
-    description: 'A social film diary, and the movie club that runs itself.',
-    siteName: 'Nitrate',
+    title: BRAND.name,
+    description: BRAND.tagline,
+    siteName: BRAND.name,
     type: 'website',
   },
   icons: {

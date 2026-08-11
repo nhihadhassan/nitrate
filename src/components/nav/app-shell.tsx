@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { BottomNav } from '@/components/nav/bottom-nav';
 import { TopNav, type NavUser } from '@/components/nav/top-nav';
+import { BRAND } from '@/lib/brand';
 
 export function AppShell({
   user,
@@ -38,9 +39,9 @@ function SiteFooter() {
     <footer className="mt-16 hidden border-t border-line py-10 md:block">
       <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-8 px-6 text-sm">
         <div className="max-w-xs">
-          <p className="font-display text-lg">Nitrate</p>
+          <p className="font-display text-lg">{BRAND.name}</p>
           <p className="mt-1.5 text-xs leading-relaxed text-dim">
-            A social film diary, and the movie club that runs itself.
+            {BRAND.tagline}
           </p>
         </div>
         <nav aria-label="Footer" className="flex gap-12 text-xs">
