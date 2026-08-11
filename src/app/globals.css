@@ -1,0 +1,377 @@
+@import 'tailwindcss';
+
+/*
+  Nitrate design language
+  ----------------------
+  Near-black paper, warm ember accent, editorial serif headlines against a
+  neutral grotesk. Posters carry the colour; the chrome stays quiet so a wall of
+  artwork never has to compete with the interface.
+
+  Themes swap raw values on :root; @theme inline re-exports them as Tailwind
+  utilities so components never need dark: variants.
+*/
+
+:root {
+  color-scheme: dark;
+
+  --canvas: #08090b;
+  --canvas-raised: #0e1013;
+  --surface: #14171b;
+  --surface-hover: #1b1f24;
+  --surface-strong: #22262d;
+  --line: #24282f;
+  --line-strong: #333942;
+
+  --text: #f4f4f5;
+  --text-muted: #a1a7b0;
+  --text-dim: #6d7480;
+  --text-inverse: #0a0b0d;
+
+  --ember: #ff5b2e;
+  --ember-soft: #ff7a54;
+  --ember-dim: #7a2a15;
+  --iris: #8b7bff;
+  --iris-dim: #362f6b;
+  --jade: #34d399;
+  --jade-dim: #14503b;
+  --rose: #fb7185;
+  --amber: #f5b13d;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.7);
+  --shadow-pop: 0 12px 40px -8px rgb(0 0 0 / 0.75);
+
+  --grain-opacity: 0.028;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  --canvas: #fbfaf8;
+  --canvas-raised: #ffffff;
+  --surface: #ffffff;
+  --surface-hover: #f3f2ef;
+  --surface-strong: #e9e7e2;
+  --line: #e2e0da;
+  --line-strong: #cbc8c0;
+
+  --text: #14151a;
+  --text-muted: #5c6069;
+  --text-dim: #8b8f98;
+  --text-inverse: #ffffff;
+
+  --ember: #d93c11;
+  --ember-soft: #ef5a2c;
+  --ember-dim: #fbd9cd;
+  --iris: #5b48d6;
+  --iris-dim: #e3dffa;
+  --jade: #0f855c;
+  --jade-dim: #d3f0e4;
+  --rose: #d94a63;
+  --amber: #b57a0a;
+
+  --shadow-card: 0 1px 2px rgb(20 21 26 / 0.06), 0 8px 24px -16px rgb(20 21 26 / 0.24);
+  --shadow-pop: 0 12px 40px -10px rgb(20 21 26 / 0.22);
+
+  --grain-opacity: 0.02;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-canvas-raised: var(--canvas-raised);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-strong: var(--surface-strong);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-dim: var(--text-dim);
+  --color-inverse: var(--text-inverse);
+
+  --color-ember: var(--ember);
+  --color-ember-soft: var(--ember-soft);
+  --color-ember-dim: var(--ember-dim);
+  --color-iris: var(--iris);
+  --color-iris-dim: var(--iris-dim);
+  --color-jade: var(--jade);
+  --color-jade-dim: var(--jade-dim);
+  --color-rose: var(--rose);
+  --color-amber: var(--amber);
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: var(--font-display), 'Iowan Old Style', Georgia, serif;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+
+  --breakpoint-xs: 26rem;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Base                                                                       */
+/* -------------------------------------------------------------------------- */
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scrollbar-gutter: stable;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-feature-settings: 'cv05' 1, 'ss03' 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100dvh;
+}
+
+/* A single fixed grain plate. Cheap, and it stops flat black from looking dead. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.08;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+/* Section eyebrow used across Explore, profiles and club dashboards. */
+.eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--ember);
+  color: #fff;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-dim);
+}
+
+/* Firefox + WebKit scrollbars, tuned to disappear against the canvas. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Utilities                                                                  */
+/* -------------------------------------------------------------------------- */
+
+@utility scroll-rail {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 0.25rem;
+}
+@utility scroll-rail-item {
+  scroll-snap-align: start;
+  flex: none;
+}
+
+.scroll-rail::-webkit-scrollbar {
+  display: none;
+}
+
+@utility poster-frame {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(160deg, var(--surface) 0%, var(--canvas-raised) 100%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.05);
+}
+
+@utility card-surface {
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+@utility hairline {
+  border-bottom: 1px solid var(--line);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Screen-reader-only, but focusable (skip links). */
+.sr-only-focusable:not(:focus):not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Motion                                                                     */
+/* -------------------------------------------------------------------------- */
+
+@keyframes nitrate-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes nitrate-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nitrate-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nitrate-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes nitrate-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+    filter: blur(6px);
+  }
+  60% {
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes nitrate-shimmer {
+  from {
+    background-position: -180% 0;
+  }
+  to {
+    background-position: 180% 0;
+  }
+}
+
+.animate-pop {
+  animation: nitrate-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.animate-rise {
+  animation: nitrate-rise 240ms ease-out both;
+}
+.animate-fade {
+  animation: nitrate-fade 180ms ease-out both;
+}
+.animate-sheet {
+  animation: nitrate-sheet-up 260ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.animate-reveal {
+  animation: nitrate-reveal 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface-hover) 50%, var(--surface) 75%);
+  background-size: 300% 100%;
+  animation: nitrate-shimmer 1.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

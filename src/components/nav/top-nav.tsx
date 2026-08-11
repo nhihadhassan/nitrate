@@ -1,0 +1,232 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+
+import { LogButton } from '@/components/log/log-button';
+import { ThemeToggle } from '@/components/nav/theme-toggle';
+import { BellIcon, ChevronDownIcon, SearchIcon, ShieldIcon } from '@/components/ui/icons';
+import { Avatar } from '@/components/user/avatar';
+import { cn } from '@/lib/utils';
+
+export type NavUser = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarAssetId: string | null;
+  role: 'member' | 'moderator' | 'admin';
+  onboarded: boolean;
+};
+
+const LINKS = [
+  { href: '/', label: 'Home', match: (p: string) => p === '/' },
+  { href: '/explore', label: 'Explore', match: (p: string) => p.startsWith('/explore') },
+  { href: '/films', label: 'Films', match: (p: string) => p.startsWith('/films') },
+  { href: '/clubs', label: 'Clubs', match: (p: string) => p.startsWith('/club') },
+];
+
+export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCount: number }) {
+  const pathname = usePathname();
+
+  return (
+    <header className="sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-[86rem] items-center gap-3 px-4 sm:px-6">
+        <Link href="/" className="flex items-center gap-2 pr-1" aria-label="Nitrate home">
+          <Wordmark />
+        </Link>
+
+        <nav aria-label="Primary" className="hidden items-center gap-0.5 md:flex">
+          {LINKS.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={link.match(pathname) ? 'page' : undefined}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-sm transition-colors',
+                link.match(pathname)
+                  ? 'font-medium text-text'
+                  : 'text-muted hover:bg-surface-hover hover:text-text',
+              )}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <Link
+            href="/search"
+            aria-label="Search"
+            className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text md:hidden"
+          >
+            <SearchIcon />
+          </Link>
+          <div className="hidden md:block">
+            <SearchTrigger />
+          </div>
+
+          {user ? (
+            <>
+              <div className="hidden sm:block">
+                <LogButton size="sm" />
+              </div>
+              <Link
+                href="/notifications"
+                aria-label={
+                  unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'
+                }
+                className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text"
+              >
+                <BellIcon />
+                {unreadCount > 0 ? (
+                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ember px-1 text-[0.5625rem] font-bold text-white tabular">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                ) : null}
+              </Link>
+              <AccountMenu user={user} />
+            </>
+          ) : (
+            <>
+              <ThemeToggle />
+              <Link
+                href="/login"
+                className="rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:text-text"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-md bg-ember px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ember-soft"
+              >
+                Join
+              </Link>
+            </>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+function Wordmark() {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="relative flex h-6 w-6 items-center justify-center">
+        <span className="absolute inset-0 rounded-[4px] bg-ember" />
+        <span className="absolute inset-x-[5px] inset-y-[3px] rounded-[1px] bg-canvas" />
+        <span className="absolute left-[3px] top-[5px] h-[2px] w-[2px] rounded-full bg-canvas" />
+        <span className="absolute bottom-[5px] left-[3px] h-[2px] w-[2px] rounded-full bg-canvas" />
+        <span className="absolute right-[3px] top-[5px] h-[2px] w-[2px] rounded-full bg-canvas" />
+        <span className="absolute bottom-[5px] right-[3px] h-[2px] w-[2px] rounded-full bg-canvas" />
+      </span>
+      <span className="font-display text-[1.35rem] leading-none tracking-tight">Nitrate</span>
+    </span>
+  );
+}
+
+function SearchTrigger() {
+  return (
+    <Link
+      href="/search"
+      className="flex h-9 w-56 items-center gap-2 rounded-md border border-line bg-canvas-raised px-2.5 text-sm text-dim transition-colors hover:border-line-strong lg:w-64"
+    >
+      <SearchIcon className="h-4 w-4" />
+      <span>Films, people, clubs…</span>
+    </Link>
+  );
+}
+
+function AccountMenu({ user }: { user: NavUser }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+
+  useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const items = [
+    { href: `/@${user.username}`, label: 'Your profile' },
+    { href: `/@${user.username}/diary`, label: 'Diary' },
+    { href: `/@${user.username}/films`, label: 'Films' },
+    { href: `/@${user.username}/lists`, label: 'Lists' },
+    { href: '/watchlist', label: 'Watchlist' },
+    { href: '/settings', label: 'Settings' },
+  ];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="flex items-center gap-1 rounded-md p-0.5 pr-1 transition-colors hover:bg-surface-hover"
+      >
+        <Avatar user={user} size="md" />
+        <ChevronDownIcon className="h-3.5 w-3.5 text-dim" />
+        <span className="sr-only">Account menu</span>
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="animate-rise absolute right-0 top-[calc(100%+0.5rem)] w-56 overflow-hidden rounded-lg border border-line bg-canvas-raised py-1 shadow-pop"
+        >
+          <div className="border-b border-line px-3 py-2.5">
+            <p className="truncate text-sm font-medium">{user.displayName}</p>
+            <p className="truncate text-xs text-dim">@{user.username}</p>
+          </div>
+          {items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              role="menuitem"
+              className="block px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-hover hover:text-text"
+            >
+              {item.label}
+            </Link>
+          ))}
+          {user.role !== 'member' ? (
+            <Link
+              href="/admin"
+              role="menuitem"
+              className="flex items-center gap-2 border-t border-line px-3 py-2 text-sm text-iris transition-colors hover:bg-surface-hover"
+            >
+              <ShieldIcon className="h-4 w-4" />
+              Moderation
+            </Link>
+          ) : null}
+          <div className="border-t border-line px-3 py-2">
+            <ThemeToggle withLabel />
+          </div>
+          <form action="/api/auth/logout" method="post" className="border-t border-line">
+            <button
+              type="submit"
+              role="menuitem"
+              className="w-full px-3 py-2 text-left text-sm text-muted transition-colors hover:bg-surface-hover hover:text-text"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
