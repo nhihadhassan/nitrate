@@ -65,6 +65,9 @@ export const screeningStatus = nitrate.enum('screening_status', [
   'cancelled',
 ]);
 export const rsvpStatus = nitrate.enum('rsvp_status', ['going', 'maybe', 'cant']);
+/** How a round decides its winner: members vote, or the wheel picks at random. */
+export const selectionMode = nitrate.enum('selection_mode', ['vote', 'wheel']);
+export const emailStatus = nitrate.enum('email_status', ['queued', 'sent', 'failed', 'skipped']);
 export const creditKind = nitrate.enum('credit_kind', ['cast', 'crew']);
 export const entrySource = nitrate.enum('entry_source', ['manual', 'import', 'club']);
 export const activityType = nitrate.enum('activity_type', [
@@ -753,6 +756,15 @@ export const clubs = nitrate.table(
       .references(() => users.id, { onDelete: 'restrict' }),
     inviteCode: text('invite_code').notNull(),
 
+    /**
+     * Optional weekly ritual: open a submissions round automatically, then let
+     * the club spin for a winner. Day is 0=Sunday, hour is in the club timezone.
+     */
+    weeklyPickEnabled: boolean('weekly_pick_enabled').notNull().default(false),
+    weeklyPickDay: smallint('weekly_pick_day').notNull().default(1),
+    weeklyPickHour: smallint('weekly_pick_hour').notNull().default(18),
+    weeklyPickLastOpenedAt: timestamp('weekly_pick_last_opened_at', { withTimezone: true }),
+
     memberCount: integer('member_count').notNull().default(1),
     screeningCount: integer('screening_count').notNull().default(0),
 
@@ -847,10 +859,19 @@ export const selectionRounds = nitrate.table(
     roundNumber: integer('round_number').notNull(),
     title: text('title'),
     status: roundStatus('status').notNull().default('draft'),
+    mode: selectionMode('mode').notNull().default('vote'),
     nominationLimitPerMember: smallint('nomination_limit_per_member').notNull().default(1),
     nominationsCloseAt: timestamp('nominations_close_at', { withTimezone: true }),
     votingCloseAt: timestamp('voting_close_at', { withTimezone: true }),
     winnerNominationId: uuid('winner_nomination_id'),
+
+    /**
+     * Set the instant the wheel resolves. Both are written in the same
+     * transaction as the winner, which is what makes a spin un-re-rollable —
+     * and the seed lets the client animate to a result it did not choose.
+     */
+    spunAt: timestamp('spun_at', { withTimezone: true }),
+    spinSeed: text('spin_seed'),
     tieBreak: text('tie_break').notNull().default('earliest_nomination'),
     createdByUserId: uuid('created_by_user_id')
       .notNull()
@@ -1033,6 +1054,39 @@ export const clubDiscussionReactions = nitrate.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.postId, t.userId, t.emoji] })],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Outbound email                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Durable outbox. Mail is written here inside the same transaction as the thing
+ * that caused it, then flushed by a worker — so a provider outage delays
+ * delivery instead of losing it, and nothing is sent for a rolled-back action.
+ */
+export const emailDeliveries = nitrate.table(
+  'email_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    toEmail: text('to_email').notNull(),
+    template: text('template').notNull(),
+    subject: text('subject').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    status: emailStatus('status').notNull().default('queued'),
+    attempts: integer('attempts').notNull().default(0),
+    providerMessageId: text('provider_message_id'),
+    error: text('error'),
+    /** Collapses duplicate sends, e.g. a spin retried by two tabs at once. */
+    dedupeKey: text('dedupe_key'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('email_status_idx').on(t.status, t.createdAt),
+    uniqueIndex('email_dedupe_key').on(t.dedupeKey),
+  ],
 );
 
 /* -------------------------------------------------------------------------- */
@@ -1269,3 +1323,4 @@ export type ActivityEvent = typeof activityEvents.$inferSelect;
 export type Report = typeof reports.$inferSelect;
 export type ImportBatch = typeof importBatches.$inferSelect;
 export type ImportRow = typeof importRows.$inferSelect;
+export type EmailDelivery = typeof emailDeliveries.$inferSelect;

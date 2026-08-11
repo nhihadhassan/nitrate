@@ -33,6 +33,8 @@ import {
   scheduleScreening,
   setMemberRole,
   setRsvp,
+  setWeeklyPick,
+  spinWheel,
   startRound,
   submitClubRating,
   transferOwnership,
@@ -246,6 +248,7 @@ export async function removeQueueItemAction(
 const startRoundSchema = z.object({
   clubId: z.string().uuid(),
   title: z.string().trim().max(80).nullable(),
+  mode: z.enum(['vote', 'wheel']).default('vote'),
   nominationLimitPerMember: z.number().int().min(1).max(5),
   nominationsCloseAt: z.string().datetime().nullable(),
   votingCloseAt: z.string().datetime().nullable(),
@@ -261,18 +264,22 @@ export async function startRoundAction(
       clubId: parsed.clubId,
       userId: user.id,
       title: parsed.title,
+      mode: parsed.mode,
       nominationLimitPerMember: parsed.nominationLimitPerMember,
       nominationsCloseAt: parsed.nominationsCloseAt ? new Date(parsed.nominationsCloseAt) : null,
       votingCloseAt: parsed.votingCloseAt ? new Date(parsed.votingCloseAt) : null,
     });
 
     const club = await getClubById(parsed.clubId);
-    await track('round_opened', user.id, { clubId: club.id, roundId: round.id });
+    await track('round_opened', user.id, { clubId: club.id, roundId: round.id, mode: parsed.mode });
     await notifyClub(club.id, {
       actorId: user.id,
       type: 'club_nominations_opened',
       url: `/club/${club.slug}`,
-      body: `Nominations are open in ${club.name}`,
+      body:
+        parsed.mode === 'wheel'
+          ? `Submissions are open in ${club.name} — the wheel decides`
+          : `Nominations are open in ${club.name}`,
       dedupeKey: `round_open:${round.id}`,
     });
 
@@ -376,6 +383,79 @@ export async function closeVotingAction(
       voteCount: result.winner?.voteCount ?? 0,
       tied: result.tied,
     };
+  });
+}
+
+export type SpinWheelResponse = {
+  winnerIndex: number;
+  seed: string;
+  alreadySpun: boolean;
+  movieTitle: string;
+  movieSlug: string;
+  nominatedBy: string;
+  contenderCount: number;
+  order: { nominationId: string; movieTitle: string }[];
+};
+
+/**
+ * The client asks the server to spin; the server decides and commits, then the
+ * client animates to a result it had no hand in choosing.
+ */
+export async function spinWheelAction(
+  roundId: string,
+  clubId: string,
+): Promise<ActionResult<SpinWheelResponse>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const result = await spinWheel(roundId, user.id);
+    const club = await getClubById(clubId);
+
+    if (!result.alreadySpun) {
+      await track('winner_revealed', user.id, {
+        clubId,
+        roundId,
+        mode: 'wheel',
+        movieId: result.winner?.movie.id,
+      });
+      await notifyClub(club.id, {
+        actorId: user.id,
+        type: 'club_winner_selected',
+        url: `/club/${club.slug}`,
+        body: `The wheel picked ${result.winner?.movie.title} for ${club.name}`,
+        dedupeKey: `winner:${roundId}`,
+      });
+    }
+
+    revalidatePath(`/club/${club.slug}`);
+    return {
+      winnerIndex: result.winnerIndex,
+      seed: result.seed,
+      alreadySpun: result.alreadySpun,
+      movieTitle: result.winner?.movie.title ?? '',
+      movieSlug: result.winner?.movie.slug ?? '',
+      nominatedBy: result.winner?.nominatedBy ?? '',
+      contenderCount: result.order.length,
+      order: result.order,
+    };
+  });
+}
+
+export async function setWeeklyPickAction(input: {
+  clubId: string;
+  enabled: boolean;
+  day: number;
+  hour: number;
+}): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    await setWeeklyPick(input.clubId, user.id, {
+      enabled: input.enabled,
+      day: input.day,
+      hour: input.hour,
+    });
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}/settings`);
+    return null;
   });
 }
 

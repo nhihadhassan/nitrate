@@ -17,6 +17,7 @@ import {
   users,
 } from '@/server/db/schema';
 import { actionGuard, NotFoundError, type ActionResult } from '@/server/errors';
+import { flushEmailQueue, type FlushResult } from '@/server/email/queue';
 import { ensureMovieDetails } from '@/server/movies/catalog';
 import { notify } from '@/server/services/notifications';
 
@@ -212,6 +213,13 @@ export async function refreshMovieMetadataAction(
     });
     revalidatePath('/admin/movies');
     return { title: movie.title };
+  });
+}
+
+export async function flushEmailQueueAction(): Promise<ActionResult<FlushResult>> {
+  return actionGuard(async () => {
+    await requireAdmin();
+    return flushEmailQueue(60);
   });
 }
 

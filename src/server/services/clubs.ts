@@ -1,10 +1,10 @@
 import 'server-only';
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
-import { slugify } from '@/lib/utils';
+import { formatRuntime, slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
 import {
   activityEvents,
@@ -29,6 +29,7 @@ import {
   type Screening,
   type SelectionRound,
 } from '@/server/db/schema';
+import { queueClubEmail } from '@/server/email/queue';
 import {
   ConflictError,
   NotFoundError,
@@ -50,7 +51,9 @@ export type RoundStatus = SelectionRound['status'];
  */
 const ROUND_TRANSITIONS: Record<RoundStatus, RoundStatus[]> = {
   draft: ['nominations_open', 'cancelled'],
-  nominations_open: ['voting_open', 'cancelled'],
+  // A wheel round jumps straight to a winner; only `spinWheel` may take that
+  // edge, and it refuses unless the round's mode is 'wheel'.
+  nominations_open: ['voting_open', 'winner_selected', 'cancelled'],
   voting_open: ['winner_selected', 'cancelled'],
   winner_selected: ['screening_scheduled', 'completed', 'cancelled'],
   screening_scheduled: ['completed', 'cancelled'],
@@ -576,6 +579,7 @@ export async function startRound(input: {
   clubId: string;
   userId: string;
   title: string | null;
+  mode?: 'vote' | 'wheel';
   nominationLimitPerMember: number;
   nominationsCloseAt: Date | null;
   votingCloseAt: Date | null;
@@ -609,6 +613,7 @@ export async function startRound(input: {
         roundNumber: last + 1,
         title: input.title,
         status: 'nominations_open',
+        mode: input.mode ?? 'vote',
         nominationLimitPerMember: input.nominationLimitPerMember,
         nominationsCloseAt: input.nominationsCloseAt,
         votingCloseAt: input.votingCloseAt,
@@ -846,6 +851,147 @@ export async function closeVoting(roundId: string, userId: string): Promise<Roun
         nominatedBy: top.by,
       },
       tied,
+    };
+  });
+}
+
+export type SpinResult = RoundResult & {
+  /** Index of the winner in the wheel's segment order, so the client can animate to it. */
+  winnerIndex: number;
+  seed: string;
+  alreadySpun: boolean;
+  order: { nominationId: string; movieTitle: string }[];
+};
+
+/**
+ * Spins the wheel.
+ *
+ * The randomness is server-side and the outcome is committed before the client
+ * ever animates, so a spin cannot be re-rolled by refreshing, racing two tabs,
+ * or calling the action twice — the second call returns the first result.
+ * Any active member may spin; it is a group ritual, not an admin chore.
+ */
+export async function spinWheel(roundId: string, userId: string): Promise<SpinResult> {
+  return db.transaction(async (tx) => {
+    // Lock the round row so two concurrent spins serialise instead of racing.
+    const [locked] = await tx
+      .select()
+      .from(selectionRounds)
+      .where(eq(selectionRounds.id, roundId))
+      .for('update')
+      .limit(1);
+    if (!locked) throw new NotFoundError('That round no longer exists.');
+
+    await requireMembership(locked.clubId, userId, 'member', tx);
+    if (locked.mode !== 'wheel') {
+      throw new ConflictError('This round is decided by voting, not the wheel.');
+    }
+
+    // Segment order is stable (nomination order) so the reveal matches the wheel.
+    const contenders = await tx
+      .select({ nomination: nominations, movie: movies, by: users.displayName })
+      .from(nominations)
+      .innerJoin(movies, eq(movies.id, nominations.movieId))
+      .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
+      .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)))
+      .orderBy(asc(nominations.createdAt));
+
+    const order = contenders.map((c) => ({
+      nominationId: c.nomination.id,
+      movieTitle: c.movie.title,
+    }));
+
+    // Already spun: replay the stored outcome rather than picking again.
+    if (locked.winnerNominationId && locked.spinSeed) {
+      const index = order.findIndex((o) => o.nominationId === locked.winnerNominationId);
+      const winner = contenders[index] ?? contenders[0];
+      return {
+        round: locked,
+        winner: winner
+          ? {
+              nominationId: winner.nomination.id,
+              movie: winner.movie,
+              voteCount: 0,
+              nominatedBy: winner.by,
+            }
+          : null,
+        tied: false,
+        winnerIndex: Math.max(index, 0),
+        seed: locked.spinSeed,
+        alreadySpun: true,
+        order,
+      };
+    }
+
+    if (contenders.length < 2) {
+      throw new ValidationError('You need at least two submissions before spinning.');
+    }
+    assertTransition(locked.status, 'winner_selected');
+
+    const winnerIndex = randomInt(0, contenders.length);
+    const chosen = contenders[winnerIndex];
+    const seed = randomBytes(8).toString('hex');
+
+    const [updated] = await tx
+      .update(selectionRounds)
+      .set({
+        status: 'winner_selected',
+        winnerNominationId: chosen.nomination.id,
+        spunAt: new Date(),
+        spinSeed: seed,
+        updatedAt: new Date(),
+      })
+      // Guard against a concurrent spin that beat us to the commit.
+      .where(and(eq(selectionRounds.id, roundId), isNull(selectionRounds.winnerNominationId)))
+      .returning();
+
+    if (!updated) {
+      throw new ConflictError('Someone just spun the wheel. Refresh to see the result.');
+    }
+
+    await tx.insert(activityEvents).values({
+      actorId: userId,
+      type: 'club_movie_selected',
+      clubId: locked.clubId,
+      movieId: chosen.movie.id,
+      visibility: 'private',
+      metadata: { roundId, mode: 'wheel', contenders: contenders.length },
+    });
+
+    const club = await getClubById(locked.clubId, tx);
+    await queueClubEmail(
+      locked.clubId,
+      'wheel_winner',
+      `🎬 ${club.name} is watching ${chosen.movie.title}`,
+      (member) => ({
+        clubName: club.name,
+        clubSlug: club.slug,
+        movieTitle: chosen.movie.title,
+        movieYear: chosen.movie.year,
+        movieSlug: chosen.movie.slug,
+        runtime: chosen.movie.runtime ? formatRuntime(chosen.movie.runtime) : null,
+        nominatedBy: chosen.by,
+        contenderCount: contenders.length,
+        recipientName: member.displayName,
+      }),
+      // One winner email per member per round, however many times this is called.
+      { dedupePrefix: `wheel:${roundId}` },
+      tx,
+    );
+
+    return {
+      round: updated,
+      winner: {
+        nominationId: chosen.nomination.id,
+        movie: chosen.movie,
+        voteCount: 0,
+        nominatedBy: chosen.by,
+      },
+      tied: false,
+      winnerIndex,
+      seed,
+      alreadySpun: false,
+      order,
     };
   });
 }
@@ -1685,6 +1831,109 @@ export async function countClubsFor(userId: string): Promise<number> {
     .from(clubMembers)
     .where(and(eq(clubMembers.userId, userId), eq(clubMembers.status, 'active')));
   return Number(row?.value ?? 0);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Weekly ritual                                                              */
+/* -------------------------------------------------------------------------- */
+
+export type WeeklyOpenResult = { clubId: string; clubName: string; roundId: string }[];
+
+/**
+ * Opens a wheel round for every club whose weekly slot has arrived.
+ *
+ * Idempotent in two ways, because a cron can fire late, twice, or overlap a
+ * manual round: clubs that already have a live round are skipped, and
+ * `weeklyPickLastOpenedAt` stops a second open inside the same six days.
+ */
+export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenResult> {
+  const candidates = await db
+    .select()
+    .from(clubs)
+    .where(and(eq(clubs.weeklyPickEnabled, true), isNull(clubs.deletedAt)));
+
+  const opened: WeeklyOpenResult = [];
+
+  for (const club of candidates) {
+    // Evaluate the club's own weekday/hour in its own timezone.
+    let localDay: number;
+    let localHour: number;
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: club.timezone,
+        weekday: 'short',
+        hour: 'numeric',
+        hour12: false,
+      }).formatToParts(now);
+      const weekday = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+      localDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
+      localHour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+    } catch {
+      continue;
+    }
+
+    if (localDay !== club.weeklyPickDay || localHour < club.weeklyPickHour) continue;
+
+    const sixDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    if (club.weeklyPickLastOpenedAt && club.weeklyPickLastOpenedAt > sixDaysAgo) continue;
+
+    const live = await getActiveRound(club.id);
+    if (live) continue;
+
+    try {
+      const round = await startRound({
+        clubId: club.id,
+        userId: club.ownerId,
+        title: null,
+        mode: 'wheel',
+        nominationLimitPerMember: 1,
+        // Submissions close just before the next weekly slot.
+        nominationsCloseAt: new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000),
+        votingCloseAt: null,
+      });
+
+      await db
+        .update(clubs)
+        .set({ weeklyPickLastOpenedAt: now })
+        .where(eq(clubs.id, club.id));
+
+      await queueClubEmail(
+        club.id,
+        'submissions_open',
+        `What should ${club.name} watch this week?`,
+        (member) => ({
+          clubName: club.name,
+          clubSlug: club.slug,
+          closesAt: null,
+          recipientName: member.displayName,
+        }),
+        { dedupePrefix: `submissions:${round.id}` },
+      );
+
+      opened.push({ clubId: club.id, clubName: club.name, roundId: round.id });
+    } catch (error) {
+      console.error('[weekly] could not open round for', club.slug, error);
+    }
+  }
+
+  return opened;
+}
+
+export async function setWeeklyPick(
+  clubId: string,
+  userId: string,
+  settings: { enabled: boolean; day: number; hour: number },
+): Promise<void> {
+  await requireMembership(clubId, userId, 'admin');
+  await db
+    .update(clubs)
+    .set({
+      weeklyPickEnabled: settings.enabled,
+      weeklyPickDay: Math.max(0, Math.min(6, Math.round(settings.day))),
+      weeklyPickHour: Math.max(0, Math.min(23, Math.round(settings.hour))),
+      updatedAt: new Date(),
+    })
+    .where(eq(clubs.id, clubId));
 }
 
 export async function getScreeningsNeedingReminder(withinHours = 24) {

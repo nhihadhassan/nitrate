@@ -6,6 +6,7 @@ import { NominatePanel } from '@/components/club/nominate-panel';
 import { RoundControls } from '@/components/club/round-controls';
 import { ScheduleScreeningForm } from '@/components/club/schedule-screening-form';
 import { VotingPanel } from '@/components/club/voting-panel';
+import { WheelPanel } from '@/components/club/wheel-panel';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
@@ -134,7 +135,9 @@ export default async function ClubDashboard({
                   {round.title || `Round ${round.roundNumber}`}
                 </h2>
                 <p className="mt-0.5 text-sm text-muted">
-                  {ROUND_STATUS_LABELS[round.status]}
+                  {round.mode === 'wheel' && round.status === 'nominations_open'
+                    ? 'Submissions open — the wheel decides'
+                    : ROUND_STATUS_LABELS[round.status]}
                   {round.status === 'nominations_open' && round.nominationsCloseAt
                     ? ` · closes ${relativeTime(round.nominationsCloseAt)}`
                     : ''}
@@ -149,6 +152,7 @@ export default async function ClubDashboard({
                   clubSlug={club.slug}
                   roundId={round.id}
                   status={round.status}
+                  mode={round.mode}
                   nominationCount={nominations.nominations.length}
                 />
               ) : null}
@@ -185,7 +189,36 @@ export default async function ClubDashboard({
               />
             ) : null}
 
-            {(round.status === 'voting_open' ||
+            {/* Wheel rounds replace voting entirely: submit, then spin. */}
+            {round.mode === 'wheel' &&
+            isMember &&
+            (round.status === 'nominations_open' ||
+              round.status === 'winner_selected' ||
+              round.status === 'screening_scheduled') ? (
+              <div className="mt-6">
+                <WheelPanel
+                  clubId={club.id}
+                  roundId={round.id}
+                  canSpin={round.status === 'nominations_open'}
+                  alreadySpunWinnerId={round.winnerNominationId}
+                  contenders={nominations.nominations.map((n) => ({
+                    nominationId: n.id,
+                    pitch: n.pitch,
+                    nominatedBy: n.nominatedBy,
+                    movie: {
+                      slug: n.movie.slug,
+                      title: n.movie.title,
+                      year: n.movie.year,
+                      posterPath: n.movie.posterPath,
+                      runtime: n.movie.runtime,
+                    },
+                  }))}
+                />
+              </div>
+            ) : null}
+
+            {round.mode === 'vote' &&
+            (round.status === 'voting_open' ||
               round.status === 'winner_selected' ||
               round.status === 'screening_scheduled') &&
             isMember ? (

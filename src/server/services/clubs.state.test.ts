@@ -31,9 +31,15 @@ describe('selection round transitions', () => {
   it('rejects skipping steps', () => {
     expect(canTransition('draft', 'voting_open')).toBe(false);
     expect(canTransition('draft', 'winner_selected')).toBe(false);
-    expect(canTransition('nominations_open', 'winner_selected')).toBe(false);
     expect(canTransition('nominations_open', 'screening_scheduled')).toBe(false);
     expect(canTransition('voting_open', 'screening_scheduled')).toBe(false);
+  });
+
+  it('lets a wheel round go straight from submissions to a winner', () => {
+    // Wheel rounds never enter voting. The edge is structurally legal; only
+    // `spinWheel` takes it, and it refuses on a round whose mode is 'vote'
+    // (covered by the integration suite against a real round).
+    expect(canTransition('nominations_open', 'winner_selected')).toBe(true);
   });
 
   it('rejects going backwards', () => {

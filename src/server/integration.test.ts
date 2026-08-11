@@ -9,7 +9,9 @@ import {
   clubs,
   diaryEntries,
   follows,
+  emailDeliveries,
   movies,
+  selectionRounds,
   userMovieState,
   users,
   type Club,
@@ -18,6 +20,7 @@ import {
 } from '@/server/db/schema';
 import {
   addToQueue,
+  cancelRound,
   castVote,
   closeVoting,
   completeScreening,
@@ -34,10 +37,13 @@ import {
   requireMembership,
   scheduleScreening,
   setRsvp,
+  spinWheel,
   startRound,
   submitClubRating,
   viewerHasSeenScreeningFilm,
 } from '@/server/services/clubs';
+import { flushEmailQueue } from '@/server/email/queue';
+import { wheelWinnerEmail } from '@/server/email/templates';
 import { consumeRateLimit } from '@/server/rate-limit';
 import { getHomeFeed } from '@/server/services/feed';
 import { logFilm, updateFilmState } from '@/server/services/films';
@@ -458,6 +464,151 @@ suite('nitrate integration', () => {
       intelligence.fromTheQueue.some((s) => s.movie.id === stalker.id),
     ).toBe(true);
   }, 30_000);
+
+  /* ---------------------------------------------------------------------- */
+  /* Weekly wheel picks                                                     */
+  /* ---------------------------------------------------------------------- */
+
+  it('spins a wheel round exactly once and emails the club', async () => {
+    const wheelClub = await createClub({
+      ownerId: alex.id,
+      name: `Wheel Club ${tag}`,
+      description: null,
+      visibility: 'private',
+      timezone: 'Europe/London',
+      interests: [],
+      imageAssetId: null,
+    });
+    created.clubIds.push(wheelClub.id);
+    await joinClubByCode(wheelClub.inviteCode, maya.id);
+
+    // A voting round must not be spinnable, even though the underlying state
+    // transition is structurally legal — the mode is what guards it.
+    const voteRound = await startRound({
+      clubId: wheelClub.id,
+      userId: alex.id,
+      title: 'Vote round',
+      mode: 'vote',
+      nominationLimitPerMember: 1,
+      nominationsCloseAt: null,
+      votingCloseAt: null,
+    });
+    await expect(spinWheel(voteRound.id, alex.id)).rejects.toThrow(/voting, not the wheel/i);
+    await cancelRound(voteRound.id, alex.id);
+
+    const round = await startRound({
+      clubId: wheelClub.id,
+      userId: alex.id,
+      title: 'This week',
+      mode: 'wheel',
+      nominationLimitPerMember: 1,
+      nominationsCloseAt: null,
+      votingCloseAt: null,
+    });
+
+    // And the mirror: a wheel round must not accept the voting path.
+    await expect(openVoting(round.id, alex.id)).rejects.toThrow();
+
+    const alien = await makeMovie('Alien Wheel', 1979);
+    await nominate({ roundId: round.id, userId: alex.id, movieId: alien.id, pitch: null });
+
+    // One submission is not a wheel.
+    await expect(spinWheel(round.id, alex.id)).rejects.toThrow(/at least two/i);
+
+    const thing = await makeMovie('The Thing Wheel', 1982);
+    await nominate({ roundId: round.id, userId: maya.id, movieId: thing.id, pitch: 'Trust no one' });
+
+    const first = await spinWheel(round.id, maya.id);
+    expect(first.alreadySpun).toBe(false);
+    expect(first.winner).not.toBeNull();
+    expect([alien.id, thing.id]).toContain(first.winner!.movie.id);
+    expect(first.order).toHaveLength(2);
+    expect(first.winnerIndex).toBeGreaterThanOrEqual(0);
+    // The winner must be the segment the client will animate to.
+    expect(first.order[first.winnerIndex].nominationId).toBe(first.winner!.nominationId);
+
+    // Spinning again must replay, never re-roll — by anyone, from any tab.
+    const second = await spinWheel(round.id, alex.id);
+    expect(second.alreadySpun).toBe(true);
+    expect(second.winner!.movie.id).toBe(first.winner!.movie.id);
+    expect(second.seed).toBe(first.seed);
+
+    const [after] = await db
+      .select()
+      .from(selectionRounds)
+      .where(eq(selectionRounds.id, round.id));
+    expect(after.status).toBe('winner_selected');
+    expect(after.spunAt).not.toBeNull();
+
+    // Both members were queued exactly one winner email, despite two spins.
+    const mail = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.template, 'wheel_winner'));
+    const forThisRound = mail.filter((m) => m.dedupeKey?.startsWith(`wheel:${round.id}`));
+    expect(forThisRound).toHaveLength(2);
+    expect(new Set(forThisRound.map((m) => m.toEmail)).size).toBe(2);
+    expect(forThisRound.every((m) => m.status === 'queued')).toBe(true);
+    expect(forThisRound[0].payload).toMatchObject({ contenderCount: 2 });
+  }, 60_000);
+
+  it('delivers queued mail through the transport and marks it sent', async () => {
+    // No RESEND_API_KEY in tests, so this exercises the console transport —
+    // the queue, claim and status transitions are the same either way.
+    const before = await db
+      .select()
+      .from(emailDeliveries)
+      .where(eq(emailDeliveries.status, 'queued'));
+    expect(before.length).toBeGreaterThan(0);
+
+    const result = await flushEmailQueue(50);
+    expect(result.sent).toBeGreaterThan(0);
+    expect(result.failed).toBe(0);
+
+    const stillQueued = await db
+      .select()
+      .from(emailDeliveries)
+      .where(and(eq(emailDeliveries.status, 'queued'), eq(emailDeliveries.attempts, 0)));
+    expect(stillQueued).toHaveLength(0);
+  }, 60_000);
+
+  it('renders a winner email with the film in both HTML and plain text', () => {
+    const email = wheelWinnerEmail({
+      clubName: 'Thursday Night Pictures',
+      clubSlug: 'thursday-night-pictures',
+      movieTitle: 'The Thing',
+      movieYear: 1982,
+      movieSlug: 'the-thing-1982',
+      runtime: '1h 49m',
+      nominatedBy: 'Maya',
+      contenderCount: 4,
+      recipientName: 'Alex',
+    });
+
+    expect(email.subject).toContain('The Thing');
+    expect(email.html).toContain('The Thing (1982)');
+    expect(email.html).toContain('/club/thursday-night-pictures');
+    // Plain text must stand on its own for clients that block HTML.
+    expect(email.text).toContain('The Thing (1982)');
+    expect(email.text).toContain('Maya');
+    expect(email.text).toContain('4 submissions');
+  });
+
+  it('escapes club names so a title cannot inject markup into an email', () => {
+    const email = wheelWinnerEmail({
+      clubName: '<script>alert(1)</script>',
+      clubSlug: 'x',
+      movieTitle: 'Fine',
+      movieYear: null,
+      movieSlug: 'fine',
+      runtime: null,
+      nominatedBy: 'Someone',
+      contenderCount: 2,
+      recipientName: 'Alex',
+    });
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).toContain('&lt;script&gt;');
+  });
 
   /* ---------------------------------------------------------------------- */
   /* Rate limiting                                                          */

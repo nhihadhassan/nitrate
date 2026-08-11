@@ -71,6 +71,15 @@ server-side, so a stale tab cannot reopen voting on a completed screening.
 - **Imports are idempotent.** Every diary entry carries a deterministic
   `externalKey`; re-running an import is a no-op, and nothing unmatched is ever
   silently discarded.
+- **Wheel picks are decided server-side.** A weekly round can be settled by a
+  spin instead of a vote: the server picks with `crypto.randomInt`, commits the
+  winner and a seed in one transaction, then the client animates to a result it
+  had no hand in choosing. Spinning twice replays the stored outcome, so there
+  are no re-rolls from a refresh or a second tab.
+- **Email goes through an outbox, not an inline send.** Mail is written in the
+  same transaction as the thing that caused it, then drained by an hourly job
+  that claims each row before any network call. A provider outage delays
+  delivery; a rolled-back action sends nothing.
 - **Provider outages degrade, they do not fail.** A circuit breaker falls back to
   our own catalogue and the UI says so plainly.
 
@@ -92,6 +101,9 @@ npm run dev
 | `SESSION_SECRET` | yes | 32+ random bytes |
 | `TMDB_API_KEY` | yes in practice | v4 read token or v3 key. Without it the app runs on its local catalogue only |
 | `NEXT_PUBLIC_SITE_URL` | yes | Used for invite links and absolute URLs |
+| `RESEND_API_KEY` | for real email | Without it mail queues and prints to the log; the admin outbox still shows it |
+| `EMAIL_FROM` | with Resend | Must be on a domain verified with your provider |
+| `CRON_SECRET` | in production | Bearer token the weekly-pick cron must present |
 
 ## Verification
 

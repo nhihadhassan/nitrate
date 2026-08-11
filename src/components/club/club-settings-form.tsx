@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { WeeklyPickSettings } from '@/components/club/weekly-pick-settings';
 import { ImageUpload } from '@/components/media/image-upload';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
@@ -23,6 +24,9 @@ export function ClubSettingsForm({
     timezone: string;
     interests: string[];
     imageAssetId: string | null;
+    weeklyPickEnabled: boolean;
+    weeklyPickDay: number;
+    weeklyPickHour: number;
   };
   isOwner: boolean;
 }) {
@@ -149,6 +153,16 @@ export function ClubSettingsForm({
           </Button>
         </div>
       </form>
+
+      <WeeklyPickSettings
+        clubId={club.id}
+        timezone={club.timezone}
+        initial={{
+          enabled: club.weeklyPickEnabled,
+          day: club.weeklyPickDay,
+          hour: club.weeklyPickHour,
+        }}
+      />
 
       <section className="rounded-lg border border-rose/25 p-4">
         <h2 className="text-lg text-rose">Danger zone</h2>

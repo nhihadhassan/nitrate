@@ -28,6 +28,15 @@ export const env = {
   get tmdbApiKey() {
     return process.env.TMDB_API_KEY?.trim() || null;
   },
+  get resendApiKey() {
+    return process.env.RESEND_API_KEY?.trim() || null;
+  },
+  get emailFrom() {
+    return process.env.EMAIL_FROM?.trim() || 'Nitrate <onboarding@resend.dev>';
+  },
+  get cronSecret() {
+    return process.env.CRON_SECRET?.trim() || null;
+  },
   get movieProvider() {
     const explicit = process.env.MOVIE_PROVIDER?.trim();
     if (explicit === 'offline' || explicit === 'tmdb') return explicit;

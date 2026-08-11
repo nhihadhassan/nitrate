@@ -27,12 +27,14 @@ export function RoundControls({
   clubSlug,
   roundId,
   status,
+  mode,
   nominationCount,
 }: {
   clubId: string;
   clubSlug: string;
   roundId: string | null;
   status: RoundStatus | null;
+  mode?: 'vote' | 'wheel';
   nominationCount: number;
 }) {
   const router = useRouter();
@@ -47,7 +49,7 @@ export function RoundControls({
     return (
       <>
         <Button variant="iris" onClick={() => setStarting(true)}>
-          Open nominations
+          Start a round
         </Button>
         {starting ? (
           <StartRoundSheet clubId={clubId} clubSlug={clubSlug} onClose={() => setStarting(false)} />
@@ -58,7 +60,7 @@ export function RoundControls({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {status === 'nominations_open' ? (
+      {status === 'nominations_open' && mode !== 'wheel' ? (
         <Button
           variant="iris"
           size="sm"
@@ -154,6 +156,7 @@ function StartRoundSheet({
   const router = useRouter();
   const toast = useToast();
   const [title, setTitle] = useState('');
+  const [mode, setMode] = useState<'vote' | 'wheel'>('wheel');
   const [limit, setLimit] = useState(1);
   const [nominationsClose, setNominationsClose] = useState(localDateTimeValue(3));
   const [votingClose, setVotingClose] = useState(localDateTimeValue(5));
@@ -164,8 +167,8 @@ function StartRoundSheet({
     <Sheet
       open
       onClose={onClose}
-      title="Open a nomination round"
-      description="Members suggest films, then everyone votes. Totals stay hidden until you close it."
+      title="Start a round"
+      description="Everyone puts a film forward. Then either the club votes, or the wheel decides."
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose} disabled={pending}>
@@ -180,30 +183,52 @@ function StartRoundSheet({
                 const result = await startRoundAction({
                   clubId,
                   title: title.trim() || null,
+                  mode,
                   nominationLimitPerMember: limit,
                   nominationsCloseAt: nominationsClose
                     ? new Date(nominationsClose).toISOString()
                     : null,
-                  votingCloseAt: votingClose ? new Date(votingClose).toISOString() : null,
+                  votingCloseAt:
+                    mode === 'wheel' || !votingClose
+                      ? null
+                      : new Date(votingClose).toISOString(),
                 });
                 if (!result.ok) {
                   setError(result.error);
                   return;
                 }
-                toast({ message: 'Nominations are open', tone: 'success' });
+                toast({ message: 'Submissions are open', tone: 'success' });
                 onClose();
                 router.push(`/club/${clubSlug}`);
                 router.refresh();
               });
             }}
           >
-            {pending ? 'Opening…' : 'Open nominations'}
+            {pending ? 'Opening…' : mode === 'wheel' ? 'Open submissions' : 'Open nominations'}
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
         <FormError>{error}</FormError>
+
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium">How is it decided?</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <ModeCard
+              active={mode === 'wheel'}
+              title="Spin the wheel"
+              body="Everyone submits one film, then the wheel picks at random. Nobody can be blamed."
+              onClick={() => setMode('wheel')}
+            />
+            <ModeCard
+              active={mode === 'vote'}
+              title="Put it to a vote"
+              body="Members nominate, then vote. Totals stay hidden until the round closes."
+              onClick={() => setMode('vote')}
+            />
+          </div>
+        </fieldset>
 
         <Field label="Round name" htmlFor="round-title" optional>
           <input
@@ -216,7 +241,7 @@ function StartRoundSheet({
           />
         </Field>
 
-        <Field label="Nominations per member" htmlFor="round-limit">
+        <Field label={mode === 'wheel' ? 'Submissions per member' : 'Nominations per member'} htmlFor="round-limit">
           <select
             id="round-limit"
             value={limit}
@@ -231,7 +256,7 @@ function StartRoundSheet({
           </select>
         </Field>
 
-        <Field label="Nominations close" htmlFor="round-nominations-close" optional>
+        <Field label={mode === 'wheel' ? 'Submissions close' : 'Nominations close'} htmlFor="round-nominations-close" optional>
           <input
             id="round-nominations-close"
             type="datetime-local"
@@ -241,16 +266,44 @@ function StartRoundSheet({
           />
         </Field>
 
-        <Field label="Voting closes" htmlFor="round-voting-close" optional>
-          <input
-            id="round-voting-close"
-            type="datetime-local"
-            value={votingClose}
-            onChange={(event) => setVotingClose(event.target.value)}
-            className={inputClass}
-          />
-        </Field>
+        {mode === 'vote' ? (
+          <Field label="Voting closes" htmlFor="round-voting-close" optional>
+            <input
+              id="round-voting-close"
+              type="datetime-local"
+              value={votingClose}
+              onChange={(event) => setVotingClose(event.target.value)}
+              className={inputClass}
+            />
+          </Field>
+        ) : null}
       </div>
     </Sheet>
+  );
+}
+
+function ModeCard({
+  active,
+  title,
+  body,
+  onClick,
+}: {
+  active: boolean;
+  title: string;
+  body: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-md border px-3 py-2.5 text-left transition-colors ${
+        active ? 'border-iris/50 bg-iris/[0.08]' : 'border-line hover:border-line-strong'
+      }`}
+    >
+      <span className="block text-sm font-medium">{title}</span>
+      <span className="mt-0.5 block text-xs leading-relaxed text-dim">{body}</span>
+    </button>
   );
 }
