@@ -141,6 +141,17 @@ histogram bar collapsed to its 2px minimum because a percentage height sat
 inside an auto-height wrapper.
 **Caught by:** actually logging a film on production and looking at it.
 
+### Email links pointed at localhost
+
+The first live test mail was rendered on a laptop, and email templates build
+every URL from `env.siteUrl` — there is no request to infer a host from, because
+a queue worker has no request. Locally that resolves to `http://localhost:3000`,
+so the "Open the club" button was dead in the recipient's inbox.
+
+Fixed by setting `NEXT_PUBLIC_SITE_URL` explicitly in Vercel production instead
+of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
+**Caught by:** clicking the link in the test email.
+
 ### Two non-bugs worth recording
 
 - A page appeared to render an empty `<main>` in the browser tool. It was a 0×0
@@ -165,6 +176,7 @@ inside an auto-height wrapper.
 | 11 Aug 2026 | Rebrand from Nitrate to Nhach Bule Dick Movie Club |
 | 11 Aug 2026 | Deployment protection turned off — the site is public |
 | 11 Aug 2026 | Resend configured on the verified `nhihadhassan.ca` domain; live send confirmed |
+| 11 Aug 2026 | `NEXT_PUBLIC_SITE_URL` set in production — the first test email carried `localhost` links |
 
 ---
 

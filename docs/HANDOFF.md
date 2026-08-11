@@ -70,7 +70,7 @@ Set in Vercel for **production and preview**, and in `.env.local` for dev.
 | `CRON_SECRET` | ✅ set | Bearer token the weekly job must present |
 | `RESEND_API_KEY` | ✅ set | Verified working — a live send returned a provider message id |
 | `EMAIL_FROM` | ✅ set | `movienight@nhihadhassan.ca`, on a Resend-verified domain |
-| `NEXT_PUBLIC_SITE_URL` | dev only | Vercel supplies its own in production |
+| `NEXT_PUBLIC_SITE_URL` | ✅ set | **Every link in outgoing email is built from this.** Set explicitly in production rather than relying on Vercel's own variable, because mail rendered anywhere else silently emits `localhost` links |
 
 ---
 
@@ -133,6 +133,12 @@ does not move until you refresh. There are no websockets. Adding live updates
 that, weekly rounds trigger on the club's local **weekday** only — the stored
 `weeklyPickHour` is not used, and its picker is hidden. Upgrading to Pro would
 let you restore hourly precision.
+
+**Email links come from `NEXT_PUBLIC_SITE_URL`, not from the request.** Mail is
+rendered by a background worker with no incoming request to infer a host from,
+so `env.siteUrl` is the only source. If you send from a local machine or a
+script, the links will point at whatever that environment has — during setup
+this produced a real test email with unclickable `localhost:3000` links.
 
 **Next.js is pinned to the 15.5.x line.** Vercel refuses to build versions with
 open advisories; 15.1.6 was rejected outright. Do not downgrade.
