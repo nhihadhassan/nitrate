@@ -38,6 +38,7 @@ import {
   submitClubRating,
   viewerHasSeenScreeningFilm,
 } from '@/server/services/clubs';
+import { consumeRateLimit } from '@/server/rate-limit';
 import { getHomeFeed } from '@/server/services/feed';
 import { logFilm, updateFilmState } from '@/server/services/films';
 import { getDiary, getProfileStats } from '@/server/services/profile';
@@ -456,6 +457,28 @@ suite('nitrate integration', () => {
     expect(
       intelligence.fromTheQueue.some((s) => s.movie.id === stalker.id),
     ).toBe(true);
+  }, 30_000);
+
+  /* ---------------------------------------------------------------------- */
+  /* Rate limiting                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  it('counts and enforces rate limits against the real database', async () => {
+    // Regression: this ran through postgres.js `unsafe()`, which cannot
+    // serialise a Date parameter, so every rate-limited action threw in
+    // production while passing every mock-free unit test.
+    const subject = `ratelimit-${randomUUID()}`;
+
+    // Well under the bucket: repeated calls must simply increment.
+    for (let i = 0; i < 5; i += 1) {
+      await expect(consumeRateLimit('login', subject)).resolves.toBeUndefined();
+    }
+
+    // 'login' allows 10 per window; the eleventh must be rejected.
+    for (let i = 5; i < 10; i += 1) {
+      await consumeRateLimit('login', subject);
+    }
+    await expect(consumeRateLimit('login', subject)).rejects.toThrow(/too quickly/i);
   }, 30_000);
 
   /* ---------------------------------------------------------------------- */

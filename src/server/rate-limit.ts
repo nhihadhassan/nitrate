@@ -1,8 +1,9 @@
 import 'server-only';
 
-import { sql } from 'drizzle-orm';
+import { lt, sql } from 'drizzle-orm';
 
 import { db } from '@/server/db';
+import { rateLimits } from '@/server/db/schema';
 import { RateLimitError } from '@/server/errors';
 
 type Bucket = { limit: number; windowSeconds: number };
@@ -32,6 +33,10 @@ export type LimitName = keyof typeof LIMITS;
 /**
  * Fixed-window counter kept in Postgres. A single upsert does the whole job,
  * which matters because serverless instances share no memory.
+ *
+ * Deliberately built with the query builder rather than a raw `db.execute`:
+ * raw execution goes through postgres.js `unsafe()`, which does not serialise
+ * JS values like `Date`, so a timestamp parameter throws at runtime.
  */
 export async function consumeRateLimit(name: LimitName, subject: string): Promise<void> {
   const bucket = LIMITS[name];
@@ -39,20 +44,21 @@ export async function consumeRateLimit(name: LimitName, subject: string): Promis
   const windowStart = new Date(Math.floor(Date.now() / windowMs) * windowMs);
   const key = `${name}:${subject}:${windowStart.getTime()}`;
 
-  const rows = await db.execute<{ count: number }>(sql`
-    insert into nitrate.rate_limits (key, window_start, count)
-    values (${key}, ${windowStart}, 1)
-    on conflict (key) do update set count = nitrate.rate_limits.count + 1
-    returning count
-  `);
+  const [row] = await db
+    .insert(rateLimits)
+    .values({ key, windowStart, count: 1 })
+    .onConflictDoUpdate({
+      target: rateLimits.key,
+      set: { count: sql`${rateLimits.count} + 1` },
+    })
+    .returning({ count: rateLimits.count });
 
-  const count = Number(rows[0]?.count ?? 1);
-  if (count > bucket.limit) {
+  if ((row?.count ?? 1) > bucket.limit) {
     throw new RateLimitError();
   }
 }
 
 /** Best-effort cleanup of counters older than a day. */
 export async function pruneRateLimits(): Promise<void> {
-  await db.execute(sql`delete from nitrate.rate_limits where window_start < now() - interval '1 day'`);
+  await db.delete(rateLimits).where(lt(rateLimits.windowStart, new Date(Date.now() - 86_400_000)));
 }

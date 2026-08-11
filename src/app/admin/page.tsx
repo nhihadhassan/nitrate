@@ -55,7 +55,7 @@ export default async function AdminOverviewPage() {
              coalesce(count(d.id), 0)::int as logs
       from membership m
       left join nitrate.diary_entries d
-        on d.user_id = m.id and d.created_at >= ${weekAgo} and d.deleted_at is null
+        on d.user_id = m.id and d.created_at >= ${weekAgo.toISOString()}::timestamptz and d.deleted_at is null
       group by in_club
     `),
   ]);
