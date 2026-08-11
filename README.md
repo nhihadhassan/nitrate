@@ -8,8 +8,7 @@ people whose taste you trust. Then it adds the part nobody else does properly �
 **Movie Clubs**, where everyone submits one film a week, **the wheel picks at
 random**, and the group gets an email telling them what they're watching.
 
-**Live:** `https://nitrate-nhihadhassan-2432s-projects.vercel.app`
-*(currently behind Vercel Deployment Protection — see [HANDOFF](docs/HANDOFF.md) §4)*
+**Live:** https://nitrate-nhihadhassan-2432s-projects.vercel.app — public, no sign-in wall.
 
 ---
 

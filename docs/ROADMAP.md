@@ -5,25 +5,19 @@ build.
 
 ---
 
-## Now — before anyone else can use it
+## Now
 
-These are configuration, not code. All three are in `docs/HANDOFF.md` §4.
+The three launch blockers are cleared: the site is public, Resend is configured
+against a verified domain and verified with a live send, and the deploy token
+was left in place by choice.
 
-1. **Turn off Vercel Deployment Protection.** Until this is done, friends hit an
-   SSO wall. One toggle in project settings.
-2. **Configure Resend** (`RESEND_API_KEY`, `EMAIL_FROM` on a verified domain).
-   Until then, club emails queue but never leave the building.
-3. **Rotate the credentials that passed through chat** — the Vercel deploy token
-   and, if you want to be thorough, the TMDB key.
-
-Worth doing at the same time:
+What is still worth doing soon:
 
 - **Connect the GitHub repo to Vercel** for push-to-deploy. Deploys are
   currently manual CLI runs.
-- **Clear the test data** — one account (`ninaverity`) and one club. Say the word
-  and it can be wiped.
-
----
+- **Clear the test data** — one account (`ninaverity`) with an undeliverable
+  `@nitrate.test` address, and one club. Say the word and it can be wiped.
+- **Make yourself an admin** so `/admin` is reachable (SQL in `docs/HANDOFF.md` §7).
 
 ## Next — the obvious gaps
 

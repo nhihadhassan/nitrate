@@ -14,7 +14,7 @@ Written to be read by someone who has never seen the project.
 | Live URL | `https://nitrate-nhihadhassan-2432s-projects.vercel.app` |
 | Database | Supabase project `rachel-tracker` (`zgafubhzhxikuknihmnu`), ca-central-1 |
 | Film data | TMDB API |
-| Email | Resend (not yet configured — see §4) |
+| Email | Resend, sending as `movienight@nhihadhassan.ca` |
 
 > **The repo, Vercel project and URL are still called `nitrate`.** That was the
 > product's original name. Renaming the Vercel project changes the live URL and
@@ -68,41 +68,26 @@ Set in Vercel for **production and preview**, and in `.env.local` for dev.
 | `TMDB_API_KEY` | ✅ set | v4 read token |
 | `MOVIE_PROVIDER` | ✅ set | `tmdb`. Set `offline` to force the local catalogue |
 | `CRON_SECRET` | ✅ set | Bearer token the weekly job must present |
-| `RESEND_API_KEY` | ❌ **not set** | Until set, email queues but does not send |
-| `EMAIL_FROM` | ❌ **not set** | Must be a domain verified with Resend |
+| `RESEND_API_KEY` | ✅ set | Verified working — a live send returned a provider message id |
+| `EMAIL_FROM` | ✅ set | `movienight@nhihadhassan.ca`, on a Resend-verified domain |
 | `NEXT_PUBLIC_SITE_URL` | dev only | Vercel supplies its own in production |
 
 ---
 
-## 4. Three things stop friends using it today
+## 4. Access and email — both live
 
-### 4a. Vercel Deployment Protection is ON — this is the blocker
+**The site is public.** Vercel Deployment Protection is off; `/`, `/explore`,
+`/clubs`, `/login` and `/signup` all return 200 with no authentication. Friends
+can sign up from any device, phone included.
 
-Anyone who is not signed into the Vercel account hits an SSO wall.
+**Email sends for real.** `nhihadhassan.ca` is verified in Resend with sending
+enabled, so mail goes out as `movienight@nhihadhassan.ca` and can reach any
+address. Verified by pushing a message through the real queue and getting a
+provider message id back.
 
-**Fix:** Vercel → project `nitrate` → Settings → Deployment Protection → turn
-off *Vercel Authentication*. Ten seconds, no deploy needed.
-
-It is currently `all_except_custom_domains`, so attaching a custom domain would
-also make it public.
-
-### 4b. Email queues but does not send
-
-The pipeline is complete and tested — messages are written to
-`nitrate.email_deliveries`, deduped per member per round, retried up to four
-times, and visible at `/admin/email`. With no provider key the transport falls
-back to printing to the server log.
-
-**Fix:** create a Resend account, verify a sending domain, then set
-`RESEND_API_KEY` and `EMAIL_FROM` in Vercel. Queued mail sends on the next run —
-nothing already queued is lost.
-
-### 4c. Accounts need real email addresses
-
-The existing test account uses `@nitrate.test`, which bounces. Real signups need
-deliverable addresses for club emails to reach anyone.
-
----
+The one remaining caveat: accounts created with fake addresses (the original
+test account used `@nitrate.test`) will never receive anything. Real signups
+need deliverable addresses.
 
 ## 5. Running it locally
 

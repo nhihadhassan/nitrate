@@ -163,6 +163,8 @@ inside an auto-height wrapper.
 | 11 Aug 2026 | Cron moved hourly → daily (Vercel Hobby limit); weekly trigger gates on weekday only |
 | 11 Aug 2026 | Wheel labels kept upright instead of rotating radially |
 | 11 Aug 2026 | Rebrand from Nitrate to Nhach Bule Dick Movie Club |
+| 11 Aug 2026 | Deployment protection turned off — the site is public |
+| 11 Aug 2026 | Resend configured on the verified `nhihadhassan.ca` domain; live send confirmed |
 
 ---
 
