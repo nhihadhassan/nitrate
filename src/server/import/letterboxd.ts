@@ -203,65 +203,88 @@ function normalise(value: string): string {
     .trim();
 }
 
+type PendingRow = { id: string; rawTitle: string; rawYear: number | null };
+
 /**
- * Matches staged rows to canonical films.
+ * Matches one staged row to a canonical film.
  *
  * Exact title+year is treated as confident; a title-only match, or a match with
  * a nearby year, is flagged ambiguous for the user to resolve. Nothing is ever
  * silently dropped — unmatched rows stay in the batch with candidates attached.
  */
-export async function matchBatch(batchId: string, limit = 120): Promise<{ remaining: number }> {
+async function matchRow(row: PendingRow): Promise<void> {
+  try {
+    const query = row.rawTitle;
+    const { data } = await withProvider((provider) => provider.searchMovies(query, 1));
+    const results = data.results.slice(0, 6);
+
+    const target = normalise(row.rawTitle);
+    const exact = results.filter((r) => normalise(r.title) === target);
+    const withYear = row.rawYear ? exact.filter((r) => r.year === row.rawYear) : [];
+    const nearYear = row.rawYear
+      ? exact.filter((r) => r.year !== null && Math.abs(r.year - row.rawYear!) <= 1)
+      : [];
+
+    const candidates = results.map((r) => ({
+      providerId: r.providerId,
+      title: r.title,
+      year: r.year,
+      posterPath: r.posterPath,
+    }));
+
+    if (withYear.length === 1) {
+      await resolveRow(row.id, withYear[0].providerId, 'matched', 1, candidates);
+    } else if (!row.rawYear && exact.length === 1) {
+      await resolveRow(row.id, exact[0].providerId, 'matched', 0.85, candidates);
+    } else if (withYear.length > 1 || nearYear.length >= 1 || exact.length > 1) {
+      const best = (withYear[0] ?? nearYear[0] ?? exact[0])!;
+      await resolveRow(row.id, best.providerId, 'ambiguous', 0.6, candidates);
+    } else if (results.length) {
+      await resolveRow(row.id, results[0].providerId, 'ambiguous', 0.4, candidates);
+    } else {
+      await db
+        .update(importRows)
+        .set({ matchStatus: 'unmatched', candidates: [] })
+        .where(eq(importRows.id, row.id));
+    }
+  } catch (error) {
+    await db
+      .update(importRows)
+      .set({
+        matchStatus: 'unmatched',
+        error: error instanceof Error ? error.message.slice(0, 200) : 'Match failed',
+      })
+      .where(eq(importRows.id, row.id));
+  }
+}
+
+/**
+ * A slice is deliberately small and runs a handful of rows at a time.
+ *
+ * Each row costs a provider round trip, so a large sequential slice can outlive
+ * a serverless invocation — and a slice that dies takes its whole request with
+ * it. Small slices also mean the progress bar actually moves. Concurrency is
+ * kept low to stay well inside TMDB's rate limit.
+ */
+const SLICE_CONCURRENCY = 8;
+
+export async function matchBatch(batchId: string, limit = 24): Promise<{ remaining: number }> {
   const pending = await db
-    .select()
+    .select({ id: importRows.id, rawTitle: importRows.rawTitle, rawYear: importRows.rawYear })
     .from(importRows)
     .where(and(eq(importRows.batchId, batchId), eq(importRows.matchStatus, 'pending')))
     .limit(limit);
 
-  for (const row of pending) {
-    try {
-      const query = row.rawTitle;
-      const { data } = await withProvider((provider) => provider.searchMovies(query, 1));
-      const results = data.results.slice(0, 6);
-
-      const target = normalise(row.rawTitle);
-      const exact = results.filter((r) => normalise(r.title) === target);
-      const withYear = row.rawYear ? exact.filter((r) => r.year === row.rawYear) : [];
-      const nearYear = row.rawYear
-        ? exact.filter((r) => r.year !== null && Math.abs(r.year - row.rawYear!) <= 1)
-        : [];
-
-      const candidates = results.map((r) => ({
-        providerId: r.providerId,
-        title: r.title,
-        year: r.year,
-        posterPath: r.posterPath,
-      }));
-
-      if (withYear.length === 1) {
-        await resolveRow(row.id, withYear[0].providerId, 'matched', 1, candidates);
-      } else if (!row.rawYear && exact.length === 1) {
-        await resolveRow(row.id, exact[0].providerId, 'matched', 0.85, candidates);
-      } else if (withYear.length > 1 || nearYear.length >= 1 || exact.length > 1) {
-        const best = (withYear[0] ?? nearYear[0] ?? exact[0])!;
-        await resolveRow(row.id, best.providerId, 'ambiguous', 0.6, candidates);
-      } else if (results.length) {
-        await resolveRow(row.id, results[0].providerId, 'ambiguous', 0.4, candidates);
-      } else {
-        await db
-          .update(importRows)
-          .set({ matchStatus: 'unmatched', candidates: [] })
-          .where(eq(importRows.id, row.id));
+  const queue = [...pending];
+  await Promise.all(
+    Array.from({ length: Math.min(SLICE_CONCURRENCY, queue.length) }, async () => {
+      for (;;) {
+        const row = queue.shift();
+        if (!row) return;
+        await matchRow(row);
       }
-    } catch (error) {
-      await db
-        .update(importRows)
-        .set({
-          matchStatus: 'unmatched',
-          error: error instanceof Error ? error.message.slice(0, 200) : 'Match failed',
-        })
-        .where(eq(importRows.id, row.id));
-    }
-  }
+    }),
+  );
 
   const [{ value: remaining }] = await db
     .select({ value: sql<number>`count(*)::int` })

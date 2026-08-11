@@ -52,37 +52,59 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
   const [error, setError] = useState<string | null>(null);
   const [matching, setMatching] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [total, setTotal] = useState<number | null>(null);
   const [summary, setSummary] = useState<Record<string, number> | null>(
     initialBatch?.status === 'completed' ? initialBatch.totals : null,
   );
   const [pending, startTransition] = useTransition();
 
-  // Drive the matching loop whenever a batch is still resolving.
+  const batchId = batch?.id ?? null;
+  const isMatching = batch?.status === 'matching';
+
+  /**
+   * Drives the matching loop while a batch is still resolving.
+   *
+   * The dependencies are deliberately the batch *id* and status rather than the
+   * batch object, and `matching` is deliberately absent: this effect calls
+   * `setMatching` and `setRemaining`, so depending on either would re-run the
+   * effect, fire the cleanup, and cancel the loop it had just started. That bug
+   * stopped every import dead after exactly one slice.
+   */
   useEffect(() => {
-    if (!batch || batch.status !== 'matching' || matching) return;
+    if (!batchId || !isMatching) return;
     let cancelled = false;
 
     async function loop() {
       setMatching(true);
+      let previous = Infinity;
       for (;;) {
-        const result = await matchImportSliceAction(batch!.id);
+        const result = await matchImportSliceAction(batchId!);
         if (cancelled) return;
         if (!result.ok) {
           setError(result.error);
           break;
         }
         setRemaining(result.data.remaining);
+        setTotal((current) => current ?? result.data.remaining);
         if (result.data.remaining === 0) break;
+        // Every row leaves `pending` one way or another, even when matching
+        // fails, so a slice that changes nothing means something is wrong
+        // server-side. Stop rather than spin forever.
+        if (result.data.remaining >= previous) {
+          setError('Matching stopped making progress. Reload to pick up where it left off.');
+          break;
+        }
+        previous = result.data.remaining;
       }
       setMatching(false);
-      if (!cancelled) router.replace(`/settings/import?batch=${batch!.id}`);
+      if (!cancelled) router.replace(`/settings/import?batch=${batchId}`);
     }
 
     void loop();
     return () => {
       cancelled = true;
     };
-  }, [batch, matching, router]);
+  }, [batchId, isMatching, router]);
 
   async function upload(fileList: FileList) {
     setError(null);
@@ -106,6 +128,7 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
       }
       setBatch({ id: result.data.batchId, status: 'matching', counts: {}, totals: {}, rows: [] });
       setRemaining(result.data.staged);
+      setTotal(result.data.staged);
     });
   }
 
@@ -203,8 +226,28 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
             ? `${pluralize(remaining, 'row')} to go. You can leave this open.`
             : 'Finishing up.'}
         </p>
-        <div className="h-1 overflow-hidden rounded-full bg-line">
-          <div className="h-full w-1/3 animate-pulse bg-ember" />
+        <div
+          className="h-1 overflow-hidden rounded-full bg-line"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={total ?? undefined}
+          aria-valuenow={total !== null && remaining !== null ? total - remaining : undefined}
+          aria-label="Matching progress"
+        >
+          {/* A real proportion when we know the total. The pulsing placeholder
+              is only for the moment before the first slice reports back — an
+              animated bar that never reflects progress reads as a hang. */}
+          <div
+            className={cn(
+              'h-full bg-ember transition-[width] duration-500',
+              total === null || remaining === null ? 'w-1/3 animate-pulse' : '',
+            )}
+            style={
+              total !== null && remaining !== null && total > 0
+                ? { width: `${Math.round(((total - remaining) / total) * 100)}%` }
+                : undefined
+            }
+          />
         </div>
         <FormError>{error}</FormError>
       </div>

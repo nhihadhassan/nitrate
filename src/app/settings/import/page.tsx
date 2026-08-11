@@ -6,6 +6,9 @@ import { getBatch, getLatestBatch } from '@/server/import/letterboxd';
 
 export const metadata: Metadata = { title: 'Import from Letterboxd' };
 export const dynamic = 'force-dynamic';
+/** Matching slices are server actions invoked from this route, and each row
+ *  costs a provider round trip. Give them room beyond the default. */
+export const maxDuration = 60;
 
 export default async function ImportPage({
   searchParams,

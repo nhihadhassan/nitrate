@@ -53,7 +53,7 @@ export async function matchImportSliceAction(
 ): Promise<ActionResult<{ remaining: number }>> {
   return actionGuard(async () => {
     await requireUser();
-    const result = await matchBatch(batchId, 60);
+    const result = await matchBatch(batchId, 24);
     return result;
   });
 }
