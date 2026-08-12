@@ -75,7 +75,10 @@ export function Wheel({
   }, [segments, sliceAngle]);
 
   return (
-    <div className="relative mx-auto" style={{ width: size, height: size }}>
+    <div
+      className="relative mx-auto aspect-square w-full max-w-[var(--wheel-size)]"
+      style={{ '--wheel-size': `${size}px` } as React.CSSProperties}
+    >
       {/* Pointer */}
       <div
         aria-hidden
@@ -126,7 +129,7 @@ export function Wheel({
                 left: `${50 + (Math.cos(radians) * radius * 100) / size}%`,
                 top: `${50 + (Math.sin(radians) * radius * 100) / size}%`,
                 transform: 'translate(-50%, -50%)',
-                width: Math.min(size * 0.34, (size * Math.PI) / Math.max(segments.length, 3)),
+                width: `${Math.min(34, (Math.PI * 100) / Math.max(segments.length, 3))}%`,
                 textShadow: '0 1px 2px rgb(255 255 255 / 0.4)',
               }}
             >

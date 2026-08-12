@@ -16,7 +16,7 @@ const LINKS = [
 export function SettingsNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Settings sections" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+    <nav aria-label="Settings sections" className="mobile-tabs -mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
       <ul className="flex min-w-max gap-1 border-b border-line md:min-w-0 md:flex-col md:border-b-0 md:border-l md:border-line">
         {LINKS.map((link) => {
           const active = pathname === link.href;
@@ -26,7 +26,7 @@ export function SettingsNav() {
                 href={link.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'inline-block px-3 py-2 text-sm transition-colors md:-ml-px md:block md:border-l-2',
+                  'flex min-h-11 items-center px-3 py-2 text-sm transition-colors md:-ml-px md:block md:min-h-0 md:border-l-2',
                   active
                     ? 'font-medium text-text md:border-ember'
                     : 'text-muted hover:text-text md:border-transparent',

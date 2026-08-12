@@ -172,6 +172,13 @@ export const UsersIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const UserIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="12" cy="8" r="3.5" />
+    <path d="M4.5 20c.7-4 3.6-6.2 7.5-6.2s6.8 2.2 7.5 6.2" />
+  </Icon>
+);
+
 export const FilmIcon = (p: IconProps) => (
   <Icon {...p}>
     <rect x="3" y="4.5" width="18" height="15" rx="2" />

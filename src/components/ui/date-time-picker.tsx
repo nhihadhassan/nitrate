@@ -201,7 +201,7 @@ export function DateTimePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cn(
-          'flex w-full items-center gap-2 rounded-md border border-line bg-canvas-raised px-3 py-2 text-left text-sm',
+          'flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-md border border-line bg-canvas-raised px-3 py-2 text-left text-base sm:min-h-0 sm:text-sm',
           'transition-colors hover:border-line-strong focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-0',
           accentRing,
           open && 'border-line-strong',
@@ -240,9 +240,10 @@ export function DateTimePicker({
           aria-modal="false"
           aria-labelledby={labelId}
           className={cn(
-            'absolute left-0 z-50 w-[19rem] rounded-xl border border-line bg-surface p-3 shadow-2xl',
+            'fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[140] max-h-[calc(var(--mobile-viewport-height,100dvh)-1.5rem)] overflow-y-auto rounded-xl border border-line bg-surface p-3 shadow-2xl',
+            'sm:absolute sm:inset-x-auto sm:bottom-auto sm:max-h-none sm:w-[19rem] sm:overflow-visible',
             'motion-safe:animate-[picker-in_120ms_ease-out]',
-            dropUp ? 'bottom-full mb-2 origin-bottom' : 'top-full mt-2 origin-top',
+            dropUp ? 'sm:bottom-full sm:mb-2 sm:origin-bottom' : 'sm:top-full sm:mt-2 sm:origin-top',
           )}
         >
           <div className="mb-2 flex items-center justify-between">
@@ -250,7 +251,7 @@ export function DateTimePicker({
               type="button"
               onClick={() => shiftMonth(-1)}
               aria-label="Previous month"
-              className="rounded-md p-1.5 text-muted transition-colors hover:bg-canvas-raised hover:text-text"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-muted transition-colors hover:bg-canvas-raised hover:text-text sm:h-auto sm:w-auto sm:p-1.5"
             >
               <ChevronRightIcon className="h-4 w-4 rotate-180" />
             </button>
@@ -261,7 +262,7 @@ export function DateTimePicker({
               type="button"
               onClick={() => shiftMonth(1)}
               aria-label="Next month"
-              className="rounded-md p-1.5 text-muted transition-colors hover:bg-canvas-raised hover:text-text"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-muted transition-colors hover:bg-canvas-raised hover:text-text sm:h-auto sm:w-auto sm:p-1.5"
             >
               <ChevronRightIcon className="h-4 w-4" />
             </button>
@@ -291,7 +292,7 @@ export function DateTimePicker({
                   onClick={() => commit({ y: view.y, m: view.m, d: day })}
                   onKeyDown={(event) => onGridKeyDown(event, day)}
                   className={cn(
-                    'flex h-8 items-center justify-center rounded-md text-sm tabular-nums transition-colors',
+                    'flex h-10 items-center justify-center rounded-md text-sm tabular-nums transition-colors sm:h-8',
                     selected
                       ? cn(accentBg, 'font-medium text-white')
                       : 'text-text hover:bg-canvas-raised',
@@ -335,7 +336,7 @@ export function DateTimePicker({
                     commit({ h: (current + 12) % 24 });
                   }}
                   className={cn(
-                    'ml-1 rounded-md border border-line px-2 py-1.5 text-xs font-medium tabular-nums transition-colors hover:border-line-strong',
+                    'ml-1 min-h-11 rounded-md border border-line px-2 py-1.5 text-xs font-medium tabular-nums transition-colors hover:border-line-strong sm:min-h-0',
                     accentText,
                   )}
                 >
@@ -364,7 +365,7 @@ export function DateTimePicker({
                       min: 0,
                     });
                   }}
-                  className="rounded-full border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-line-strong hover:text-text"
+                  className="min-h-10 rounded-full border border-line px-2.5 py-1 text-xs text-muted transition-colors hover:border-line-strong hover:text-text sm:min-h-0"
                 >
                   {preset.label}
                 </button>
@@ -380,7 +381,7 @@ export function DateTimePicker({
                 triggerRef.current?.focus();
               }}
               className={cn(
-                'rounded-md px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90',
+                'min-h-11 rounded-md px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:min-h-0 sm:px-3',
                 accentBg,
               )}
             >

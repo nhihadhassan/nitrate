@@ -46,7 +46,7 @@ export function SectionHeading({
   as?: 'h1' | 'h2' | 'h3';
 }) {
   return (
-    <div className={cn('mb-3 flex items-end justify-between gap-4', className)}>
+    <div className={cn('mb-3 flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2', className)}>
       <div className="min-w-0">
         <Tag className="text-xl sm:text-2xl">{title}</Tag>
         {subtitle ? <p className="mt-1 text-sm text-muted">{subtitle}</p> : null}
@@ -54,7 +54,7 @@ export function SectionHeading({
       {href ? (
         <Link
           href={href}
-          className="shrink-0 text-[0.8125rem] font-medium text-muted transition-colors hover:text-ember"
+          className="flex min-h-11 shrink-0 items-center text-[0.8125rem] font-medium text-muted transition-colors hover:text-ember sm:min-h-0"
         >
           {linkLabel}
         </Link>
@@ -87,7 +87,7 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        'empty-state flex flex-col items-center justify-center rounded-lg border border-dashed border-line px-6 py-14 text-center',
+        'empty-state flex flex-col items-center justify-center rounded-lg border border-dashed border-line px-5 py-9 text-center sm:px-6 sm:py-14',
         className,
       )}
     >
@@ -152,7 +152,7 @@ export function PosterGridSkeleton({ count = 12 }: { count?: number }) {
 /* -------------------------------------------------------------------------- */
 
 export const inputClass =
-  'w-full rounded-md border border-line bg-canvas-raised px-3 py-2 text-sm text-text placeholder:text-dim ' +
+  'w-full min-h-11 rounded-md border border-line bg-canvas-raised px-3 py-2 text-base text-text placeholder:text-dim sm:min-h-0 sm:text-sm ' +
   'transition-colors focus:border-line-strong focus:outline-none focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-0';
 
 export function Field({

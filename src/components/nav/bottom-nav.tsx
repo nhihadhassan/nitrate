@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 import { useLogDialog } from '@/components/log/log-dialog-provider';
 import type { NavUser } from '@/components/nav/top-nav';
-import { ClubIcon, CompassIcon, HomeIcon, PlusIcon, SearchIcon } from '@/components/ui/icons';
+import { ClubIcon, CompassIcon, HomeIcon, PlusIcon, UserIcon } from '@/components/ui/icons';
 import { Avatar } from '@/components/user/avatar';
 import { cn } from '@/lib/utils';
 
@@ -28,22 +28,22 @@ export function BottomNav({ user, unreadCount }: { user: NavUser | null; unreadC
     { href: '/clubs', label: 'Clubs', icon: ClubIcon, active: pathname.startsWith('/club') },
     user
       ? { href: `/@${user.username}`, label: 'You', icon: null, active: pathname.startsWith(`/@${user.username}`) }
-      : { href: '/login', label: 'Sign in', icon: SearchIcon, active: false },
+      : { href: '/login', label: 'Sign in', icon: UserIcon, active: false },
   ];
 
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-canvas/92 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden"
+      className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-line bg-canvas/92 pb-[max(env(safe-area-inset-bottom),0.25rem)] backdrop-blur-xl md:hidden"
     >
-      <ul className="mx-auto flex h-16 max-w-lg items-stretch">
+      <ul className="mx-auto flex h-[4.125rem] max-w-lg items-stretch px-1">
         {items.map((item, index) =>
           item === null ? (
             <li key="log" className="flex flex-1 items-center justify-center">
               <button
                 type="button"
                 onClick={() => (user ? open({}) : (window.location.href = '/login'))}
-                className="-mt-5 flex h-13 w-13 items-center justify-center rounded-full bg-ember text-white shadow-pop transition-transform active:scale-95"
+                className="-mt-5 flex h-13 w-13 touch-manipulation items-center justify-center rounded-full bg-ember text-white shadow-pop transition-transform active:scale-95"
                 style={{ height: '3.25rem', width: '3.25rem' }}
                 aria-label="Log a film"
               >
@@ -56,7 +56,7 @@ export function BottomNav({ user, unreadCount }: { user: NavUser | null; unreadC
                 href={item.href}
                 aria-current={item.active ? 'page' : undefined}
                 className={cn(
-                  'flex h-full flex-col items-center justify-center gap-1 text-[0.625rem] font-medium transition-colors',
+                  'relative flex h-full min-w-0 touch-manipulation flex-col items-center justify-center gap-1 overflow-hidden px-0.5 text-[0.625rem] font-medium transition-colors active:scale-[0.96]',
                   item.active ? 'text-ember' : 'text-dim hover:text-muted',
                 )}
               >
@@ -69,9 +69,9 @@ export function BottomNav({ user, unreadCount }: { user: NavUser | null; unreadC
                     className={item.active ? 'ring-2 ring-ember' : undefined}
                   />
                 ) : null}
-                <span>{item.label}</span>
+                <span className="max-w-full truncate">{item.label}</span>
                 {index === 4 && unreadCount > 0 ? (
-                  <span className="absolute mt-[-1.9rem] ml-5 h-2 w-2 rounded-full bg-ember" />
+                  <span className="absolute left-1/2 top-2.5 ml-2 h-2 w-2 rounded-full bg-ember ring-2 ring-canvas" />
                 ) : null}
               </Link>
             </li>

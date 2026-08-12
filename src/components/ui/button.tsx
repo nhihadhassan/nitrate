@@ -15,10 +15,10 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  sm: 'h-8 px-3 text-[0.8125rem] gap-1.5',
-  md: 'h-10 px-4 text-sm gap-2',
+  sm: 'h-11 px-3 text-[0.8125rem] gap-1.5 sm:h-8',
+  md: 'h-11 px-4 text-sm gap-2 sm:h-10',
   lg: 'h-12 px-6 text-[0.9375rem] gap-2',
-  icon: 'h-9 w-9 justify-center',
+  icon: 'h-11 w-11 justify-center sm:h-9 sm:w-9',
 };
 
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -41,7 +41,7 @@ export function Button({
       // Buttons inside forms default to submit; everything else should not.
       {...(asChild ? {} : { type: type ?? 'button' })}
       className={cn(
-        'tactile-button inline-flex select-none items-center rounded-md font-medium',
+        'tactile-button inline-flex touch-manipulation select-none items-center rounded-md font-medium',
         'disabled:pointer-events-none disabled:opacity-55',
         VARIANTS[variant],
         SIZES[size],

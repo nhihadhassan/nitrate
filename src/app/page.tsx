@@ -40,11 +40,11 @@ export default async function HomePage({
     <Container className="py-6 sm:py-8" size="wide">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="min-w-0">
-          <div className="mb-2 flex items-end justify-between gap-4">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
             <h1 className="text-2xl sm:text-3xl">
               {feedScope === 'following' ? 'From people you follow' : `Across ${BRAND.short}`}
             </h1>
-            <div className="flex shrink-0 rounded-md border border-line p-0.5 text-xs">
+            <div className="flex w-full rounded-md border border-line p-0.5 text-xs min-[390px]:w-auto min-[390px]:shrink-0">
               <ScopeTab href="/" active={feedScope === 'following'}>
                 Following
               </ScopeTab>
@@ -230,8 +230,8 @@ function ScopeTab({
       aria-current={active ? 'page' : undefined}
       className={
         active
-          ? 'rounded-xs bg-surface-strong px-2.5 py-1 font-medium text-text'
-          : 'rounded-xs px-2.5 py-1 text-muted transition-colors hover:text-text'
+          ? 'flex min-h-10 flex-1 items-center justify-center rounded-xs bg-surface-strong px-2.5 py-1 font-medium text-text min-[390px]:min-h-0 min-[390px]:flex-none'
+          : 'flex min-h-10 flex-1 items-center justify-center rounded-xs px-2.5 py-1 text-muted transition-colors hover:text-text min-[390px]:min-h-0 min-[390px]:flex-none'
       }
     >
       {children}

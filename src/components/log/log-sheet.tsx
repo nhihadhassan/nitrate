@@ -130,13 +130,13 @@ export function LogSheet({
       size="md"
       footer={
         film ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col-reverse gap-2 min-[360px]:flex-row min-[360px]:items-center">
             <Button
               variant="ghost"
               size="md"
               onClick={markWatchedOnly}
               disabled={pending}
-              className="shrink-0"
+              className="w-full justify-center min-[360px]:w-auto min-[360px]:shrink-0"
               title="Adds it to your films without inventing a date"
             >
               Seen it, no date
@@ -146,7 +146,7 @@ export function LogSheet({
               size="md"
               onClick={submit}
               disabled={pending}
-              className="ml-auto min-w-28 justify-center"
+              className="w-full justify-center min-[360px]:ml-auto min-[360px]:w-auto min-[360px]:min-w-28"
             >
               {pending ? 'Saving…' : isRewatch ? 'Log rewatch' : 'Log film'}
             </Button>
@@ -180,7 +180,7 @@ export function LogSheet({
                 <button
                   type="button"
                   onClick={() => setFilm(null)}
-                  className="mt-2 text-xs text-muted underline underline-offset-2 hover:text-ember"
+                  className="mt-1 flex min-h-11 items-center text-sm text-muted underline underline-offset-2 hover:text-ember sm:min-h-0 sm:text-xs"
                 >
                   Choose a different film
                 </button>
@@ -210,7 +210,7 @@ export function LogSheet({
                   aria-pressed={liked}
                   aria-label={liked ? 'Remove like' : 'Like this film'}
                   className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-md border text-lg transition-colors',
+                    'flex h-11 w-11 touch-manipulation items-center justify-center rounded-md border text-lg transition-colors sm:h-9 sm:w-9',
                     liked
                       ? 'border-rose/40 bg-rose/12 text-rose'
                       : 'border-line text-dim hover:border-line-strong hover:text-muted',
@@ -276,7 +276,7 @@ export function LogSheet({
                   onClick={() => setVisibility(option)}
                   aria-pressed={visibility === option}
                   className={cn(
-                    'flex flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left transition-colors',
+                    'flex min-h-12 touch-manipulation flex-col gap-0.5 rounded-md border px-2 py-2 text-left transition-colors sm:px-2.5',
                     visibility === option
                       ? 'border-ember/40 bg-ember/10'
                       : 'border-line hover:border-line-strong',

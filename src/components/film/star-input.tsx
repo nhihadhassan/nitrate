@@ -32,7 +32,11 @@ export function StarInput({
   const [hover, setHover] = useState<number | null>(null);
   const shown = hover ?? value ?? 0;
 
-  const starSize = { sm: 'h-5 w-5', md: 'h-7 w-7', lg: 'h-9 w-9' }[size];
+  const starSize = {
+    sm: 'h-8 w-8 sm:h-5 sm:w-5',
+    md: 'h-9 w-9 sm:h-7 sm:w-7',
+    lg: 'h-10 w-10 sm:h-9 sm:w-9',
+  }[size];
 
   function commit(next: number) {
     if (disabled) return;

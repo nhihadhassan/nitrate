@@ -137,7 +137,7 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
           </Link>
         ) : null}
 
-        <div className="mt-2.5 flex items-center gap-1">
+        <div className="mt-2 flex flex-wrap items-center gap-0.5">
           {item.entry ? (
             <>
               <button
@@ -163,7 +163,7 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
                 aria-pressed={likedByViewer}
                 aria-label={likedByViewer ? 'Unlike this entry' : 'Like this entry'}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+                  'flex min-h-10 touch-manipulation items-center gap-1.5 rounded-md px-2 text-xs transition-colors sm:min-h-0 sm:py-1',
                   likedByViewer ? 'text-rose' : 'text-dim hover:bg-surface-hover hover:text-muted',
                 )}
               >
@@ -176,7 +176,7 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
 
               <Link
                 href={reviewHref(item.entry)}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-dim transition-colors hover:bg-surface-hover hover:text-muted"
+                className="flex min-h-10 touch-manipulation items-center gap-1.5 rounded-md px-2 text-xs text-dim transition-colors hover:bg-surface-hover hover:text-muted sm:min-h-0 sm:py-1"
               >
                 <CommentIcon className="h-3.5 w-3.5" />
                 {item.entry.commentCount > 0 ? (
@@ -218,7 +218,7 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
                 });
               }}
               className={cn(
-                'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
+                'flex min-h-10 touch-manipulation items-center gap-1.5 rounded-md px-2 text-xs transition-colors sm:min-h-0 sm:py-1',
                 saved ? 'text-ember' : 'text-dim hover:bg-surface-hover hover:text-muted',
               )}
             >
