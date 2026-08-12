@@ -138,7 +138,7 @@ export default async function FilmsPage({
         <>
           <PosterGrid>
             {result.films.map((film) => (
-              <PosterCard key={film.slug} film={film} />
+              <PosterCard key={film.id} film={film} />
             ))}
           </PosterGrid>
 

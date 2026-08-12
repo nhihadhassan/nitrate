@@ -1,28 +1,45 @@
 /**
- * Single source of truth for the product's name.
+ * Application identity — the product, not any club inside it.
  *
- * Everything user-facing reads from here rather than hardcoding a string, so a
- * rename is one edit instead of forty. Internal identifiers — the Postgres
- * schema, the session cookie, localStorage keys — deliberately do *not* use
- * these values: renaming those would mean a data migration and signing everyone
- * out, for no user-visible benefit.
+ * This is deliberately the *only* place the product's name, tagline and
+ * description live. A Movie Club is content: it has its own name, its own page
+ * and its own members, and a club name must never leak into the application
+ * shell, a page title, an email header or an Open Graph card. If you find
+ * yourself wanting `BRAND.name` to change per club, you want the club's own
+ * `name` field instead.
+ *
+ * Internal identifiers — the Postgres schema, the session cookie, localStorage
+ * keys — deliberately do *not* read from here: renaming those would mean a data
+ * migration and signing everyone out, for no user-visible benefit.
  *
  * Renaming the product? Follow `docs/RENAMING.md`. Editing this file covers
- * every screen and every email, but four things live outside TypeScript and
- * cannot read it: the favicon letter, two source comments, the npm package
- * name, and the `EMAIL_FROM` environment variable.
+ * every screen and every email; four things live outside TypeScript and cannot
+ * read it: the favicon letter, two source comments, and the npm package name.
  */
 export const BRAND = {
   /** Full name. Used wherever there is room to say it properly. */
-  name: 'Rachad Julijan Diyack Movie Club',
-  /** For tight spots like the top navigation. */
-  short: 'RJD Movie Club',
+  name: 'Nitrate',
+  /** For tight spots like the top navigation. Same word here — it is short. */
+  short: 'Nitrate',
   /** Logo mark and favicons. */
-  initials: 'RJD',
-  tagline: 'Track what you watch. Decide together. Never argue about it again.',
+  initials: 'N',
+  /** The three layers the product is built on, in six words. */
+  tagline: 'Your films. Their films. Our films.',
   description:
-    'A social film diary for our group: track the films you watch, keep a diary worth re-reading, and let the wheel decide what we watch next.',
+    'Nitrate is a film diary that gets better with people in it. Track what you watch, follow the taste you trust, and run a Movie Club that decides together.',
+  /** One line for places that need to explain Movie Clubs specifically. */
+  clubsPitch:
+    'A Movie Club is a shared queue, a way to decide, a night in the calendar and a permanent record of everything you have watched together.',
 } as const;
 
-/** `Some Page · Rachad Julijan Diyack Movie Club` */
+/** `Some Page · Nitrate` */
 export const titleTemplate = `%s · ${BRAND.name}`;
+
+/**
+ * Page-title helper for routes that build titles outside Next's `metadata`
+ * template (emails, share strings). Keeps the separator in one place.
+ */
+export function pageTitle(...parts: (string | null | undefined)[]): string {
+  const segments = parts.filter((part): part is string => Boolean(part && part.trim()));
+  return [...segments, BRAND.name].join(' · ');
+}

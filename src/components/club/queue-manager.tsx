@@ -12,6 +12,7 @@ import { EmptyState, Field, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
 import { UserChip } from '@/components/user/avatar';
+import { filmHref } from '@/lib/links';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import { addQueueItemAction, removeQueueItemAction } from '@/server/actions/clubs';
 
@@ -114,7 +115,7 @@ export function QueueManager({
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <Link href={`/film/${item.movie.slug}`} className="font-medium hover:text-iris">
+                    <Link href={filmHref(item.movie)} className="font-medium hover:text-iris">
                       {item.movie.title}
                     </Link>
                     <p className="text-xs text-dim tabular">

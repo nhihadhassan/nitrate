@@ -2,13 +2,16 @@ import 'server-only';
 
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
+import type { FilmRef } from '@/lib/types';
 import { db } from '@/server/db';
 import { clubMembers, clubs, lists, movies, users } from '@/server/db/schema';
-import { withProvider, type ProviderMovieSummary, type ProviderPerson } from '@/server/movies/provider';
+import { filmRefsFromSummaries } from '@/server/movies/catalog';
+import { withProvider, type ProviderPerson } from '@/server/movies/provider';
 import { viewableSql, type Viewer } from '@/server/privacy';
 
 export type SearchResults = {
-  films: ProviderMovieSummary[];
+  /** Canonical local films — never provider ids, so every result links cleanly. */
+  films: FilmRef[];
   people: ProviderPerson[];
   users: { id: string; username: string; displayName: string; avatarAssetId: string | null; filmCount: number }[];
   lists: {
@@ -22,16 +25,29 @@ export type SearchResults = {
   degraded: boolean;
 };
 
+export type SearchOptions = {
+  /** Cap per group. The palette wants a handful; the results page wants the page. */
+  limit?: number;
+};
+
 /**
  * Global search. Films and people come from the provider (falling back to our
  * local catalogue if it is down); users, lists and clubs are local and privacy
  * filtered in SQL — a private list or club can never surface here.
+ *
+ * Film results are canonicalised on the way out, so picking one navigates
+ * straight to a real page rather than through a redirect.
  */
-export async function search(query: string, viewer: Viewer): Promise<SearchResults> {
+export async function search(
+  query: string,
+  viewer: Viewer,
+  options: SearchOptions = {},
+): Promise<SearchResults> {
   const trimmed = query.trim();
   if (trimmed.length < 2) {
     return { films: [], people: [], users: [], lists: [], clubs: [], degraded: false };
   }
+  const limit = options.limit ?? 8;
   const term = `%${trimmed.toLowerCase()}%`;
 
   const [films, people, userRows, listRows, clubRows] = await Promise.all([
@@ -69,7 +85,7 @@ export async function search(query: string, viewer: Viewer): Promise<SearchResul
         ),
       )
       .orderBy(desc(users.filmCount))
-      .limit(8),
+      .limit(limit),
 
     db
       .select({
@@ -90,7 +106,7 @@ export async function search(query: string, viewer: Viewer): Promise<SearchResul
         ),
       )
       .orderBy(desc(lists.likeCount))
-      .limit(8),
+      .limit(limit),
 
     db
       .select({
@@ -115,12 +131,14 @@ export async function search(query: string, viewer: Viewer): Promise<SearchResul
         ),
       )
       .orderBy(desc(clubs.memberCount))
-      .limit(8),
+      .limit(limit),
   ]);
 
   return {
-    films: films.data.results.filter((f) => !f.adult).slice(0, 20),
-    people: people.data.results.slice(0, 10),
+    films: await filmRefsFromSummaries(
+      films.data.results.filter((f) => !f.adult).slice(0, limit * 2),
+    ),
+    people: people.data.results.slice(0, limit),
     users: userRows,
     lists: listRows,
     clubs: clubRows,

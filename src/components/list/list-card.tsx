@@ -29,7 +29,9 @@ export function ListCard({
   return (
     <Link
       href={`/list/${list.id}`}
-      className="group block rounded-lg border border-line p-3 transition-colors hover:border-line-strong"
+      className="interactive-card group block rounded-lg border border-line p-3 hover:border-line-strong"
+      data-pointer-light
+      data-reveal="card"
     >
       <div className="flex h-24 items-stretch gap-0 overflow-hidden">
         {list.covers.length ? (

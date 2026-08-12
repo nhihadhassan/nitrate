@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { LikeMark, Stars } from '@/components/film/stars';
 import { EmptyState } from '@/components/ui/primitives';
 import { cn, pluralize } from '@/lib/utils';
 import { loadProfileContext } from '@/server/services/profile-context';
@@ -78,19 +79,21 @@ export default async function ProfileFilmsPage({
                   posterPath: movie.posterPath,
                 }}
                 footer={
-                  <div className="mt-0.5 flex items-center gap-1 text-[0.6875rem]">
-                    {state.rating ? (
-                      <span className="text-ember" aria-label={`${state.rating / 2} out of 5 stars`}>
-                        {'★'.repeat(Math.floor(state.rating / 2))}
-                        {state.rating % 2 ? '½' : ''}
-                      </span>
-                    ) : null}
-                    {state.liked ? (
-                      <span className="text-rose" aria-label="Liked">
-                        ♥
-                      </span>
-                    ) : null}
-                  </div>
+                  state.rating || state.liked ? (
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <Stars
+                        value={state.rating}
+                        size="xs"
+                        labelPrefix={`${profile.displayName} rated this`}
+                      />
+                      {state.liked ? (
+                        <LikeMark
+                          className="text-[0.6875rem] text-rose"
+                          label={`${profile.displayName} liked this film`}
+                        />
+                      ) : null}
+                    </div>
+                  ) : null
                 }
               />
             ))}

@@ -16,6 +16,8 @@ import {
   clubRatings,
   clubs,
   diaryEntries,
+  genres,
+  movieGenres,
   movies,
   nominations,
   screenings,
@@ -211,6 +213,7 @@ export async function updateClub(
     timezone: string;
     interests: string[];
     imageAssetId: string | null;
+    blindRatingsEnabled: boolean;
   }>,
 ): Promise<Club> {
   await requireMembership(clubId, userId, 'admin');
@@ -1331,12 +1334,15 @@ export type ClubRatingsView = {
 /**
  * Blind by default. Until you have submitted a score you get the count of
  * ratings in and nothing else — no average to anchor on, no individual scores.
+ * A club can turn this off in its settings, in which case everything is visible
+ * immediately.
  */
 export async function getClubRatings(
   screeningId: string,
   viewerId: string | null,
 ): Promise<ClubRatingsView> {
   const screening = await getScreeningById(screeningId);
+  const club = await getClubById(screening.clubId);
   const rows = await db
     .select({
       rating: clubRatings.rating,
@@ -1351,7 +1357,7 @@ export async function getClubRatings(
     .orderBy(desc(clubRatings.rating));
 
   const viewerRating = rows.find((r) => r.userId === viewerId)?.rating ?? null;
-  const revealed = viewerRating !== null;
+  const revealed = !club.blindRatingsEnabled || viewerRating !== null;
 
   const [{ value: memberCount }] = await db
     .select({ value: sql<number>`count(*)::int` })
@@ -1550,15 +1556,140 @@ export async function getUpcomingScreening(clubId: string) {
   return row ?? null;
 }
 
+/**
+ * Whether the viewer is allowed to see the group's score for each of these
+ * screenings.
+ *
+ * Blind ratings only mean something if they hold everywhere. Hiding the spread
+ * on the screening page while the dashboard prints the group average two
+ * screens away is not blind — it is a formality. Every surface that shows a
+ * per-film club score goes through this.
+ */
+export async function revealedScreeningIds(
+  clubId: string,
+  viewerId: string | null,
+  screeningIds: string[],
+): Promise<Set<string>> {
+  if (!screeningIds.length) return new Set();
+
+  const club = await getClubById(clubId);
+  if (!club.blindRatingsEnabled) return new Set(screeningIds);
+  if (!viewerId) return new Set();
+
+  const rows = await db
+    .select({ screeningId: clubRatings.screeningId })
+    .from(clubRatings)
+    .where(and(eq(clubRatings.userId, viewerId), inArray(clubRatings.screeningId, screeningIds)));
+  return new Set(rows.map((row) => row.screeningId));
+}
+
+export type CompletedScreening = {
+  screening: Screening;
+  movie: Movie;
+  /** Null when the club rates blind and the viewer has not rated it yet. */
+  average: number | null;
+  ratingsHidden: boolean;
+  viewerRated: boolean;
+};
+
+async function withRatingVisibility(
+  clubId: string,
+  viewerId: string | null,
+  rows: { screening: Screening; movie: Movie }[],
+): Promise<CompletedScreening[]> {
+  const revealed = await revealedScreeningIds(
+    clubId,
+    viewerId,
+    rows.map((row) => row.screening.id),
+  );
+  return rows.map(({ screening, movie }) => {
+    const viewerRated = revealed.has(screening.id);
+    const hasRatings = screening.groupRatingCount > 0;
+    return {
+      screening,
+      movie,
+      viewerRated,
+      ratingsHidden: hasRatings && !viewerRated,
+      average: viewerRated && hasRatings ? screening.groupRatingSum / screening.groupRatingCount : null,
+    };
+  });
+}
+
 /** Finished but still awaiting ratings/discussion — the club's "do this next". */
-export async function getRecentlyCompleted(clubId: string, limit = 6) {
-  return db
+export async function getRecentlyCompleted(
+  clubId: string,
+  limit = 6,
+  viewerId: string | null = null,
+): Promise<CompletedScreening[]> {
+  const rows = await db
     .select({ screening: screenings, movie: movies })
     .from(screenings)
     .innerJoin(movies, eq(movies.id, screenings.movieId))
     .where(and(eq(screenings.clubId, clubId), eq(screenings.status, 'completed')))
     .orderBy(desc(screenings.completedAt))
     .limit(limit);
+  return withRatingVisibility(clubId, viewerId, rows);
+}
+
+export type ScreeningProvenance = {
+  roundNumber: number;
+  mode: 'vote' | 'wheel';
+  nominatedBy: { username: string; displayName: string } | null;
+  pitch: string | null;
+  voteCount: number;
+  contenderCount: number;
+};
+
+/**
+ * How this film came to be the one they watched.
+ *
+ * A completed screening is a historical object, and "we spun for it in round 7,
+ * Sam put it forward" is the part of that history a bare date and rating throws
+ * away. Returns null for screenings scheduled directly, without a round.
+ */
+export async function getScreeningProvenance(
+  screening: Screening,
+): Promise<ScreeningProvenance | null> {
+  if (!screening.roundId) return null;
+
+  const [round] = await db
+    .select()
+    .from(selectionRounds)
+    .where(eq(selectionRounds.id, screening.roundId))
+    .limit(1);
+  if (!round) return null;
+
+  const [winner] = await db
+    .select({
+      voteCount: nominations.voteCount,
+      pitch: nominations.pitch,
+      username: users.username,
+      displayName: users.displayName,
+    })
+    .from(nominations)
+    .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
+    .where(
+      and(
+        eq(nominations.roundId, round.id),
+        eq(nominations.movieId, screening.movieId),
+        isNull(nominations.withdrawnAt),
+      ),
+    )
+    .limit(1);
+
+  const [{ value: contenderCount }] = await db
+    .select({ value: sql<number>`count(*)::int` })
+    .from(nominations)
+    .where(and(eq(nominations.roundId, round.id), isNull(nominations.withdrawnAt)));
+
+  return {
+    roundNumber: round.roundNumber,
+    mode: round.mode,
+    nominatedBy: winner ? { username: winner.username, displayName: winner.displayName } : null,
+    pitch: winner?.pitch ?? null,
+    voteCount: winner?.voteCount ?? 0,
+    contenderCount,
+  };
 }
 
 export async function getScreeningAttendance(screeningId: string) {
@@ -1600,8 +1731,19 @@ export async function getUserClubs(userId: string) {
     .orderBy(desc(clubs.updatedAt));
 }
 
-export async function getClubHistory(clubId: string, limit = 50) {
-  return db
+export type HistoryEntry = CompletedScreening & { round: SelectionRound | null };
+
+/**
+ * The club's permanent record. Each completed screening keeps its film, its
+ * date, who came, how everyone scored it, the discussion and the round that
+ * chose it — the whole object, not a line in a list.
+ */
+export async function getClubHistory(
+  clubId: string,
+  limit = 50,
+  viewerId: string | null = null,
+): Promise<HistoryEntry[]> {
+  const rows = await db
     .select({
       screening: screenings,
       movie: movies,
@@ -1613,57 +1755,133 @@ export async function getClubHistory(clubId: string, limit = 50) {
     .where(and(eq(screenings.clubId, clubId), eq(screenings.status, 'completed')))
     .orderBy(desc(screenings.completedAt))
     .limit(limit);
+
+  const visible = await withRatingVisibility(
+    clubId,
+    viewerId,
+    rows.map(({ screening, movie }) => ({ screening, movie })),
+  );
+  return visible.map((entry, index) => ({ ...entry, round: rows[index].round }));
 }
+
+export type ClubFilmHighlight = {
+  title: string;
+  slug: string;
+  rating: number;
+  /** Half-star standard deviation across the club. Only set for "most divisive". */
+  spread?: number;
+};
 
 export type ClubStats = {
   screeningCount: number;
   memberCount: number;
   averageRating: number | null;
   totalRuntimeMinutes: number;
-  topRated: { title: string; slug: string; rating: number } | null;
+  topRated: ClubFilmHighlight | null;
+  mostDivisive: ClubFilmHighlight | null;
+  topGenres: { name: string; count: number }[];
+  lastWatchedAt: Date | null;
 };
 
-export async function getClubStats(clubId: string): Promise<ClubStats> {
+/**
+ * A club's record of itself.
+ *
+ * The aggregate numbers are safe for any member — they say nothing about a
+ * specific film. The two highlights are not: naming the best-rated film and its
+ * score would hand a blind-rating club the answer before they voted. So those
+ * are computed only over screenings this viewer has already rated (unless the
+ * club has turned blind ratings off).
+ */
+export async function getClubStats(
+  clubId: string,
+  viewerId: string | null = null,
+): Promise<ClubStats> {
+  const club = await getClubById(clubId);
+
   const [row] = await db
     .select({
       screeningCount: sql<number>`count(*)::int`,
       ratingSum: sql<number>`coalesce(sum(${screenings.groupRatingSum}), 0)::int`,
       ratingCount: sql<number>`coalesce(sum(${screenings.groupRatingCount}), 0)::int`,
       runtime: sql<number>`coalesce(sum(${movies.runtime}), 0)::int`,
+      lastWatchedAt: sql<Date | null>`max(${screenings.completedAt})`,
     })
     .from(screenings)
     .innerJoin(movies, eq(movies.id, screenings.movieId))
     .where(and(eq(screenings.clubId, clubId), eq(screenings.status, 'completed')));
-
-  const [top] = await db
-    .select({
-      title: movies.title,
-      slug: movies.slug,
-      rating: sql<number>`(${screenings.groupRatingSum}::float / nullif(${screenings.groupRatingCount}, 0))`,
-    })
-    .from(screenings)
-    .innerJoin(movies, eq(movies.id, screenings.movieId))
-    .where(
-      and(
-        eq(screenings.clubId, clubId),
-        eq(screenings.status, 'completed'),
-        gt(screenings.groupRatingCount, 0),
-      ),
-    )
-    .orderBy(desc(sql`(${screenings.groupRatingSum}::float / nullif(${screenings.groupRatingCount}, 0))`))
-    .limit(1);
 
   const [{ value: memberCount }] = await db
     .select({ value: sql<number>`count(*)::int` })
     .from(clubMembers)
     .where(and(eq(clubMembers.clubId, clubId), eq(clubMembers.status, 'active')));
 
+  const [genreRows, highlightRows] = await Promise.all([
+    db
+      .select({ name: genres.name, count: sql<number>`count(*)::int` })
+      .from(screenings)
+      .innerJoin(movieGenres, eq(movieGenres.movieId, screenings.movieId))
+      .innerJoin(genres, eq(genres.id, movieGenres.genreId))
+      .where(and(eq(screenings.clubId, clubId), eq(screenings.status, 'completed')))
+      .groupBy(genres.name)
+      .orderBy(desc(sql`count(*)`))
+      .limit(4),
+
+    db
+      .select({
+        screeningId: screenings.id,
+        title: movies.title,
+        slug: movies.slug,
+        rating: sql<number>`(${screenings.groupRatingSum}::float / nullif(${screenings.groupRatingCount}, 0))`,
+        spread: sql<number>`coalesce((
+          select stddev_pop(cr.rating) from nitrate.club_ratings cr
+          where cr.screening_id = ${screenings.id}
+        ), 0)`,
+      })
+      .from(screenings)
+      .innerJoin(movies, eq(movies.id, screenings.movieId))
+      .where(
+        and(
+          eq(screenings.clubId, clubId),
+          eq(screenings.status, 'completed'),
+          gt(screenings.groupRatingCount, 0),
+        ),
+      ),
+  ]);
+
+  const revealed = await revealedScreeningIds(
+    clubId,
+    viewerId,
+    highlightRows.map((r) => r.screeningId),
+  );
+  const visible = club.blindRatingsEnabled
+    ? highlightRows.filter((r) => revealed.has(r.screeningId))
+    : highlightRows;
+
+  const topRated = [...visible].sort((a, b) => b.rating - a.rating)[0] ?? null;
+  // Divisive only means something once more than one person has weighed in.
+  const mostDivisive =
+    [...visible].filter((r) => Number(r.spread) > 0).sort((a, b) => Number(b.spread) - Number(a.spread))[0] ??
+    null;
+
   return {
     screeningCount: row?.screeningCount ?? 0,
     memberCount,
     averageRating: row?.ratingCount ? row.ratingSum / row.ratingCount : null,
     totalRuntimeMinutes: row?.runtime ?? 0,
-    topRated: top?.rating ? { title: top.title, slug: top.slug, rating: top.rating } : null,
+    lastWatchedAt: row?.lastWatchedAt ? new Date(row.lastWatchedAt) : null,
+    topGenres: genreRows,
+    topRated: topRated
+      ? { title: topRated.title, slug: topRated.slug, rating: Number(topRated.rating) }
+      : null,
+    mostDivisive:
+      mostDivisive && mostDivisive.slug !== topRated?.slug
+        ? {
+            title: mostDivisive.title,
+            slug: mostDivisive.slug,
+            rating: Number(mostDivisive.rating),
+            spread: Number(mostDivisive.spread),
+          }
+        : null,
   };
 }
 

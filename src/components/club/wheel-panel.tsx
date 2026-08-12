@@ -8,6 +8,7 @@ import { Poster } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { UserChip } from '@/components/user/avatar';
+import { filmHref } from '@/lib/links';
 import { formatRuntime, pluralize } from '@/lib/utils';
 import { spinWheelAction, type SpinWheelResponse } from '@/server/actions/clubs';
 
@@ -81,7 +82,7 @@ export function WheelPanel({
 
   if (winner && revealed) {
     return (
-      <div className="animate-reveal rounded-lg border border-iris/40 bg-iris/[0.07] p-5">
+      <div className="winner-card animate-reveal rounded-lg border border-iris/40 bg-iris/[0.07] p-5" data-pointer-light>
         <p className="eyebrow text-iris">The wheel picked</p>
         <div className="mt-3 flex gap-4">
           <div className="w-20 shrink-0 sm:w-24">
@@ -89,7 +90,7 @@ export function WheelPanel({
           </div>
           <div className="min-w-0 flex-1">
             <Link
-              href={`/film/${winner.movie.slug}`}
+              href={filmHref(winner.movie)}
               className="font-display text-2xl leading-tight hover:text-iris sm:text-3xl"
             >
               {winner.movie.title}
@@ -116,7 +117,7 @@ export function WheelPanel({
   }
 
   return (
-    <div className="rounded-lg border border-line p-5">
+    <div className="signature-surface rounded-lg border border-line p-5" data-pointer-light>
       <div className="flex flex-col items-center gap-5">
         {showWheel ? (
           <Wheel

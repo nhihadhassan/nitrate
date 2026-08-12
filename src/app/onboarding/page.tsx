@@ -26,7 +26,7 @@ export default async function OnboardingPage({
   ]);
 
   // A recognisable spread to rate: broadly popular, well known, poster-first.
-  const starters = [...rails.topRated, ...rails.trending]
+  const starters = [...rails.canon, ...rails.trending]
     .filter((film, index, all) => all.findIndex((f) => f.slug === film.slug) === index)
     .slice(0, 18);
 

@@ -7,8 +7,10 @@ import { PostScreeningPanel } from '@/components/club/post-screening-panel';
 import { RsvpControls } from '@/components/club/rsvp-controls';
 import { ScreeningAdminControls } from '@/components/club/screening-admin-controls';
 import { Poster } from '@/components/film/poster';
+import { RatingNumber } from '@/components/film/stars';
 import { Badge, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { Avatar } from '@/components/user/avatar';
+import { filmHref, userHref } from '@/lib/links';
 import { formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getMovieById } from '@/server/movies/catalog';
@@ -19,6 +21,7 @@ import {
   getMembership,
   getScreeningAttendance,
   getScreeningById,
+  getScreeningProvenance,
   getViewerScreeningContext,
   viewerHasSeenScreeningFilm,
 } from '@/server/services/clubs';
@@ -53,15 +56,17 @@ export default async function ScreeningPage({
     );
   }
 
-  const [movie, attendance, ratings, discussion, context, hasSeen, filmState] = await Promise.all([
-    getMovieById(screening.movieId),
-    getScreeningAttendance(screening.id),
-    getClubRatings(screening.id, user!.id),
-    getDiscussion(screening.id),
-    getViewerScreeningContext(screening, user!.id),
-    viewerHasSeenScreeningFilm(screening, user!.id),
-    getUserMovieState(user!.id, screening.movieId),
-  ]);
+  const [movie, attendance, ratings, discussion, context, hasSeen, filmState, provenance] =
+    await Promise.all([
+      getMovieById(screening.movieId),
+      getScreeningAttendance(screening.id),
+      getClubRatings(screening.id, user!.id),
+      getDiscussion(screening.id),
+      getViewerScreeningContext(screening, user!.id),
+      viewerHasSeenScreeningFilm(screening, user!.id),
+      getUserMovieState(user!.id, screening.movieId),
+      getScreeningProvenance(screening),
+    ]);
 
   const going = attendance.filter((a) => a.rsvp === 'going');
   const maybe = attendance.filter((a) => a.rsvp === 'maybe');
@@ -90,7 +95,12 @@ export default async function ScreeningPage({
               <Badge tone={isCompleted ? 'jade' : screening.status === 'cancelled' ? 'rose' : 'iris'}>
                 {screening.status}
               </Badge>
-              {screening.roundId ? <Badge>Voted for</Badge> : null}
+              {provenance ? (
+                <Badge>
+                  {provenance.mode === 'wheel' ? 'Wheel pick' : 'Voted in'} · round{' '}
+                  {provenance.roundNumber}
+                </Badge>
+              ) : null}
             </div>
             <h1 className="mt-2 text-3xl leading-tight sm:text-4xl">{movie.title}</h1>
             <p className="mt-1 text-sm text-muted tabular">
@@ -117,8 +127,33 @@ export default async function ScreeningPage({
                 {screening.notes}
               </p>
             ) : null}
+            {provenance ? (
+              <p className="mt-3 text-sm text-muted">
+                {provenance.nominatedBy ? (
+                  <>
+                    Put forward by{' '}
+                    <Link href={userHref(provenance.nominatedBy)} className="text-text hover:text-iris">
+                      {provenance.nominatedBy.displayName}
+                    </Link>
+                  </>
+                ) : (
+                  'Chosen'
+                )}
+                {provenance.mode === 'wheel'
+                  ? ` — the wheel picked it from ${pluralize(provenance.contenderCount, 'contender')}.`
+                  : ` — won with ${pluralize(provenance.voteCount, 'vote')} from ${pluralize(
+                      provenance.contenderCount,
+                      'contender',
+                    )}.`}
+              </p>
+            ) : null}
+            {provenance?.pitch ? (
+              <p className="mt-1.5 text-sm italic leading-relaxed text-muted">
+                &ldquo;{provenance.pitch}&rdquo;
+              </p>
+            ) : null}
             <p className="mt-3 text-xs text-dim">
-              <Link href={`/film/${movie.slug}`} className="hover:text-iris">
+              <Link href={filmHref(movie)} className="hover:text-iris">
                 Open the film page →
               </Link>
             </p>
@@ -246,7 +281,7 @@ export default async function ScreeningPage({
                 {attended.map((person) => (
                   <li key={person.userId} className="flex items-center gap-2">
                     <Avatar user={person} size="xs" />
-                    <Link href={`/@${person.username}`} className="truncate text-sm hover:text-iris">
+                    <Link href={userHref(person)} className="truncate text-sm hover:text-iris">
                       {person.displayName}
                     </Link>
                   </li>
@@ -267,15 +302,13 @@ export default async function ScreeningPage({
           )}
         </section>
 
-        {isCompleted && screening.groupRatingCount > 0 ? (
+        {/* Mirrors the blind-rating rule exactly: no score here before you have
+            given yours, or the sidebar quietly undoes the whole mechanic. */}
+        {isCompleted && ratings.revealed && ratings.average != null ? (
           <section className="rounded-lg border border-line bg-surface/50 p-4 text-center">
             <p className="eyebrow">Group rating</p>
-            <p className="mt-1 font-display text-4xl tabular">
-              {(screening.groupRatingSum / screening.groupRatingCount / 2).toFixed(1)}
-            </p>
-            <p className="text-xs text-dim">
-              from {pluralize(screening.groupRatingCount, 'member')}
-            </p>
+            <RatingNumber average={ratings.average} className="mt-1 block text-4xl" />
+            <p className="text-xs text-dim">from {pluralize(ratings.count, 'member')}</p>
           </section>
         ) : null}
 
@@ -306,7 +339,7 @@ function RsvpGroup({
         {people.map((person) => (
           <li key={person.userId} className="flex items-center gap-2">
             <Avatar user={person} size="xs" />
-            <Link href={`/@${person.username}`} className="truncate text-sm hover:text-iris">
+            <Link href={userHref(person)} className="truncate text-sm hover:text-iris">
               {person.displayName}
             </Link>
           </li>

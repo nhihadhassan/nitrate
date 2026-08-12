@@ -1,5 +1,5 @@
 /**
- * Rachad Julijan Diyack Movie Club — database schema.
+ * Nitrate — database schema.
  *
  * Everything lives in a dedicated `nitrate` Postgres schema so the app can share
  * a cluster without colliding with anything else, and so the runtime role can be
@@ -764,6 +764,14 @@ export const clubs = nitrate.table(
     weeklyPickDay: smallint('weekly_pick_day').notNull().default(1),
     weeklyPickHour: smallint('weekly_pick_hour').notNull().default(18),
     weeklyPickLastOpenedAt: timestamp('weekly_pick_last_opened_at', { withTimezone: true }),
+
+    /**
+     * When on (the default), a member sees no score for a film they have not
+     * rated yet — not the group average, not anyone else's stars, not on the
+     * dashboard, the history or the film page. Turning it off makes ratings
+     * visible immediately, for clubs that would rather just talk.
+     */
+    blindRatingsEnabled: boolean('blind_ratings_enabled').notNull().default(true),
 
     memberCount: integer('member_count').notNull().default(1),
     screeningCount: integer('screening_count').notNull().default(0),

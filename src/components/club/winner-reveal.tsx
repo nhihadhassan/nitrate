@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { filmHref } from '@/lib/links';
 import { pluralize } from '@/lib/utils';
 
 /**
@@ -58,7 +59,7 @@ export function WinnerReveal({
             </p>
             <div className="animate-rise mt-8 flex flex-wrap justify-center gap-2">
               <Button asChild variant="iris">
-                <Link href={`/film/${slug}`}>See the film</Link>
+                <Link href={filmHref({ slug })}>See the film</Link>
               </Button>
               <Button variant="outline" onClick={onClose}>
                 Schedule it

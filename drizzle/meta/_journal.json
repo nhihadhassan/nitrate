@@ -15,6 +15,13 @@
       "when": 1786478988418,
       "tag": "0001_wheel_picks_and_email",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786503878222,
+      "tag": "0002_blind_ratings_setting",
+      "breakpoints": true
     }
   ]
 }

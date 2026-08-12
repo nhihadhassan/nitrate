@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { SignupForm } from '@/components/auth/signup-form';
+import { loginHref } from '@/lib/links';
 import { getCurrentUser } from '@/server/auth/session';
 import { getClubPreviewByInvite } from '@/server/services/clubs';
 
@@ -12,12 +13,12 @@ export const dynamic = 'force-dynamic';
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invite?: string }>;
+  searchParams: Promise<{ invite?: string; next?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user) redirect('/');
 
-  const { invite } = await searchParams;
+  const { invite, next } = await searchParams;
   const club = invite ? await getClubPreviewByInvite(invite) : null;
 
   return (
@@ -38,12 +39,12 @@ export default async function SignupPage({
       </p>
 
       <div className="mt-7">
-        <SignupForm inviteCode={invite} />
+        <SignupForm inviteCode={invite} next={next} />
       </div>
 
       <p className="mt-6 text-center text-sm text-muted">
         Already have an account?{' '}
-        <Link href="/login" className="font-medium text-ember hover:underline">
+        <Link href={loginHref(next)} className="font-medium text-ember hover:underline">
           Sign in
         </Link>
       </p>

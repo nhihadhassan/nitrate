@@ -62,7 +62,7 @@ export default async function HomePage({
                   signedIn
                   item={{
                     id: item.id,
-                    type: item.type,
+                    types: item.types,
                     createdAt: item.createdAt.toISOString(),
                     actor: item.actor,
                     movie: item.movie
@@ -77,6 +77,7 @@ export default async function HomePage({
                     entry: item.entry,
                     list: item.list,
                     club: item.club,
+                    metadata: item.metadata,
                   }}
                 />
               ))}

@@ -14,11 +14,12 @@ below exist only because those files cannot import TypeScript.
 
 ```ts
 export const BRAND = {
-  name: 'Rachad Julijan Diyack Movie Club',  // full name, used where there's room
-  short: 'RJD Movie Club',                   // tight spots: top nav, email header
-  initials: 'RJD',                           // logo mark
+  name: 'Nitrate',      // full name, used where there's room
+  short: 'Nitrate',     // tight spots: top nav, email header
+  initials: 'N',        // logo mark
   tagline: '…',
-  description: '…',                          // meta description, share cards
+  description: '…',     // meta description, share cards
+  clubsPitch: '…',      // how Movie Clubs are described in marketing copy
 } as const;
 ```
 
@@ -45,7 +46,7 @@ Each one is a plain string in a file that has no access to TypeScript.
 sender name in your friends' inboxes, shown before they open anything.
 
 ```bash
-printf 'Rachad Julijan Diyack Movie Club <movienight@nhihadhassan.ca>' \
+printf 'Nitrate <movienight@nhihadhassan.ca>' \
   | npx vercel env add EMAIL_FROM production --force --token "$VERCEL_TOKEN"
 ```
 
@@ -53,6 +54,15 @@ Update `.env.local` to match, then redeploy. The email address itself does not
 need to change — any address on the verified domain works.
 
 ---
+
+## A club name is not the product name
+
+The reason this file exists twice over: the product was once branded as a single
+club, so the club's name appeared in the browser tab, the nav, the footer, every
+email and every share card. `BRAND` is the *application*; a club has its own
+`name` column and names only its own page (`/club/[slug]` sets its title from
+that, and the template still appends the product name). If you ever want
+`BRAND.name` to vary per club, you want the club's `name` instead.
 
 ## What deliberately does *not* change
 

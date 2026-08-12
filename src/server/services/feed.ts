@@ -17,24 +17,29 @@ import {
 } from '@/server/db/schema';
 import { notBlockedSql, type Viewer } from '@/server/privacy';
 
+export type FeedEntry = {
+  id: string;
+  rating: number | null;
+  liked: boolean;
+  reviewText: string | null;
+  containsSpoilers: boolean;
+  watchedDate: string;
+  isRewatch: boolean;
+  likeCount: number;
+  commentCount: number;
+  likedByViewer: boolean;
+};
+
 export type FeedItem = {
   id: string;
-  type: ActivityEvent['type'];
+  /** Every event type folded into this card, newest first. */
+  types: ActivityEvent['type'][];
   createdAt: Date;
+  /** Oldest event in the group — the keyset cursor for the next page. */
+  oldestAt: Date;
   actor: { id: string; username: string; displayName: string; avatarAssetId: string | null };
   movie: Movie | null;
-  entry: {
-    id: string;
-    rating: number | null;
-    liked: boolean;
-    reviewText: string | null;
-    containsSpoilers: boolean;
-    watchedDate: string;
-    isRewatch: boolean;
-    likeCount: number;
-    commentCount: number;
-    likedByViewer: boolean;
-  } | null;
+  entry: FeedEntry | null;
   list: { id: string; title: string; slug: string; itemCount: number } | null;
   club: { id: string; name: string; slug: string } | null;
   metadata: Record<string, unknown>;
@@ -51,11 +56,80 @@ const FEED_TYPES_HOME = [
 ] as const;
 
 /**
+ * Logging a film writes several events within a second or two — watched, rated,
+ * liked, reviewed. Internally that is worth keeping: each is a real fact with
+ * its own timestamp. As a feed it is four near-identical cards about one act of
+ * watching one film, which is the fastest way to make a feed unreadable.
+ */
+const AGGREGATION_TYPES = new Set<ActivityEvent['type']>([
+  'film_logged',
+  'film_rated',
+  'film_liked',
+  'review_created',
+]);
+
+/**
+ * The widest a single card is allowed to span. Generous enough to cover "log it
+ * now, write the review after the credits", short enough that rating a film
+ * again next week is its own moment.
+ *
+ * Measured from the group's newest event rather than from the previous one on
+ * purpose: chaining event-to-event would let a slow drip of activity merge
+ * across days, which is exactly the incorrect merge this has to avoid.
+ */
+const SESSION_WINDOW_MS = 1000 * 60 * 60 * 6;
+
+/**
+ * Collapses a chronological event stream into what a reader would call
+ * "things that happened".
+ *
+ * Only same-actor, same-film events inside one sitting merge. Club decisions,
+ * list creation and anything without a film stay distinct, and a rating added
+ * weeks after the log is a genuinely separate moment — so it stays one.
+ */
+export function aggregateFeedItems(items: FeedItem[]): FeedItem[] {
+  const out: FeedItem[] = [];
+  const openGroups = new Map<string, FeedItem>();
+
+  for (const item of items) {
+    const mergeable =
+      item.movie && item.types.every((type) => AGGREGATION_TYPES.has(type)) && item.types.length > 0;
+    if (!mergeable) {
+      out.push(item);
+      continue;
+    }
+
+    const key = `${item.actor.id}:${item.movie!.id}`;
+    const open = openGroups.get(key);
+
+    // Items arrive newest first, so `open.createdAt` is where the group began.
+    if (open && open.createdAt.getTime() - item.createdAt.getTime() <= SESSION_WINDOW_MS) {
+      open.types = [...open.types, ...item.types];
+      open.oldestAt = item.createdAt;
+      // Whichever event carried the richest diary entry wins the card body.
+      if (!open.entry || (item.entry?.reviewText && !open.entry.reviewText)) {
+        open.entry = item.entry ?? open.entry;
+      }
+      open.metadata = { ...item.metadata, ...open.metadata };
+      continue;
+    }
+
+    const group: FeedItem = { ...item, types: [...item.types] };
+    openGroups.set(key, group);
+    out.push(group);
+  }
+
+  return out;
+}
+
+/**
  * Chronological feed over a single append-only event table.
  *
  * One query with three left joins, keyset-paginated on createdAt. No fan-out
  * across per-type tables, and privacy is applied in SQL rather than trimmed
  * afterwards — so a private entry never leaves the database in the first place.
+ * Aggregation happens after the fact, in memory, over an over-fetched window:
+ * merging in SQL would mean giving up the index-only scan that makes this fast.
  */
 export async function getHomeFeed(
   viewer: Viewer,
@@ -132,15 +206,19 @@ export async function getHomeFeed(
       ),
     )
     .orderBy(desc(activityEvents.createdAt))
-    .limit(limit);
+    // Over-fetch: a page of 25 cards can easily be 60 raw events once a few
+    // people log properly. Capped so a quiet feed does not pay for the ceiling.
+    .limit(Math.min(limit * 4, 200));
 
   const entryIds = rows.map((r) => r.entry?.id).filter((id): id is string => Boolean(id));
-  const likedByViewer = viewer && entryIds.length ? await likedEntryIds(viewer.id, entryIds) : new Set<string>();
+  const likedByViewer =
+    viewer && entryIds.length ? await likedEntryIds(viewer.id, entryIds) : new Set<string>();
 
-  return rows.map((row) => ({
+  const items = rows.map((row) => ({
     id: row.event.id,
-    type: row.event.type,
+    types: [row.event.type],
     createdAt: row.event.createdAt,
+    oldestAt: row.event.createdAt,
     actor: {
       id: row.actorId,
       username: row.username,
@@ -148,26 +226,34 @@ export async function getHomeFeed(
       avatarAssetId: row.avatarAssetId,
     },
     movie: row.movie,
-    entry: row.entry
-      ? {
-          id: row.entry.id,
-          rating: row.entry.rating,
-          liked: row.entry.liked,
-          reviewText: row.entry.reviewText,
-          containsSpoilers: row.entry.containsSpoilers,
-          watchedDate: row.entry.watchedDate,
-          isRewatch: row.entry.isRewatch,
-          likeCount: row.entry.likeCount,
-          commentCount: row.entry.commentCount,
-          likedByViewer: likedByViewer.has(row.entry.id),
-        }
-      : null,
+    entry: toFeedEntry(row.entry, likedByViewer),
     list: row.listId
       ? { id: row.listId, title: row.listTitle!, slug: row.listSlug!, itemCount: row.listItemCount! }
       : null,
     club: row.clubId ? { id: row.clubId, name: row.clubName!, slug: row.clubSlug! } : null,
     metadata: row.event.metadata,
   }));
+
+  return aggregateFeedItems(items).slice(0, limit);
+}
+
+function toFeedEntry(
+  entry: typeof diaryEntries.$inferSelect | null,
+  likedByViewer: Set<string>,
+): FeedEntry | null {
+  if (!entry) return null;
+  return {
+    id: entry.id,
+    rating: entry.rating,
+    liked: entry.liked,
+    reviewText: entry.reviewText,
+    containsSpoilers: entry.containsSpoilers,
+    watchedDate: entry.watchedDate,
+    isRewatch: entry.isRewatch,
+    likeCount: entry.likeCount,
+    commentCount: entry.commentCount,
+    likedByViewer: likedByViewer.has(entry.id),
+  };
 }
 
 async function likedEntryIds(viewerId: string, entryIds: string[]): Promise<Set<string>> {
@@ -178,7 +264,11 @@ async function likedEntryIds(viewerId: string, entryIds: string[]): Promise<Set<
   return new Set(rows.map((r) => r.id));
 }
 
-export async function getUserActivity(userId: string, viewer: Viewer, limit = 12): Promise<FeedItem[]> {
+export async function getUserActivity(
+  userId: string,
+  viewer: Viewer,
+  limit = 12,
+): Promise<FeedItem[]> {
   const rows = await db
     .select({
       event: activityEvents,
@@ -208,12 +298,13 @@ export async function getUserActivity(userId: string, viewer: Viewer, limit = 12
       ),
     )
     .orderBy(desc(activityEvents.createdAt))
-    .limit(limit);
+    .limit(Math.min(limit * 4, 120));
 
-  return rows.map((row) => ({
+  const items = rows.map((row) => ({
     id: row.event.id,
-    type: row.event.type,
+    types: [row.event.type],
     createdAt: row.event.createdAt,
+    oldestAt: row.event.createdAt,
     actor: {
       id: userId,
       username: row.username,
@@ -221,22 +312,11 @@ export async function getUserActivity(userId: string, viewer: Viewer, limit = 12
       avatarAssetId: row.avatarAssetId,
     },
     movie: row.movie,
-    entry: row.entry
-      ? {
-          id: row.entry.id,
-          rating: row.entry.rating,
-          liked: row.entry.liked,
-          reviewText: row.entry.reviewText,
-          containsSpoilers: row.entry.containsSpoilers,
-          watchedDate: row.entry.watchedDate,
-          isRewatch: row.entry.isRewatch,
-          likeCount: row.entry.likeCount,
-          commentCount: row.entry.commentCount,
-          likedByViewer: false,
-        }
-      : null,
+    entry: toFeedEntry(row.entry, new Set<string>()),
     list: null,
     club: null,
     metadata: row.event.metadata,
   }));
+
+  return aggregateFeedItems(items).slice(0, limit);
 }

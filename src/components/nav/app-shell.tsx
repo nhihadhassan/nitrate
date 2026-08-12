@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { BottomNav } from '@/components/nav/bottom-nav';
+import { MotionOrchestrator } from '@/components/motion/motion-orchestrator';
 import { TopNav, type NavUser } from '@/components/nav/top-nav';
 import { BRAND } from '@/lib/brand';
 
@@ -25,7 +26,7 @@ export function AppShell({
       <TopNav user={user} unreadCount={unreadCount} />
 
       <main id="main" className="flex-1 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-16">
-        {children}
+        <MotionOrchestrator>{children}</MotionOrchestrator>
       </main>
 
       <SiteFooter />
@@ -59,7 +60,7 @@ function SiteFooter() {
                 </Link>
               </li>
               <li>
-                <Link href="/settings/import" className="hover:text-ember">
+                <Link href="/import" className="hover:text-ember">
                   Import from Letterboxd
                 </Link>
               </li>

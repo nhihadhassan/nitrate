@@ -8,6 +8,7 @@ import { StarInput } from '@/components/film/star-input';
 import { LikeMark } from '@/components/film/stars';
 import { BookmarkIcon, CheckIcon, EyeIcon, PlusIcon } from '@/components/ui/icons';
 import { useToast } from '@/components/ui/toast';
+import { filmHref, loginHref } from '@/lib/links';
 import type { FilmRef } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { updateFilmStateAction } from '@/server/actions/films';
@@ -67,7 +68,7 @@ export function FilmActions({
 
   function mutate(patch: Partial<ViewerFilmState>, message?: string, undo?: Partial<ViewerFilmState>) {
     if (!signedIn) {
-      router.push(`/login?next=/film/${film.slug}`);
+      router.push(loginHref(filmHref(film)));
       return;
     }
     startTransition(async () => {
@@ -116,7 +117,7 @@ export function FilmActions({
           aria-pressed={optimistic.watched}
           disabled={pending}
           className={cn(
-            'flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-[0.6875rem] font-medium transition-colors',
+            'action-tile flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-[0.6875rem] font-medium',
             optimistic.watched
               ? 'border-jade/40 bg-jade/12 text-jade'
               : 'border-line text-muted hover:border-line-strong hover:text-text',
@@ -136,7 +137,7 @@ export function FilmActions({
           aria-pressed={optimistic.liked}
           disabled={pending}
           className={cn(
-            'flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-[0.6875rem] font-medium transition-colors',
+            'action-tile flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-[0.6875rem] font-medium',
             optimistic.liked
               ? 'border-rose/40 bg-rose/12 text-rose'
               : 'border-line text-muted hover:border-line-strong hover:text-text',
@@ -161,13 +162,15 @@ export function FilmActions({
           aria-pressed={optimistic.inWatchlist}
           disabled={pending}
           className={cn(
-            'flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-[0.6875rem] font-medium transition-colors',
+            'action-tile flex flex-1 flex-col items-center gap-1 rounded-md border px-2 py-2.5 text-[0.6875rem] font-medium',
             optimistic.inWatchlist
               ? 'border-ember/40 bg-ember/12 text-ember'
               : 'border-line text-muted hover:border-line-strong hover:text-text',
           )}
         >
-          <BookmarkIcon className="h-[1.15rem] w-[1.15rem]" />
+          <BookmarkIcon
+            className={cn('action-icon h-[1.15rem] w-[1.15rem]', optimistic.inWatchlist && 'is-active')}
+          />
           {optimistic.inWatchlist ? 'Saved' : 'Watchlist'}
         </button>
       </div>
@@ -186,7 +189,7 @@ export function FilmActions({
         type="button"
         onClick={() => {
           if (!signedIn) {
-            router.push(`/login?next=/film/${film.slug}`);
+            router.push(loginHref(filmHref(film)));
             return;
           }
           open({
@@ -204,7 +207,7 @@ export function FilmActions({
             },
           });
         }}
-        className="flex w-full items-center justify-center gap-2 rounded-md bg-ember px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ember-soft"
+        className="tactile-button flex w-full items-center justify-center gap-2 rounded-md bg-ember px-4 py-2.5 text-sm font-medium text-white hover:bg-ember-soft"
       >
         <PlusIcon className="h-4 w-4" />
         {optimistic.watched ? 'Log a rewatch' : 'Log this film'}

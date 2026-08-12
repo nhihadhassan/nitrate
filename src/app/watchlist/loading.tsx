@@ -3,7 +3,7 @@ import { Container, PosterGridSkeleton, Skeleton } from '@/components/ui/primiti
 export default function Loading() {
   return (
     <Container size="wide" className="py-8">
-      <Skeleton className="h-9 w-56" />
+      <Skeleton className="h-9 w-48" />
       <div className="mt-6">
         <PosterGridSkeleton count={16} />
       </div>

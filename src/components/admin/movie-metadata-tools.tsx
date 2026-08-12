@@ -7,6 +7,7 @@ import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { EmptyState, inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
+import { filmHref } from '@/lib/links';
 import { refreshMovieMetadataAction } from '@/server/actions/admin';
 
 type MovieRow = {
@@ -75,7 +76,7 @@ export function MovieMetadataTools({ movies }: { movies: MovieRow[] }) {
               {movies.map((movie) => (
                 <tr key={movie.id} className="border-b border-line">
                   <td className="py-2.5">
-                    <Link href={`/film/${movie.slug}`} className="font-medium hover:text-ember">
+                    <Link href={filmHref(movie)} className="font-medium hover:text-ember">
                       {movie.title}
                     </Link>
                     <span className="ml-1.5 text-xs text-dim tabular">{movie.year}</span>

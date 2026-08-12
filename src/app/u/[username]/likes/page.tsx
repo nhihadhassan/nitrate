@@ -5,6 +5,7 @@ import { Stars } from '@/components/film/stars';
 import { ReviewBody } from '@/components/review/review-body';
 import { EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
+import { filmHref } from '@/lib/links';
 import { loadProfileContext } from '@/server/services/profile-context';
 import { getLikedFilms, getLikedReviews } from '@/server/services/profile';
 
@@ -68,7 +69,7 @@ export default async function ProfileLikesPage({
                   {entry.rating ? <Stars value={entry.rating} size="sm" /> : null}
                 </div>
                 <Link
-                  href={`/film/${movie.slug}`}
+                  href={filmHref(movie)}
                   className="mt-1.5 inline-block text-sm font-medium hover:text-ember"
                 >
                   {movie.title}

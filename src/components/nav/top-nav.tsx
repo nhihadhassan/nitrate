@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { LogButton } from '@/components/log/log-button';
 import { ThemeToggle } from '@/components/nav/theme-toggle';
+import { QuickSearch, useQuickSearchHotkey } from '@/components/search/quick-search';
 import { BellIcon, ChevronDownIcon, SearchIcon, ShieldIcon } from '@/components/ui/icons';
 import { Avatar } from '@/components/user/avatar';
 import { BRAND } from '@/lib/brand';
+import { userHref, userSectionHref } from '@/lib/links';
 import { cn } from '@/lib/utils';
 
 export type NavUser = {
@@ -29,9 +31,14 @@ const LINKS = [
 
 export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCount: number }) {
   const pathname = usePathname();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const openSearch = useCallback(() => setSearchOpen(true), []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  useQuickSearchHotkey(openSearch);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-xl">
+    <header className="nav-shell sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-xl">
+      <QuickSearch open={searchOpen} onClose={closeSearch} />
       <div className="mx-auto flex h-14 max-w-[86rem] items-center gap-3 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 pr-1" aria-label={`${BRAND.name} home`}>
           <Wordmark />
@@ -44,11 +51,12 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
               href={link.href}
               aria-current={link.match(pathname) ? 'page' : undefined}
               className={cn(
-                'rounded-md px-3 py-1.5 text-sm transition-colors',
+                'nav-link rounded-md px-3 py-1.5 text-sm transition-colors',
                 link.match(pathname)
                   ? 'font-medium text-text'
                   : 'text-muted hover:bg-surface-hover hover:text-text',
               )}
+              data-active={link.match(pathname) ? 'true' : undefined}
             >
               {link.label}
             </Link>
@@ -56,15 +64,16 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <Link
-            href="/search"
+          <button
+            type="button"
+            onClick={openSearch}
             aria-label="Search"
             className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text md:hidden"
           >
             <SearchIcon />
-          </Link>
+          </button>
           <div className="hidden md:block">
-            <SearchTrigger />
+            <SearchTrigger onClick={openSearch} />
           </div>
 
           {user ? (
@@ -112,9 +121,8 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
 }
 
 /**
- * The name is long, so the wordmark degrades rather than wrapping or squashing
- * the nav: full name on wide screens, initials-plus-"Movie Club" on narrower
- * ones, and the film-reel mark alone on the smallest.
+ * Film-reel mark plus the product name. The mark alone carries the smallest
+ * breakpoints, where every pixel of the nav is spoken for.
  */
 function Wordmark() {
   return (
@@ -127,25 +135,26 @@ function Wordmark() {
         <span className="absolute right-[3px] top-[5px] h-[2px] w-[2px] rounded-full bg-canvas" />
         <span className="absolute bottom-[5px] right-[3px] h-[2px] w-[2px] rounded-full bg-canvas" />
       </span>
-      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight xl:inline">
+      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight xs:inline">
         {BRAND.name}
-      </span>
-      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight xs:inline xl:hidden">
-        {BRAND.short}
       </span>
     </span>
   );
 }
 
-function SearchTrigger() {
+function SearchTrigger({ onClick }: { onClick: () => void }) {
   return (
-    <Link
-      href="/search"
+    <button
+      type="button"
+      onClick={onClick}
       className="flex h-9 w-56 items-center gap-2 rounded-md border border-line bg-canvas-raised px-2.5 text-sm text-dim transition-colors hover:border-line-strong lg:w-64"
     >
       <SearchIcon className="h-4 w-4" />
-      <span>Films, people, clubs…</span>
-    </Link>
+      <span className="flex-1 text-left">Films, people, clubs…</span>
+      <kbd className="hidden rounded-xs border border-line px-1 py-px text-[0.625rem] lg:block">
+        ⌘K
+      </kbd>
+    </button>
   );
 }
 
@@ -173,10 +182,10 @@ function AccountMenu({ user }: { user: NavUser }) {
   }, [open]);
 
   const items = [
-    { href: `/@${user.username}`, label: 'Your profile' },
-    { href: `/@${user.username}/diary`, label: 'Diary' },
-    { href: `/@${user.username}/films`, label: 'Films' },
-    { href: `/@${user.username}/lists`, label: 'Lists' },
+    { href: userHref(user), label: 'Your profile' },
+    { href: userSectionHref(user, 'diary'), label: 'Diary' },
+    { href: userSectionHref(user, 'films'), label: 'Films' },
+    { href: userSectionHref(user, 'lists'), label: 'Lists' },
     { href: '/watchlist', label: 'Watchlist' },
     { href: '/settings', label: 'Settings' },
   ];

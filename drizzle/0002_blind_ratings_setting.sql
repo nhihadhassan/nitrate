@@ -1,0 +1,1 @@
+ALTER TABLE "nitrate"."clubs" ADD COLUMN "blind_ratings_enabled" boolean DEFAULT true NOT NULL;

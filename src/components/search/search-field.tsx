@@ -17,7 +17,14 @@ function readRecents(): string[] {
   }
 }
 
-export function SearchField({ initialQuery }: { initialQuery: string }) {
+export function SearchField({
+  initialQuery,
+  scope = 'all',
+}: {
+  initialQuery: string;
+  /** Kept in the URL so narrowing to Films and then retyping stays narrowed. */
+  scope?: string;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(initialQuery);
   const [recents, setRecents] = useState<string[]>([]);
@@ -36,15 +43,24 @@ export function SearchField({ initialQuery }: { initialQuery: string }) {
     }
   }, [initialQuery]);
 
+  function urlFor(term: string): string {
+    const params = new URLSearchParams();
+    if (term.length >= 2) params.set('q', term);
+    if (scope && scope !== 'all') params.set('type', scope);
+    const query = params.toString();
+    return query ? `/search?${query}` : '/search';
+  }
+
   // Debounced navigation: typing updates the URL, which re-runs the server search.
   useEffect(() => {
     const trimmed = value.trim();
     if (trimmed === initialQuery) return;
     const timer = window.setTimeout(() => {
-      router.replace(trimmed.length >= 2 ? `/search?q=${encodeURIComponent(trimmed)}` : '/search');
-    }, 300);
+      router.replace(urlFor(trimmed));
+    }, 250);
     return () => window.clearTimeout(timer);
-  }, [value, initialQuery, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, initialQuery, router, scope]);
 
   return (
     <div>
@@ -55,8 +71,14 @@ export function SearchField({ initialQuery }: { initialQuery: string }) {
           type="search"
           value={value}
           autoFocus
+          enterKeyHint="search"
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Films, people, lists, clubs…"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            router.replace(urlFor(value.trim()));
+          }}
+          placeholder="Films, cast, members, lists, clubs…"
           aria-label="Search"
           className={cn(inputClass, 'h-11 pl-9 text-base')}
         />
@@ -71,7 +93,7 @@ export function SearchField({ initialQuery }: { initialQuery: string }) {
               type="button"
               onClick={() => {
                 setValue(recent);
-                router.replace(`/search?q=${encodeURIComponent(recent)}`);
+                router.replace(urlFor(recent));
               }}
               className="rounded-xs border border-line px-2 py-0.5 text-xs text-muted transition-colors hover:border-line-strong hover:text-text"
             >

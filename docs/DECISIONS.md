@@ -32,6 +32,35 @@ nowhere else to change them from.
 every transition is checked server-side. A stale tab cannot reopen voting on a
 completed screening.
 
+### 4. A film is linked by its canonical slug, always
+
+Provider results (`ProviderMovieSummary`) never reach a component. Discovery
+rails, search, filmographies and browse all pass through
+`ensureMoviesFromSummaries`, which bulk-upserts them into real rows in one round
+trip and hands back `FilmRef`s; components link with `filmHref` from
+`src/lib/links.ts`.
+
+This replaced an arrangement where rails linked by raw TMDB id and the film page
+ingested-then-redirected on arrival. It worked, but only just: the first render
+of `/film/278` carried the title "Film not found", the redirect happened inside
+the streamed RSC payload rather than as an HTTP redirect, and every surface that
+forgot the trick dead-ended. Provider-id URLs are still honoured — old links and
+anything pasted from TMDB — but they are now a legacy path that returns a real
+307, not the way the product talks about films.
+
+Two supporting changes made that possible: `generateMetadata` and the page share
+one `cache()`d resolution, and the root `loading.tsx` was replaced by
+route-level ones so `/film/[slug]` has no Suspense boundary above it to flush a
+shell before the redirect is thrown.
+
+### 5. Blind ratings hold on every surface
+
+A club that rates blind must not see a film's group score anywhere before the
+member submits their own — not the club dashboard, the history list, the
+screening sidebar or the film page. `revealedScreeningIds` answers that question
+once and everything reads through it. Hiding the spread in one place while
+printing the average two screens away is not a blind rating, it is a formality.
+
 ---
 
 ## Notable choices
@@ -178,6 +207,7 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
 | 11 Aug 2026 | Wheel labels kept upright instead of rotating radially |
 | 11 Aug 2026 | Rebrand from Nitrate to Nhach Bule Dick Movie Club |
 | 11 Aug 2026 | Renamed to Rachad Julijan Diyack Movie Club; procedure written up in `docs/RENAMING.md` |
+| 11 Aug 2026 | Renamed back to Nitrate, and app branding separated from club branding: a club now names only its own page |
 | 11 Aug 2026 | Deployment protection turned off — the site is public |
 | 11 Aug 2026 | Resend configured on the verified `nhihadhassan.ca` domain; live send confirmed |
 | 11 Aug 2026 | `NEXT_PUBLIC_SITE_URL` set in production — the first test email carried `localhost` links |

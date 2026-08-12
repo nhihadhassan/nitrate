@@ -7,6 +7,7 @@ import { ListActions } from '@/components/list/list-actions';
 import { Comments } from '@/components/social/comments';
 import { Badge, Container, Divider, EmptyState } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
+import { filmHref } from '@/lib/links';
 import { pluralize, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { AppError } from '@/server/errors';
@@ -105,7 +106,7 @@ export default async function ListPage({ params }: Params) {
                   />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <Link href={`/film/${item.movie.slug}`} className="font-medium hover:text-ember">
+                  <Link href={filmHref(item.movie)} className="font-medium hover:text-ember">
                     {item.movie.title}
                   </Link>
                   {item.movie.year ? (

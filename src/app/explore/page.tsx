@@ -7,18 +7,26 @@ import { ListCard } from '@/components/list/list-card';
 import { ReviewBody } from '@/components/review/review-body';
 import { Container, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
+import { filmHref, reviewHref } from '@/lib/links';
 import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getPopularLists } from '@/server/services/lists';
 import {
+  getBecauseYouLoved,
+  getCommunityTopFilms,
   getEditorialRails,
-  getPopularAmongFollowing,
+  getFriendsAreWatching,
+  getFriendsLoved,
+  getFromYourFavouriteGenre,
   getPopularReviews,
+  getWatchlistRail,
+  type RailFilm,
 } from '@/server/services/explore';
 
 export const metadata: Metadata = {
   title: 'Explore',
-  description: 'Trending films, new releases, the decades and what the people you follow are watching.',
+  description:
+    'What the people you follow are watching, what the wider film world is turning over, and a few decades worth digging through.',
 };
 export const dynamic = 'force-dynamic';
 
@@ -28,59 +36,142 @@ export default async function ExplorePage() {
   const user = await getCurrentUser();
   const viewer = user ? { id: user.id, role: user.role } : null;
 
-  const [rails, amongFollowing, reviews, lists] = await Promise.all([
+  const [
+    rails,
+    friendsWatching,
+    friendsLoved,
+    watchlist,
+    becauseYouLoved,
+    favouriteGenre,
+    communityTop,
+    reviews,
+    lists,
+  ] = await Promise.all([
     getEditorialRails(),
-    user ? getPopularAmongFollowing(user.id, 12) : Promise.resolve([]),
+    user ? getFriendsAreWatching(user.id, 12) : Promise.resolve([]),
+    user ? getFriendsLoved(user.id, 12) : Promise.resolve([]),
+    user ? getWatchlistRail(user.id, 12) : Promise.resolve([]),
+    user ? getBecauseYouLoved(user.id, 12) : Promise.resolve(null),
+    user ? getFromYourFavouriteGenre(user.id, 12) : Promise.resolve(null),
+    getCommunityTopFilms(12),
     getPopularReviews(viewer, 4),
     getPopularLists(viewer, 6),
   ]);
+
+  const hasSocial = friendsWatching.length > 0 || friendsLoved.length > 0;
+
+  // Whichever rail lands first owns the largest contentful paint, and which one
+  // that is depends on who is looking.
+  const firstRail = friendsWatching.length
+    ? 'friends-watching'
+    : friendsLoved.length
+      ? 'friends-loved'
+      : becauseYouLoved?.films.length
+        ? 'because-you-loved'
+        : watchlist.length
+          ? 'watchlist'
+          : 'trending';
 
   return (
     <Container size="wide" className="py-8 pb-20">
       <header className="mb-10 max-w-2xl">
         <h1 className="text-4xl sm:text-5xl">Explore</h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
-          What&apos;s moving right now, what the people you follow are actually watching, and a few
-          decades worth digging through.
+          {user
+            ? 'What your circle is watching, what the wider film world is turning over, and a few decades worth digging through.'
+            : 'What the film world is turning over right now, the films worth the reputation, and a few decades worth digging through.'}
         </p>
       </header>
 
       <div className="space-y-14">
-        {amongFollowing.length ? (
-          <Rail
-            title="Popular with people you follow"
-            subtitle="The most-logged films across your circle in the last month."
-            films={amongFollowing.map((row) => ({
-              slug: row.movie.slug,
-              title: row.movie.title,
-              year: row.movie.year,
-              posterPath: row.movie.posterPath,
-              caption: pluralize(row.count, 'friend'),
-            }))}
-          />
-        ) : null}
-
         {rails.degraded ? (
           <p className="rounded-md border border-amber/30 bg-amber/[0.07] px-3 py-2 text-xs text-amber">
             Showing our local catalogue — the film database is unreachable right now.
           </p>
         ) : null}
 
+        {/* Their films: the social layer leads, because it is the reason to be here. */}
+        <Rail
+          title="Friends are watching"
+          subtitle="The most-logged films across the people you follow, this month."
+          films={friendsWatching}
+          eager={firstRail === 'friends-watching'}
+        />
+
+        <Rail
+          title="Friends loved"
+          subtitle="Films the people you follow gave a heart to, that you have not seen."
+          films={friendsLoved}
+          eager={firstRail === 'friends-loved'}
+        />
+
+        {becauseYouLoved?.films.length ? (
+          <Rail
+            title={`Because you loved ${becauseYouLoved.seed.title}`}
+            subtitle="Neighbours of one of your five-star films."
+            films={becauseYouLoved.films}
+            eager={firstRail === 'because-you-loved'}
+          />
+        ) : null}
+
+        <Rail
+          title="On your watchlist"
+          subtitle="You already said you would."
+          films={watchlist}
+          href="/watchlist"
+          linkLabel="Full watchlist"
+          eager={firstRail === 'watchlist'}
+        />
+
+        {user && !hasSocial ? (
+          <EmptyState
+            title="Discovery gets much better with people in it"
+            description="Follow a few members and this page fills with what they are watching, what they loved and what they are arguing about."
+            action={
+              <Link
+                href="/explore/people"
+                className="inline-block rounded-md border border-line-strong px-4 py-2 text-sm font-medium transition-colors hover:bg-surface-hover"
+              >
+                Find people to follow
+              </Link>
+            }
+          />
+        ) : null}
+
         <Rail
           title="Trending this week"
           subtitle="What the wider film world is turning over."
           films={rails.trending}
+          eager={firstRail === 'trending'}
+        />
+
+        <Rail
+          title="Rated highest here"
+          subtitle="By members, weighted so one glowing rating cannot outrank a hundred."
+          films={communityTop}
         />
 
         <Rail title="In cinemas now" films={rails.nowPlaying} />
 
         <Rail
           title="The canon"
-          subtitle="Highest rated, with enough votes to mean something."
-          films={rails.topRated}
+          subtitle="Highly rated by a lot of people — weighted by how many, not just how high."
+          films={rails.canon}
         />
 
-        <Rail title="Coming soon" subtitle="Worth putting on the watchlist early." films={rails.upcoming} />
+        {favouriteGenre ? (
+          <Rail
+            title={`More ${favouriteGenre.genre.toLowerCase()}`}
+            subtitle="Your most-watched genre, minus everything you have already seen."
+            films={favouriteGenre.films}
+          />
+        ) : null}
+
+        <Rail
+          title="Coming soon"
+          subtitle="Worth putting on the watchlist early."
+          films={rails.upcoming}
+        />
 
         <section>
           <SectionHeading title="By decade" subtitle="Pick an era and dig." />
@@ -125,20 +216,22 @@ export default async function ExplorePage() {
                   <div className="flex items-center justify-between gap-3">
                     <UserChip user={review.author} size="sm" />
                     <div className="flex items-center gap-2">
-                      {review.rating ? <Stars value={review.rating} size="sm" /> : null}
-                      {review.liked ? <LikeMark className="text-sm text-rose" /> : null}
+                      <Stars value={review.rating} size="sm" />
+                      {review.liked ? (
+                        <LikeMark className="text-sm text-rose" label="Liked this film" />
+                      ) : null}
                     </div>
                   </div>
                   <Link
-                    href={`/film/${review.movieSlug}`}
+                    href={filmHref(review.film)}
                     className="mt-2.5 inline-block font-medium hover:text-ember"
                   >
-                    {review.movieTitle}
-                    {review.movieYear ? (
-                      <span className="ml-1.5 text-xs text-dim tabular">{review.movieYear}</span>
+                    {review.film.title}
+                    {review.film.year ? (
+                      <span className="ml-1.5 text-xs text-dim tabular">{review.film.year}</span>
                     ) : null}
                   </Link>
-                  <Link href={`/review/${review.id}`} className="mt-2 block">
+                  <Link href={reviewHref(review)} className="mt-2 block">
                     <ReviewBody
                       text={review.reviewText}
                       containsSpoilers={review.containsSpoilers}
@@ -181,13 +274,13 @@ export default async function ExplorePage() {
         {!user ? (
           <EmptyState
             title="It gets better with people in it"
-            description="Create an account to follow people, keep a diary and start a movie club."
+            description="Create an account to follow people, keep a diary and start a Movie Club."
             action={
               <Link
                 href="/signup"
                 className="inline-block rounded-md bg-ember px-4 py-2 text-sm font-medium text-white hover:bg-ember-soft"
               >
-                Join us
+                Join Nitrate
               </Link>
             }
           />
@@ -201,26 +294,28 @@ function Rail({
   title,
   subtitle,
   films,
+  href,
+  linkLabel,
+  eager,
 }: {
   title: string;
   subtitle?: string;
-  films: {
-    slug: string;
-    title: string;
-    year: number | null;
-    posterPath: string | null;
-    caption?: string;
-  }[];
+  films: RailFilm[];
+  href?: string;
+  linkLabel?: string;
+  /** The first rail on the page owns the largest contentful paint. */
+  eager?: boolean;
 }) {
   if (!films.length) return null;
   return (
     <section>
-      <SectionHeading title={title} subtitle={subtitle} />
+      <SectionHeading title={title} subtitle={subtitle} href={href} linkLabel={linkLabel} />
       <PosterGrid>
-        {films.slice(0, 16).map((film) => (
+        {films.slice(0, 16).map((film, index) => (
           <PosterCard
-            key={`${film.slug}-${film.title}`}
+            key={film.id}
             film={film}
+            priority={eager && index < 8}
             footer={
               film.caption ? (
                 <p className="mt-0.5 text-[0.6875rem] text-ember">{film.caption}</p>

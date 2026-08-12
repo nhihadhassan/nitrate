@@ -41,7 +41,7 @@ export function Button({
       // Buttons inside forms default to submit; everything else should not.
       {...(asChild ? {} : { type: type ?? 'button' })}
       className={cn(
-        'inline-flex select-none items-center rounded-md font-medium transition-colors',
+        'tactile-button inline-flex select-none items-center rounded-md font-medium',
         'disabled:pointer-events-none disabled:opacity-55',
         VARIANTS[variant],
         SIZES[size],

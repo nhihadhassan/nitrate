@@ -118,32 +118,58 @@ export default async function ProfileLayout({
             </div>
           </div>
 
+          {/* Four Favourites: the closest thing a profile has to a face. Given
+              real size, real captions and the top of the page — a person's
+              taste should read before their statistics do. */}
           {favorites.length ? (
             <section className="mt-8">
-              <p className="eyebrow mb-2.5">Favourites</p>
-              <div className="grid max-w-2xl grid-cols-4 gap-2.5">
-                {favorites.map((movie) => (
-                  <Poster
-                    key={movie.id}
-                    film={{
-                      slug: movie.slug,
-                      title: movie.title,
-                      year: movie.year,
-                      posterPath: movie.posterPath,
-                    }}
-                    size="md"
-                  />
-                ))}
+              <div className="mb-3 flex items-baseline justify-between gap-4">
+                <h2 className="eyebrow">Four favourites</h2>
+                {access.isSelf ? (
+                  <Link
+                    href="/settings/favorites"
+                    className="text-xs text-dim underline underline-offset-2 transition-colors hover:text-ember"
+                  >
+                    Change
+                  </Link>
+                ) : null}
               </div>
+              <ul className="grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                {favorites.map((movie) => (
+                  <li key={movie.id} className="min-w-0">
+                    <Poster
+                      film={{
+                        slug: movie.slug,
+                        title: movie.title,
+                        year: movie.year,
+                        posterPath: movie.posterPath,
+                      }}
+                      size="md"
+                      className="shadow-[0_10px_30px_-18px_rgba(0,0,0,0.9)] transition-shadow hover:shadow-[0_16px_36px_-16px_rgba(0,0,0,0.95)]"
+                    />
+                    <p className="mt-2 truncate text-[0.8125rem] font-medium leading-snug">
+                      {movie.title}
+                    </p>
+                    {movie.year ? (
+                      <p className="text-[0.6875rem] text-dim tabular">{movie.year}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
             </section>
           ) : access.isSelf ? (
-            <section className="mt-8">
-              <p className="eyebrow mb-2.5">Favourites</p>
+            <section className="mt-9">
+              <h2 className="eyebrow mb-3">Four favourites</h2>
               <Link
                 href="/settings/favorites"
-                className="flex max-w-2xl items-center justify-center rounded-md border border-dashed border-line px-4 py-6 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
+                className="flex max-w-4xl flex-col items-center justify-center rounded-lg border border-dashed border-line px-4 py-8 text-center transition-colors hover:border-line-strong"
               >
-                Pick the four films that say the most about you →
+                <span className="font-display text-lg">
+                  Pick the four films that say the most about you
+                </span>
+                <span className="mt-1 text-xs text-dim">
+                  They sit at the top of your profile, where people actually look.
+                </span>
               </Link>
             </section>
           ) : null}

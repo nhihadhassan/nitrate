@@ -2,6 +2,7 @@ import 'server-only';
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
+import type { FilmRef } from '@/lib/types';
 import { slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
 import { credits, genres, movieGenres, movies, people, type Movie } from '@/server/db/schema';
@@ -40,6 +41,45 @@ export function movieSlugBase(title: string, year: number | null): string {
 /* Ingestion                                                                  */
 /* -------------------------------------------------------------------------- */
 
+function movieValues(summary: ProviderMovieSummary, provider: string, slug: string) {
+  return {
+    provider,
+    providerId: summary.providerId,
+    slug,
+    title: summary.title,
+    originalTitle: summary.originalTitle ?? null,
+    year: summary.year,
+    releaseDate: summary.releaseDate,
+    overview: summary.overview,
+    posterPath: summary.posterPath,
+    backdropPath: summary.backdropPath,
+    adult: summary.adult,
+    providerPopularity: summary.popularity,
+    providerVoteAverage: summary.voteAverage,
+    providerVoteCount: summary.voteCount,
+  };
+}
+
+/**
+ * What a repeat sighting of a film is allowed to change. Notably absent: the
+ * slug (URLs are permanent once issued) and every local aggregate.
+ */
+function summaryRefreshSet() {
+  return {
+    title: sql`excluded.title`,
+    originalTitle: sql`excluded.original_title`,
+    year: sql`excluded.year`,
+    releaseDate: sql`excluded.release_date`,
+    overview: sql`coalesce(excluded.overview, ${movies.overview})`,
+    posterPath: sql`coalesce(excluded.poster_path, ${movies.posterPath})`,
+    backdropPath: sql`coalesce(excluded.backdrop_path, ${movies.backdropPath})`,
+    providerPopularity: sql`excluded.provider_popularity`,
+    providerVoteAverage: sql`excluded.provider_vote_average`,
+    providerVoteCount: sql`excluded.provider_vote_count`,
+    updatedAt: new Date(),
+  };
+}
+
 /**
  * Persists a provider summary as a canonical local film. Idempotent: repeated
  * calls refresh the volatile fields and leave local aggregates alone.
@@ -53,40 +93,127 @@ export async function upsertMovieFromSummary(
 
   const [row] = await tx
     .insert(movies)
-    .values({
-      provider,
-      providerId: summary.providerId,
-      slug,
-      title: summary.title,
-      originalTitle: summary.originalTitle ?? null,
-      year: summary.year,
-      releaseDate: summary.releaseDate,
-      overview: summary.overview,
-      posterPath: summary.posterPath,
-      backdropPath: summary.backdropPath,
-      adult: summary.adult,
-      providerPopularity: summary.popularity,
-      providerVoteAverage: summary.voteAverage,
-      providerVoteCount: summary.voteCount,
-    })
+    .values(movieValues(summary, provider, slug))
     .onConflictDoUpdate({
       target: [movies.provider, movies.providerId],
-      set: {
-        title: sql`excluded.title`,
-        originalTitle: sql`excluded.original_title`,
-        year: sql`excluded.year`,
-        releaseDate: sql`excluded.release_date`,
-        overview: sql`coalesce(excluded.overview, ${movies.overview})`,
-        posterPath: sql`coalesce(excluded.poster_path, ${movies.posterPath})`,
-        backdropPath: sql`coalesce(excluded.backdrop_path, ${movies.backdropPath})`,
-        providerPopularity: sql`excluded.provider_popularity`,
-        providerVoteAverage: sql`excluded.provider_vote_average`,
-        providerVoteCount: sql`excluded.provider_vote_count`,
-        updatedAt: new Date(),
-      },
+      set: summaryRefreshSet(),
     })
     .returning();
   return row;
+}
+
+/**
+ * Turns a page of provider results into canonical local films, in one round
+ * trip rather than one per title.
+ *
+ * This is the seam that keeps `/film/<provider id>` URLs out of the product.
+ * Discovery rails, search and filmographies all arrive as provider summaries;
+ * running them through here before they reach a component means every link is
+ * a real slug backed by a real row. Metadata is refreshed on the way past, so
+ * the catalogue stays warm without a second job.
+ *
+ * Only summary fields are written — credits and runtime still hydrate lazily on
+ * the film page, so a rail costs one insert and no provider calls.
+ */
+export async function ensureMoviesFromSummaries(
+  summaries: ProviderMovieSummary[],
+): Promise<Movie[]> {
+  const wanted = dedupeBy(
+    summaries.filter((summary) => summary.providerId),
+    (summary) => summary.providerId,
+  );
+  if (!wanted.length) return [];
+
+  const provider = providerName();
+  const byProviderId = new Map<string, Movie>();
+
+  const existing = await db
+    .select()
+    .from(movies)
+    .where(
+      and(
+        eq(movies.provider, provider),
+        inArray(
+          movies.providerId,
+          wanted.map((summary) => summary.providerId),
+        ),
+      ),
+    );
+  for (const row of existing) byProviderId.set(row.providerId, row);
+
+  const missing = wanted.filter((summary) => !byProviderId.has(summary.providerId));
+
+  if (missing.length) {
+    const bases = missing.map((summary) => movieSlugBase(summary.title, summary.year) || 'film');
+    // One lookup answers "is this slug spoken for?" for the whole batch.
+    const taken = new Set(
+      (
+        await db
+          .select({ slug: movies.slug })
+          .from(movies)
+          .where(inArray(movies.slug, Array.from(new Set(bases))))
+      ).map((row) => row.slug),
+    );
+
+    const values = missing.map((summary, index) => {
+      const base = bases[index];
+      // Two different films sharing a title *and* a year is rare but real;
+      // disambiguate with the provider id rather than a counter, so the slug is
+      // stable no matter what order the batch happened to arrive in.
+      const slug = taken.has(base) ? `${base}-${summary.providerId}` : base;
+      taken.add(slug);
+      return { summary, slug };
+    });
+
+    try {
+      const inserted = await db
+        .insert(movies)
+        .values(values.map(({ summary, slug }) => movieValues(summary, provider, slug)))
+        .onConflictDoUpdate({
+          target: [movies.provider, movies.providerId],
+          set: summaryRefreshSet(),
+        })
+        .returning();
+      for (const row of inserted) byProviderId.set(row.providerId, row);
+    } catch (error) {
+      // A concurrent request can claim a slug between our lookup and our insert.
+      // One bad row must not cost the whole rail, so fall back to per-film
+      // upserts, which resolve slugs individually.
+      console.warn('[movies] batch ingest fell back to per-film upsert:', error);
+      for (const { summary } of values) {
+        try {
+          const row = await upsertMovieFromSummary(summary);
+          byProviderId.set(row.providerId, row);
+        } catch (rowError) {
+          console.warn(`[movies] could not ingest ${summary.providerId}:`, rowError);
+        }
+      }
+    }
+  }
+
+  // Provider ordering is the editorial ordering; preserve it exactly.
+  return wanted
+    .map((summary) => byProviderId.get(summary.providerId))
+    .filter((movie): movie is Movie => Boolean(movie));
+}
+
+/** The canonical, linkable projection of a local film row. */
+export function toFilmRef(movie: Movie): FilmRef {
+  return {
+    id: movie.id,
+    slug: movie.slug,
+    title: movie.title,
+    year: movie.year,
+    posterPath: movie.posterPath,
+  };
+}
+
+/** Provider results, canonicalised and ready to render. */
+export async function filmRefsFromSummaries(
+  summaries: ProviderMovieSummary[],
+): Promise<FilmRef[]> {
+  const rows = await ensureMoviesFromSummaries(summaries);
+  return rows.map(toFilmRef);
 }
 
 async function upsertGenres(list: { providerId: string; name: string }[], tx: DbOrTx) {
@@ -246,22 +373,36 @@ export async function moviesByIds(ids: string[]): Promise<Map<string, Movie>> {
   return new Map(rows.map((r) => [r.id, r]));
 }
 
+/** A `/film/[slug]` param that is a bare provider id rather than a slug. */
+export function isProviderIdParam(param: string): boolean {
+  return /^\d+$/.test(param);
+}
+
 /**
- * Resolves the `/film/[slug]` param, which may be a stored slug or a raw
- * provider id (used by deep links and the importer).
+ * Resolves the `/film/[slug]` param, which is normally a canonical slug but may
+ * be a raw provider id: the product no longer emits those, yet links shared
+ * before the canonical system existed — and anything pasted from TMDB — still
+ * have to land somewhere real.
+ *
+ * Returns `null` rather than throwing when the film genuinely does not exist,
+ * so callers can render a 404 instead of an error boundary.
  */
-export async function resolveMovie(slugOrProviderId: string): Promise<Movie> {
+export async function resolveMovie(slugOrProviderId: string): Promise<Movie | null> {
   const bySlug = await findMovieBySlug(slugOrProviderId);
   if (bySlug) return bySlug;
 
-  if (/^\d+$/.test(slugOrProviderId)) {
-    const byProvider = await findMovieByProviderId(slugOrProviderId);
-    if (byProvider) return byProvider;
+  if (!isProviderIdParam(slugOrProviderId)) return null;
+
+  const byProvider = await findMovieByProviderId(slugOrProviderId);
+  if (byProvider) return byProvider;
+
+  try {
     const { movie } = await ensureMovieDetails(slugOrProviderId);
     return movie;
+  } catch (error) {
+    if (error instanceof NotFoundError) return null;
+    throw error;
   }
-
-  throw new NotFoundError('We could not find that film.');
 }
 
 /**

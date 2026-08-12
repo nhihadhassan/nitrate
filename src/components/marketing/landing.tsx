@@ -4,18 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Container } from '@/components/ui/primitives';
 import { BRAND } from '@/lib/brand';
 
+/** The three layers the whole product is built on, in the order you meet them. */
 const LOOPS = [
   {
+    label: 'Your films',
     title: 'Keep the diary you actually reread',
     body: 'Log what you watch in seconds — half stars, a like, a few words if you have them. Rewatches keep their own date, their own rating and their own review, so your history stays honest instead of being overwritten.',
   },
   {
+    label: 'Their films',
     title: 'Discover through people, not an algorithm',
     body: 'Follow the friends and strangers whose taste you trust. Their films, reviews and lists are the feed. On any film page you see what the people you follow thought before you see the crowd.',
   },
   {
-    title: 'Let the wheel settle it',
-    body: 'Every week everyone submits one film. Spin the wheel, it picks at random, and the group gets an email telling them what you are watching. No campaigning, no deadlock, nobody to blame.',
+    label: 'Our films',
+    title: 'Decide together, then remember it',
+    body: 'A Movie Club has a shared queue, a way to pick, a night in the calendar and a permanent record. Everyone puts one film in and the wheel settles it — no campaigning, no deadlock, nobody to blame.',
   },
 ];
 
@@ -32,7 +36,7 @@ export function LandingPage() {
           }}
         />
         <Container className="relative py-20 text-center sm:py-28">
-          <p className="eyebrow">A film diary for the group</p>
+          <p className="eyebrow">{BRAND.tagline}</p>
           <h1 className="mx-auto mt-4 max-w-3xl text-balance text-5xl leading-[1.02] sm:text-6xl lg:text-7xl">
             {BRAND.name}
           </h1>
@@ -49,7 +53,11 @@ export function LandingPage() {
             </Button>
           </div>
           <p className="mt-5 text-xs text-dim">
-            Free. Import your Letterboxd history in a couple of minutes.
+            Free. Already on Letterboxd?{' '}
+            <Link href="/import" className="underline underline-offset-2 hover:text-muted">
+              Bring your history with you
+            </Link>
+            .
           </p>
         </Container>
       </section>
@@ -61,7 +69,8 @@ export function LandingPage() {
               <p className="font-display text-3xl text-ember/70 tabular">
                 {String(index + 1).padStart(2, '0')}
               </p>
-              <h2 className="mt-3 text-xl leading-snug">{loop.title}</h2>
+              <p className="eyebrow mt-3">{loop.label}</p>
+              <h2 className="mt-1.5 text-xl leading-snug">{loop.title}</h2>
               <p className="mt-2.5 text-sm leading-relaxed text-muted">{loop.body}</p>
             </section>
           ))}

@@ -6,6 +6,7 @@ import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { profileUrl } from '@/lib/images';
 import { truncate } from '@/lib/utils';
+import { filmRefsFromSummaries } from '@/server/movies/catalog';
 import { withProvider } from '@/server/movies/provider';
 
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,11 @@ export default async function PersonPage({ params }: Params) {
   const { id } = await params;
   const { data: person, degraded } = await withProvider((p) => p.getPerson(id));
   if (!person) notFound();
+
+  // Filmographies link like everything else: canonical slugs, resolved once.
+  const filmography = await filmRefsFromSummaries(
+    (person.knownFor ?? []).filter((film) => !film.adult),
+  );
 
   const photo = profileUrl(person.profilePath, 'md');
 
@@ -58,22 +64,21 @@ export default async function PersonPage({ params }: Params) {
 
       <section className="mt-10">
         <h2 className="eyebrow mb-3">Known for</h2>
-        {person.knownFor?.length ? (
+        {filmography.length ? (
           <PosterGrid>
-            {person.knownFor.map((film) => (
-              <PosterCard
-                key={film.providerId}
-                film={{
-                  slug: film.providerId,
-                  title: film.title,
-                  year: film.year,
-                  posterPath: film.posterPath,
-                }}
-              />
+            {filmography.map((film) => (
+              <PosterCard key={film.id} film={film} />
             ))}
           </PosterGrid>
         ) : (
-          <EmptyState title="No credits found" description="We could not load a filmography." />
+          <EmptyState
+            title="No credits found"
+            description={
+              degraded
+                ? 'The film database is unreachable right now, so we cannot load a filmography.'
+                : 'We do not have a filmography for this person yet.'
+            }
+          />
         )}
       </section>
     </Container>

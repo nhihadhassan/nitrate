@@ -79,7 +79,10 @@ export function Wheel({
       {/* Pointer */}
       <div
         aria-hidden
-        className="absolute left-1/2 top-[-10px] z-20 h-0 w-0 -translate-x-1/2"
+        className={cn(
+          'wheel-pointer absolute left-1/2 top-[-10px] z-20 h-0 w-0 -translate-x-1/2',
+          spinning && 'is-spinning',
+        )}
         style={{
           borderLeft: '11px solid transparent',
           borderRight: '11px solid transparent',
@@ -89,7 +92,10 @@ export function Wheel({
       />
 
       <div
-        className="relative h-full w-full rounded-full border-2 border-line-strong shadow-pop"
+        className={cn(
+          'movie-wheel relative h-full w-full rounded-full border-2 border-line-strong shadow-pop',
+          spinning && 'is-spinning',
+        )}
         style={{
           background: gradient,
           transform: `rotate(${rotation}deg)`,
@@ -134,7 +140,7 @@ export function Wheel({
       <div
         aria-hidden
         className={cn(
-          'absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-line-strong bg-canvas-raised text-xs font-semibold uppercase tracking-wide text-muted',
+          'wheel-hub absolute left-1/2 top-1/2 z-10 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border-2 border-line-strong bg-canvas-raised text-xs font-semibold uppercase tracking-wide text-muted',
           spinning && 'animate-pulse',
         )}
       >

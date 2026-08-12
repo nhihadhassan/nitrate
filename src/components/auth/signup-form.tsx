@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { signupAction } from '@/server/actions/auth';
 
-export function SignupForm({ inviteCode }: { inviteCode?: string }) {
+export function SignupForm({ inviteCode, next }: { inviteCode?: string; next?: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +35,9 @@ export function SignupForm({ inviteCode }: { inviteCode?: string }) {
             setFields(result.fields ?? {});
             return;
           }
-          router.push(result.data.next);
+          // A signup that started somewhere specific — the importer, a club
+          // invite — should finish there rather than at the default landing.
+          router.push(next && next.startsWith('/') ? next : result.data.next);
           router.refresh();
         });
       }}

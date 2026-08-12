@@ -2,14 +2,17 @@
 
 import { useId, useState } from 'react';
 
-import { cn } from '@/lib/utils';
+import { cn, ratingLabel } from '@/lib/utils';
 
 /**
  * Half-star rating input.
  *
- * Pointer: each star is two hit zones. Keyboard: a real slider with arrow keys,
- * because a row of ten buttons is miserable to tab through. Clicking the current
- * value clears it — the fastest way to undo a misclick.
+ * Pointer: each star is two hit zones. Keyboard and screen reader: a real
+ * slider with arrow keys, because a row of ten buttons is miserable to tab
+ * through and announces as ten identical stars. The drawn stars are therefore
+ * entirely decorative — `aria-hidden` on the whole row — and the range input is
+ * the only control assistive technology ever sees. Clicking the current value
+ * clears it, the fastest way to undo a misclick.
  */
 export function StarInput({
   value,
@@ -38,12 +41,7 @@ export function StarInput({
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
-      <div
-        className="flex items-center"
-        onPointerLeave={() => setHover(null)}
-        role="group"
-        aria-label={label}
-      >
+      <div className="flex items-center" onPointerLeave={() => setHover(null)} aria-hidden>
         {[1, 2, 3, 4, 5].map((star) => {
           const half = star * 2 - 1;
           const full = star * 2;
@@ -51,13 +49,14 @@ export function StarInput({
             <span key={star} className={cn('relative', starSize)}>
               <StarGlyph
                 className={cn(
-                  'absolute inset-0 transition-transform duration-150',
+                  'rating-star absolute inset-0',
                   shown >= full
                     ? 'text-ember'
                     : shown >= half
                       ? 'text-line-strong'
                       : 'text-line-strong',
-                  shown === full && hover === full && 'scale-110',
+                  shown === full && hover === full && 'is-previewed',
+                  shown >= half && value === shown && hover === null && 'is-selected',
                 )}
                 fill={shown >= full ? 1 : shown >= half ? 0.5 : 0}
               />
@@ -95,7 +94,7 @@ export function StarInput({
         value={value ?? 0}
         disabled={disabled}
         aria-label={label}
-        aria-valuetext={value ? `${value / 2} out of 5 stars` : 'Not rated'}
+        aria-valuetext={ratingLabel(value)}
         onChange={(event) => {
           const next = Number(event.target.value);
           onChange(next === 0 ? null : next);

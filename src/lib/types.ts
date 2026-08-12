@@ -1,5 +1,13 @@
 /** Shared client-safe shapes. Server types live next to their schema. */
 
+/**
+ * A film, reduced to what it takes to show and link one.
+ *
+ * `slug` is always the *canonical* local slug — never a provider id. Server
+ * code produces these through `toFilmRef` / `filmRefsFromSummaries`, so any
+ * component holding a `FilmRef` can link with `filmHref` and be certain the URL
+ * resolves on the first request.
+ */
 export type FilmRef = {
   id: string;
   slug: string;

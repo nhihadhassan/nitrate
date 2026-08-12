@@ -11,6 +11,8 @@ import { BookmarkIcon, CommentIcon } from '@/components/ui/icons';
 import { Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { Avatar } from '@/components/user/avatar';
+import { feedVerb } from '@/lib/feed';
+import { clubHref, filmHref, listHref, loginHref, reviewHref, userHref } from '@/lib/links';
 import { formatDateOnly, relativeTime } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { updateFilmStateAction } from '@/server/actions/films';
@@ -18,7 +20,8 @@ import { toggleReviewLikeAction } from '@/server/actions/social';
 
 export type FeedCardData = {
   id: string;
-  type: string;
+  /** Every event folded into this card — see `aggregateFeedItems`. */
+  types: string[];
   createdAt: string;
   actor: { id: string; username: string; displayName: string; avatarAssetId: string | null };
   movie: { id: string; slug: string; title: string; year: number | null; posterPath: string | null } | null;
@@ -36,43 +39,42 @@ export type FeedCardData = {
   } | null;
   list: { id: string; title: string; slug: string; itemCount: number } | null;
   club: { id: string; name: string; slug: string } | null;
+  /** Event payload — carries the rating when someone rated without logging. */
+  metadata?: Record<string, unknown>;
 };
 
-function verbFor(item: FeedCardData): string {
-  switch (item.type) {
-    case 'film_rated':
-      return 'rated';
-    case 'film_liked':
-      return 'liked';
-    case 'review_created':
-      return 'reviewed';
-    case 'list_created':
-      return 'made a list';
-    case 'club_movie_selected':
-      return 'picked the next club film';
-    case 'club_screening_completed':
-      return 'watched with';
-    default:
-      return item.entry?.isRewatch ? 'rewatched' : 'watched';
-  }
-}
-
+/**
+ * One act of watching one film, as one card.
+ *
+ * The rating, the heart and the review are attributes of the sentence at the
+ * top — not three separate announcements. That is the whole reason the feed
+ * aggregates upstream.
+ */
 export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
-  const [liked, setLiked] = useState(item.entry?.likedByViewer ?? false);
+  const [likedByViewer, setLikedByViewer] = useState(item.entry?.likedByViewer ?? false);
   const [likeCount, setLikeCount] = useState(item.entry?.likeCount ?? 0);
   const [saved, setSaved] = useState(false);
 
   function requireAuth(): boolean {
     if (signedIn) return true;
-    router.push('/login');
+    router.push(loginHref());
     return false;
   }
 
+  const verb = feedVerb(item.types, { isRewatch: item.entry?.isRewatch });
+
+  // Rating a film without logging it writes an event and no diary entry, so the
+  // stars have to come from the event itself — otherwise the card says someone
+  // "rated" something and then shows no rating.
+  const metaRating = typeof item.metadata?.rating === 'number' ? item.metadata.rating : null;
+  const rating = item.entry?.rating ?? metaRating;
+  const actorLiked = item.entry?.liked ?? item.types.includes('film_liked');
+
   return (
-    <article className="flex gap-3 py-5">
+    <article className="review-surface flex gap-3 py-5" data-reveal="card">
       {item.movie ? (
         <div className="w-16 shrink-0 sm:w-[4.5rem]">
           <Poster film={item.movie} size="sm" />
@@ -86,33 +88,38 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-1.5 text-sm">
           <Link
-            href={`/@${item.actor.username}`}
+            href={userHref(item.actor)}
             className="font-medium hover:text-ember"
           >
             {item.actor.displayName}
           </Link>
-          <span className="text-dim">{verbFor(item)}</span>
+          <span className="text-dim">{verb}</span>
           {item.movie ? (
-            <Link href={`/film/${item.movie.slug}`} className="font-medium hover:text-ember">
+            <Link href={filmHref(item.movie)} className="font-medium hover:text-ember">
               {item.movie.title}
             </Link>
           ) : null}
           {item.movie?.year ? <span className="text-dim tabular">{item.movie.year}</span> : null}
           {item.list ? (
-            <Link href={`/list/${item.list.id}`} className="font-medium hover:text-ember">
+            <Link href={listHref(item.list)} className="font-medium hover:text-ember">
               {item.list.title}
             </Link>
           ) : null}
           {item.club ? (
-            <Link href={`/club/${item.club.slug}`} className="font-medium text-iris hover:underline">
+            <Link href={clubHref(item.club)} className="font-medium text-iris hover:underline">
               {item.club.name}
             </Link>
           ) : null}
         </div>
 
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          {item.entry?.rating ? <Stars value={item.entry.rating} size="sm" /> : null}
-          {item.entry?.liked ? <LikeMark className="text-sm text-rose" /> : null}
+          <Stars value={rating} size="sm" labelPrefix={`${item.actor.displayName} rated this`} />
+          {actorLiked ? (
+            <LikeMark
+              className="text-sm text-rose"
+              label={`${item.actor.displayName} liked this film`}
+            />
+          ) : null}
           {item.entry?.isRewatch ? <Badge tone="iris">Rewatch</Badge> : null}
           {item.list ? <span className="text-xs text-dim">{item.list.itemCount} films</span> : null}
           <span className="text-xs text-dim">
@@ -121,7 +128,7 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
         </div>
 
         {item.entry?.reviewText ? (
-          <Link href={`/review/${item.entry.id}`} className="mt-2.5 block">
+          <Link href={reviewHref(item.entry)} className="mt-2.5 block">
             <ReviewBody
               text={item.entry.reviewText}
               containsSpoilers={item.entry.containsSpoilers}
@@ -138,34 +145,37 @@ export function FeedCard({ item, signedIn }: { item: FeedCardData; signedIn: boo
                 disabled={pending}
                 onClick={() => {
                   if (!requireAuth()) return;
-                  const next = !liked;
-                  setLiked(next);
+                  const next = !likedByViewer;
+                  setLikedByViewer(next);
                   setLikeCount((c) => c + (next ? 1 : -1));
                   startTransition(async () => {
                     const result = await toggleReviewLikeAction(item.entry!.id);
                     if (!result.ok) {
-                      setLiked(!next);
+                      setLikedByViewer(!next);
                       setLikeCount((c) => c + (next ? -1 : 1));
                       toast({ message: result.error, tone: 'error' });
                       return;
                     }
-                    setLiked(result.data.liked);
+                    setLikedByViewer(result.data.liked);
                     setLikeCount(result.data.likeCount);
                   });
                 }}
-                aria-pressed={liked}
-                aria-label={liked ? 'Unlike this entry' : 'Like this entry'}
+                aria-pressed={likedByViewer}
+                aria-label={likedByViewer ? 'Unlike this entry' : 'Like this entry'}
                 className={cn(
                   'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors',
-                  liked ? 'text-rose' : 'text-dim hover:bg-surface-hover hover:text-muted',
+                  likedByViewer ? 'text-rose' : 'text-dim hover:bg-surface-hover hover:text-muted',
                 )}
               >
-                <LikeMark filled={liked} className={cn('text-sm', liked && 'animate-pop')} />
+                <LikeMark
+                  filled={likedByViewer}
+                  className={cn('text-sm', likedByViewer && 'animate-pop')}
+                />
                 {likeCount > 0 ? <span className="tabular">{likeCount}</span> : null}
               </button>
 
               <Link
-                href={`/review/${item.entry.id}`}
+                href={reviewHref(item.entry)}
                 className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-dim transition-colors hover:bg-surface-hover hover:text-muted"
               >
                 <CommentIcon className="h-3.5 w-3.5" />

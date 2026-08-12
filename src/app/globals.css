@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
-  Rachad Julijan Diyack Movie Club — design language
+  Nitrate — design language
   ----------------------
   Near-black paper, warm ember accent, editorial serif headlines against a
   neutral grotesk. Posters carry the colour; the chrome stays quiet so a wall of
@@ -39,6 +39,19 @@
 
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.7);
   --shadow-pop: 0 12px 40px -8px rgb(0 0 0 / 0.75);
+  --shadow-raised: 0 8px 22px -14px rgb(0 0 0 / 0.82), 0 1px 0 rgb(255 255 255 / 0.045) inset;
+  --shadow-floating: 0 18px 45px -18px rgb(0 0 0 / 0.9), 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-overlay: 0 28px 80px -24px rgb(0 0 0 / 0.95), 0 1px 0 rgb(255 255 255 / 0.07) inset;
+
+  --duration-fast: 140ms;
+  --duration-base: 220ms;
+  --duration-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-wheel: cubic-bezier(0.08, 0.72, 0.12, 1);
+  --page-scroll: 0px;
+  --backdrop-shift: 0px;
+  --poster-shift: 0px;
 
   --grain-opacity: 0.028;
 }
@@ -71,6 +84,9 @@
 
   --shadow-card: 0 1px 2px rgb(20 21 26 / 0.06), 0 8px 24px -16px rgb(20 21 26 / 0.24);
   --shadow-pop: 0 12px 40px -10px rgb(20 21 26 / 0.22);
+  --shadow-raised: 0 10px 26px -18px rgb(20 21 26 / 0.3), 0 1px 0 rgb(255 255 255 / 0.8) inset;
+  --shadow-floating: 0 20px 44px -22px rgb(20 21 26 / 0.34), 0 0 0 1px rgb(20 21 26 / 0.035);
+  --shadow-overlay: 0 28px 70px -24px rgb(20 21 26 / 0.38), 0 1px 0 rgb(255 255 255 / 0.86) inset;
 
   --grain-opacity: 0.02;
 }
@@ -227,6 +243,9 @@ textarea::placeholder {
   scrollbar-width: none;
   -ms-overflow-style: none;
   padding-bottom: 0.25rem;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(to right, transparent 0, black 1rem, black calc(100% - 1rem), transparent 100%);
 }
 @utility scroll-rail-item {
   scroll-snap-align: start;
@@ -250,6 +269,284 @@ textarea::placeholder {
   background-color: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Premium interaction surfaces                                               */
+/* -------------------------------------------------------------------------- */
+
+.tactile-button,
+.action-tile,
+.interactive-card,
+.search-result {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-base) ease,
+    box-shadow var(--duration-base) var(--ease-out),
+    filter var(--duration-fast) ease;
+  will-change: transform;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tactile-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .action-tile:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .interactive-card:hover,
+  .review-surface:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-raised);
+  }
+}
+
+.tactile-button:active:not(:disabled),
+.action-tile:active:not(:disabled),
+.interactive-card:active {
+  transform: translateY(0) scale(0.975);
+  transition-duration: 80ms;
+}
+
+.action-tile[aria-pressed='true'] {
+  box-shadow: 0 0 24px -15px currentColor, 0 1px 0 rgb(255 255 255 / 0.06) inset;
+}
+
+.action-tile svg,
+.action-icon {
+  transition: transform var(--duration-base) var(--ease-out-expo);
+}
+
+.action-tile[aria-pressed='true'] svg,
+.action-icon.is-active {
+  transform: translateY(-1px) scale(1.08);
+}
+
+.review-surface {
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
+  border-radius: var(--radius-lg);
+  transition:
+    transform var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) ease,
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.review-surface:hover {
+  background: color-mix(in srgb, var(--surface) 48%, transparent);
+}
+
+.interactive-card,
+.signature-surface,
+.winner-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.interactive-card::before,
+.signature-surface::before,
+.winner-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(
+    22rem circle at var(--light-x, 50%) var(--light-y, 42%),
+    rgb(255 255 255 / 0.075),
+    transparent 45%
+  );
+  transition: opacity var(--duration-base) ease;
+}
+
+[data-pointer-active='true'].interactive-card::before,
+[data-pointer-active='true'].signature-surface::before,
+[data-pointer-active='true'].winner-card::before {
+  opacity: 1;
+}
+
+/* Posters behave like restrained physical objects. Pointer coordinates are
+   delegated by MotionOrchestrator, so a grid still has only one listener. */
+.premium-poster {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --light-x: 50%;
+  --light-y: 42%;
+  transform: perspective(850px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateZ(0);
+  transform-style: preserve-3d;
+  transition:
+    transform var(--duration-base) var(--ease-out-expo),
+    box-shadow var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) ease;
+  will-change: transform;
+}
+
+.premium-poster::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      65% 48% at var(--light-x) var(--light-y),
+      rgb(255 255 255 / 0.16),
+      rgb(255 255 255 / 0.025) 42%,
+      transparent 72%
+    ),
+    linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.05), transparent 70%);
+  mix-blend-mode: screen;
+  transition: opacity var(--duration-base) ease;
+}
+
+.poster-image {
+  opacity: 0;
+  transform: scale(1.025);
+  filter: saturate(0.82) brightness(0.82);
+  transition:
+    opacity 380ms ease,
+    transform var(--duration-slow) var(--ease-out-expo),
+    filter var(--duration-base) ease;
+}
+
+.poster-image.is-loaded {
+  opacity: 1;
+  transform: scale(1);
+  filter: none;
+}
+
+.poster-placeholder {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.05) 50%, transparent 65%),
+    linear-gradient(160deg, var(--surface) 0%, var(--canvas-raised) 100%);
+  background-size: 220% 100%, 100% 100%;
+  animation: nitrate-shimmer 1.5s ease-in-out infinite;
+  transition: opacity 280ms ease;
+}
+
+.poster-placeholder.is-loaded {
+  opacity: 0;
+  animation: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .poster-card:hover .premium-poster,
+  a:hover > .premium-poster,
+  .premium-poster[data-pointer-active='true'] {
+    transform: perspective(850px) rotateX(var(--tilt-x)) rotateY(var(--tilt-y)) translateY(-4px) scale(1.018);
+    box-shadow: var(--shadow-floating);
+  }
+
+  .premium-poster[data-pointer-active='true']::after {
+    opacity: 1;
+  }
+
+  .poster-card:hover .poster-image,
+  a:hover > .premium-poster .poster-image {
+    transform: scale(1.035);
+    filter: saturate(1.04) brightness(1.04);
+  }
+}
+
+/* Navigation gains structural depth only once content moves behind it. */
+.nav-shell {
+  transition:
+    background-color var(--duration-base) ease,
+    border-color var(--duration-base) ease,
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+html[data-scrolled] .nav-shell {
+  background-color: color-mix(in srgb, var(--canvas) 78%, transparent);
+  border-color: color-mix(in srgb, var(--line-strong) 70%, transparent);
+  box-shadow: 0 10px 35px -28px rgb(0 0 0 / 0.9);
+}
+
+.nav-link {
+  position: relative;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  bottom: -0.52rem;
+  left: 0.75rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--ember);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--duration-base) var(--ease-out-expo);
+}
+
+.nav-link[data-active='true']::after {
+  transform: scaleX(1);
+}
+
+/* Cinematic artwork layers move at different rates without touching layout. */
+.cinematic-backdrop-media {
+  transform: translate3d(0, var(--backdrop-shift), 0) scale(1.055);
+  transform-origin: center top;
+  will-change: transform;
+}
+
+.cinematic-hero-poster {
+  transform: translate3d(0, var(--poster-shift), 0);
+  will-change: transform;
+}
+
+.hero-poster {
+  box-shadow: var(--shadow-floating);
+}
+
+/* Inputs feel focused without delaying typing or animating layout. */
+input:not([type='range']),
+textarea,
+select {
+  transition:
+    border-color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease,
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+input:not([type='range']):focus,
+textarea:focus,
+select:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ember) 12%, transparent), var(--shadow-raised);
+}
+
+.search-backdrop {
+  animation: nitrate-fade var(--duration-base) ease-out both;
+}
+
+.search-dialog {
+  animation: nitrate-dialog-in 260ms var(--ease-out-expo) both;
+  box-shadow: var(--shadow-overlay);
+}
+
+.search-result[aria-selected='true'] {
+  transform: translateX(3px);
+  background: var(--surface-hover);
+}
+
+.empty-state {
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--iris) 7%, transparent), transparent 42%),
+    color-mix(in srgb, var(--surface) 28%, transparent);
 }
 
 @utility hairline {
@@ -297,6 +594,76 @@ textarea::placeholder {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes nitrate-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes nitrate-route-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nitrate-rating-confirm {
+  0% {
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(0.94);
+  }
+  55% {
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--ember) 55%, transparent));
+    transform: scale(1.08);
+  }
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+    transform: scale(1);
+  }
+}
+
+@keyframes nitrate-rating-row {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes nitrate-score-resolve {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes nitrate-pointer-tick {
+  0%, 100% {
+    transform: translateX(-50%) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-50%) rotate(-8deg);
   }
 }
 
@@ -356,7 +723,7 @@ textarea::placeholder {
 }
 
 .animate-pop {
-  animation: nitrate-pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: nitrate-pop 280ms var(--ease-out-expo);
 }
 .animate-rise {
   animation: nitrate-rise 240ms ease-out both;
@@ -377,6 +744,118 @@ textarea::placeholder {
   animation: nitrate-shimmer 1.4s linear infinite;
 }
 
+.route-stage {
+  animation: nitrate-route-in 260ms var(--ease-out-expo) both;
+}
+
+/* Hierarchical viewport reveals: the section settles first, then grid items.
+   Delays stay tiny, so content never feels queued behind choreography. */
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 420ms ease,
+    transform 480ms var(--ease-out-expo);
+}
+
+[data-reveal='hero'] {
+  transform: translateY(7px) scale(0.992);
+}
+
+[data-reveal].is-revealed {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.poster-grid[data-reveal] > * {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  transition:
+    opacity 360ms ease,
+    transform 440ms var(--ease-out-expo);
+}
+
+.poster-grid[data-reveal].is-revealed > * {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.poster-grid.is-revealed > :nth-child(2),
+.poster-grid.is-revealed > :nth-child(7) { transition-delay: 35ms; }
+.poster-grid.is-revealed > :nth-child(3),
+.poster-grid.is-revealed > :nth-child(8) { transition-delay: 65ms; }
+.poster-grid.is-revealed > :nth-child(4),
+.poster-grid.is-revealed > :nth-child(9) { transition-delay: 95ms; }
+.poster-grid.is-revealed > :nth-child(5),
+.poster-grid.is-revealed > :nth-child(10) { transition-delay: 125ms; }
+.poster-grid.is-revealed > :nth-child(6),
+.poster-grid.is-revealed > :nth-child(11) { transition-delay: 155ms; }
+
+.rating-star {
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) ease,
+    filter var(--duration-fast) ease;
+  transform-origin: center;
+}
+
+.rating-star.is-previewed {
+  transform: translateY(-1px) scale(1.1);
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--ember) 42%, transparent));
+}
+
+.rating-star.is-selected {
+  animation: nitrate-rating-confirm 300ms var(--ease-out-expo);
+}
+
+.rating-reveal-item {
+  opacity: 0;
+  animation: nitrate-rating-row 360ms var(--ease-out-expo) forwards;
+}
+
+.group-score-reveal {
+  animation: nitrate-score-resolve 440ms 320ms var(--ease-out-expo) both;
+}
+
+.signature-surface {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--iris) 8%, transparent), transparent 43%),
+    color-mix(in srgb, var(--surface) 38%, transparent);
+  box-shadow: 0 1px 0 rgb(255 255 255 / 0.035) inset;
+}
+
+.movie-wheel {
+  box-shadow:
+    0 26px 55px -28px rgb(0 0 0 / 0.92),
+    0 0 0 8px color-mix(in srgb, var(--surface) 72%, transparent),
+    0 1px 0 rgb(255 255 255 / 0.28) inset;
+  transition-timing-function: var(--ease-wheel) !important;
+}
+
+.movie-wheel::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 38% 28%, rgb(255 255 255 / 0.25), transparent 28%),
+    linear-gradient(135deg, rgb(255 255 255 / 0.16), transparent 42%, rgb(0 0 0 / 0.2));
+  mix-blend-mode: soft-light;
+}
+
+.wheel-pointer.is-spinning {
+  animation: nitrate-pointer-tick 190ms ease-in-out infinite;
+}
+
+.wheel-hub {
+  box-shadow: var(--shadow-raised), 0 0 22px -10px var(--iris);
+}
+
+.winner-card {
+  box-shadow: var(--shadow-floating), 0 0 52px -32px var(--iris);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -385,5 +864,22 @@ textarea::placeholder {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  [data-reveal],
+  .poster-grid[data-reveal] > * {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .premium-poster,
+  .premium-poster:hover,
+  .cinematic-backdrop-media,
+  .cinematic-hero-poster {
+    transform: none !important;
+  }
+
+  .poster-placeholder {
+    animation: none !important;
   }
 }

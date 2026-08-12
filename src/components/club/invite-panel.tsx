@@ -6,19 +6,23 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 import { createInviteAction } from '@/server/actions/clubs';
-import { BRAND } from '@/lib/brand';
 
 /**
  * Invites are the club growth loop, so this stays a one-tap affordance: the
  * standing club code is always shareable, and a fresh single-use link is one
  * click away for anywhere more public.
+ *
+ * The share sheet names the *club*, never the product — someone being invited
+ * is being invited to a group, not to a website.
  */
 export function ClubInvitePanel({
   clubId,
+  clubName,
   inviteCode,
   compact,
 }: {
   clubId: string;
+  clubName: string;
   inviteCode: string;
   compact?: boolean;
 }) {
@@ -40,7 +44,7 @@ export function ClubInvitePanel({
   async function share(value: string) {
     if (navigator.share) {
       try {
-        await navigator.share({ url: value, title: `Join ${BRAND.name}` });
+        await navigator.share({ url: value, title: `Join ${clubName}` });
         return;
       } catch {
         /* dismissed */

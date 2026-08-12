@@ -32,6 +32,7 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
           timezone: club.timezone,
           interests: club.interests,
           imageAssetId: club.imageAssetId,
+          blindRatingsEnabled: club.blindRatingsEnabled,
           weeklyPickEnabled: club.weeklyPickEnabled,
           weeklyPickDay: club.weeklyPickDay,
           weeklyPickHour: club.weeklyPickHour,

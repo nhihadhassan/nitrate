@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Poster } from '@/components/film/poster';
 import { LikeMark, Stars } from '@/components/film/stars';
 import { Badge, EmptyState } from '@/components/ui/primitives';
+import { filmHref } from '@/lib/links';
 import { formatDateOnly } from '@/lib/utils';
 import { loadProfileContext } from '@/server/services/profile-context';
 import { getDiary } from '@/server/services/profile';
@@ -79,7 +80,7 @@ export default async function DiaryPage({
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <Link href={`/film/${movie.slug}`} className="truncate font-medium hover:text-ember">
+                    <Link href={filmHref(movie)} className="truncate font-medium hover:text-ember">
                       {movie.title}
                     </Link>
                     {movie.year ? <span className="text-xs text-dim tabular">{movie.year}</span> : null}

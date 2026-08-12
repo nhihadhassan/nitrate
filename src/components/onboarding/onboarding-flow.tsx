@@ -464,7 +464,7 @@ export function OnboardingFlow({
                 </p>
               </Link>
               <Link
-                href="/settings/import"
+                href="/import"
                 className="block rounded-lg border border-line p-4 transition-colors hover:border-line-strong"
               >
                 <p className="font-display text-xl">Import from Letterboxd</p>

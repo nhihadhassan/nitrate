@@ -1,6 +1,6 @@
 # Handoff
 
-Everything you need to run, operate and hand off **Rachad Julijan Diyack Movie Club**.
+Everything you need to run, operate and hand off **Nitrate**.
 Written to be read by someone who has never seen the project.
 
 ---
@@ -16,10 +16,9 @@ Written to be read by someone who has never seen the project.
 | Film data | TMDB API |
 | Email | Resend, sending as `movienight@nhihadhassan.ca` |
 
-> **The repo, Vercel project and URL are still called `nitrate`.** That was the
-> product's original name. Renaming the Vercel project changes the live URL and
-> needs account-level permissions the current deploy token does not have. It is
-> cosmetic — nothing breaks — but see §6 if you want it changed.
+> **The repo, Vercel project, URL and product name are all `nitrate` again.**
+> The product briefly carried a club's name; that is now separated — `BRAND` in
+> `src/lib/brand.ts` names the application, clubs name only themselves.
 
 ---
 

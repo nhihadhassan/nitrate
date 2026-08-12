@@ -1,12 +1,18 @@
-# Rachad Julijan Diyack Movie Club
+# Nitrate
 
-A social film diary for the group — and the movie club that runs itself.
+**Your films. Their films. Our films.**
+
+A social film diary, and the Movie Club that runs itself.
 
 It does the things a film-tracking network has to do: log what you watch, keep a
 diary worth re-reading, rate and review, build lists and watchlists, follow
 people whose taste you trust. Then it adds the part nobody else does properly —
 **Movie Clubs**, where everyone submits one film a week, **the wheel picks at
 random**, and the group gets an email telling them what they're watching.
+
+The product name lives in `src/lib/brand.ts` and nowhere else. A *club* has its
+own name, which must never become the application's — see the note at the top of
+that file.
 
 **Live:** https://nitrate-iota.vercel.app — public, no sign-in wall.
 

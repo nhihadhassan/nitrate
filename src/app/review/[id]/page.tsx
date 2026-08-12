@@ -11,6 +11,7 @@ import { ReviewBody } from '@/components/review/review-body';
 import { Comments } from '@/components/social/comments';
 import { Badge, Container, Divider } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
+import { filmHref } from '@/lib/links';
 import { formatDateOnly, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { db } from '@/server/db';
@@ -96,7 +97,7 @@ export default async function ReviewPage({ params }: Params) {
             />
           </div>
           <div className="min-w-0 flex-1">
-            <Link href={`/film/${movie.slug}`} className="block">
+            <Link href={filmHref(movie)} className="block">
               <h1 className="text-2xl leading-tight hover:text-ember sm:text-3xl">{movie.title}</h1>
             </Link>
             {movie.year ? <p className="text-sm text-dim tabular">{movie.year}</p> : null}

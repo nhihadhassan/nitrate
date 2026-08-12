@@ -8,7 +8,7 @@ import { Stars } from '@/components/film/stars';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { Avatar } from '@/components/user/avatar';
-import { pluralize } from '@/lib/utils';
+import { cn, pluralize } from '@/lib/utils';
 import { submitClubRatingAction } from '@/server/actions/clubs';
 
 /**
@@ -81,10 +81,10 @@ export function BlindRatings({
 
   return (
     <div className={justRevealed ? 'animate-reveal' : undefined}>
-      <div className="flex flex-wrap items-end gap-6 rounded-lg border border-line bg-surface/50 p-4">
+      <div className="blind-rating-reveal flex flex-wrap items-end gap-6 rounded-lg border border-line bg-surface/50 p-4">
         <div>
           <p className="eyebrow">Group rating</p>
-          <p className="font-display text-5xl leading-none tabular">
+          <p className={justRevealed ? 'group-score-reveal font-display text-5xl leading-none tabular' : 'font-display text-5xl leading-none tabular'}>
             {average ? (average / 2).toFixed(1) : '—'}
           </p>
           <p className="mt-1 text-xs text-dim">
@@ -96,8 +96,12 @@ export function BlindRatings({
         <div className="min-w-0 flex-1">
           <p className="eyebrow mb-2">How everyone scored it</p>
           <ul className="space-y-1.5">
-            {spread.map((entry) => (
-              <li key={entry.user.username} className="flex items-center gap-2">
+            {spread.map((entry, index) => (
+              <li
+                key={entry.user.username}
+                className={cn('flex items-center gap-2', justRevealed && 'rating-reveal-item')}
+                style={justRevealed ? { animationDelay: `${80 + index * 55}ms` } : undefined}
+              >
                 <Avatar user={entry.user} size="xs" />
                 <span className="min-w-0 flex-1 truncate text-sm text-muted">
                   {entry.user.displayName}

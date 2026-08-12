@@ -33,7 +33,12 @@ export function formatStars(halfStars: number | null | undefined): string {
   return Number.isInteger(stars) ? `${stars}.0` : stars.toFixed(1);
 }
 
-/** "★★★½" — used in text contexts and as accessible labels. */
+/**
+ * "★★★½" for plain-text contexts only — an email subject, an export, a share
+ * string. Never render this in the DOM: a screen reader reads it as a run of
+ * "black star" characters. On screen, use `<Stars>`, which pairs the glyphs
+ * with a single readable label.
+ */
 export function starGlyphs(halfStars: number): string {
   const full = Math.floor(halfStars / 2);
   const half = halfStars % 2 === 1;

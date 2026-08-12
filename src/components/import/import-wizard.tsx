@@ -120,7 +120,7 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
       // `replace` alone is a no-op when the URL already carries this batch —
       // which it does on any resumed import — so refresh to force the server
       // component to re-read the batch and hand us the preview.
-      router.replace(`/settings/import?batch=${batchId}`);
+      router.replace(`/import?batch=${batchId}`);
       router.refresh();
     }
 

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { LoginForm } from '@/components/auth/login-form';
+import { signupHref } from '@/lib/links';
 import { getCurrentUser } from '@/server/auth/session';
 
 export const metadata: Metadata = { title: 'Sign in' };
@@ -28,7 +29,7 @@ export default async function LoginPage({
       </div>
       <p className="mt-6 text-center text-sm text-muted">
         New here?{' '}
-        <Link href="/signup" className="font-medium text-ember hover:underline">
+        <Link href={signupHref(next)} className="font-medium text-ember hover:underline">
           Create an account
         </Link>
       </p>

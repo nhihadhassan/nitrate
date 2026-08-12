@@ -23,7 +23,7 @@ export default async function ClubMembersPage({ params }: { params: Promise<{ sl
       {isMember ? (
         <section>
           <SectionHeading title="Invite someone" />
-          <ClubInvitePanel clubId={club.id} inviteCode={club.inviteCode} />
+          <ClubInvitePanel clubId={club.id} clubName={club.name} inviteCode={club.inviteCode} />
         </section>
       ) : null}
 

@@ -24,6 +24,7 @@ export function ClubSettingsForm({
     timezone: string;
     interests: string[];
     imageAssetId: string | null;
+    blindRatingsEnabled: boolean;
     weeklyPickEnabled: boolean;
     weeklyPickDay: number;
     weeklyPickHour: number;
@@ -38,6 +39,7 @@ export function ClubSettingsForm({
   const [timezone, setTimezone] = useState(club.timezone);
   const [interests, setInterests] = useState(club.interests.join(', '));
   const [imageAssetId, setImageAssetId] = useState(club.imageAssetId);
+  const [blindRatings, setBlindRatings] = useState(club.blindRatingsEnabled);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -62,6 +64,7 @@ export function ClubSettingsForm({
                 .filter(Boolean)
                 .slice(0, 8),
               imageAssetId,
+              blindRatingsEnabled: blindRatings,
             });
             if (!result.ok) {
               setError(result.error);
@@ -127,6 +130,25 @@ export function ClubSettingsForm({
               ? 'Invite only. Hidden from search, discovery and non-members.'
               : 'Listed publicly. Anyone with the link can join.'}
           </p>
+        </fieldset>
+
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium">Ratings</legend>
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border border-line px-3 py-2.5">
+            <input
+              type="checkbox"
+              checked={blindRatings}
+              onChange={(event) => setBlindRatings(event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[var(--iris)]"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm">Rate blind</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-dim">
+                Nobody sees the group score — or anyone else&apos;s stars — for a film until they
+                have submitted their own. The reveal is the fun part; anchoring is not.
+              </span>
+            </span>
+          </label>
         </fieldset>
 
         <Field label="Timezone" htmlFor="settings-timezone">

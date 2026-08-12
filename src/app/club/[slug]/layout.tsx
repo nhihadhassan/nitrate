@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -5,11 +6,39 @@ import { notFound } from 'next/navigation';
 import { ClubTabs } from '@/components/club/club-tabs';
 import { Badge, Container, EmptyState } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
+import { BRAND } from '@/lib/brand';
 import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getClubBySlug, getMembership } from '@/server/services/clubs';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * A club names the *page*, never the product: the title template still appends
+ * the application name, so "Tuesday Horror Club · Nitrate" reads correctly and
+ * a club can never be mistaken for the site itself.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const club = await getClubBySlug(slug);
+  if (!club) return { title: 'Club not found' };
+  const isPrivate = club.visibility === 'private';
+  return {
+    title: club.name,
+    description: isPrivate
+      ? undefined
+      : (club.description ?? `${club.name} — a Movie Club on ${BRAND.name}.`),
+    // Private clubs must not be indexed or previewed anywhere.
+    robots: isPrivate ? { index: false, follow: false } : undefined,
+    openGraph: isPrivate
+      ? undefined
+      : { title: club.name, description: club.description ?? undefined, type: 'website' },
+  };
+}
 
 export default async function ClubLayout({
   children,

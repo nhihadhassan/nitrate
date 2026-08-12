@@ -1,9 +1,15 @@
-import Image from 'next/image';
 import Link from 'next/link';
 
+import { PosterMedia } from '@/components/film/poster-media';
 import { posterUrl, type PosterSize } from '@/lib/images';
+import { filmHref } from '@/lib/links';
 import { cn } from '@/lib/utils';
 
+/**
+ * Structurally a `FilmRef` minus the id: some surfaces (club queue rows, list
+ * items) legitimately have only the display fields. `slug` is always canonical
+ * — see `src/lib/links.ts`.
+ */
 export type PosterFilm = {
   slug: string;
   title: string;
@@ -44,17 +50,13 @@ export function Poster({
   const url = posterUrl(film.posterPath, size);
 
   const inner = (
-    <span className={cn('poster-frame group block', className)}>
+    <span
+      className={cn('poster-frame premium-poster group block', className)}
+      data-poster-depth
+      data-pointer-light
+    >
       {url ? (
-        <Image
-          src={url}
-          alt=""
-          fill
-          sizes={SIZE_HINTS[size]}
-          priority={priority}
-          loading={priority ? undefined : 'lazy'}
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-        />
+        <PosterMedia src={url} sizes={SIZE_HINTS[size]} priority={priority} />
       ) : (
         <span className="flex h-full w-full flex-col justify-end gap-1 p-2">
           <span className="font-display text-[0.9375rem] leading-tight text-text/90 line-clamp-4">
@@ -71,7 +73,7 @@ export function Poster({
 
   return (
     <Link
-      href={`/film/${film.slug}`}
+      href={filmHref(film)}
       aria-hidden={ariaHidden}
       tabIndex={ariaHidden ? -1 : undefined}
       aria-label={`${film.title}${film.year ? ` (${film.year})` : ''}`}
@@ -88,18 +90,21 @@ export function PosterCard({
   size = 'md',
   footer,
   className,
+  priority,
 }: {
   film: PosterFilm;
   size?: PosterSize;
   footer?: React.ReactNode;
   className?: string;
+  /** Set on the handful of cards above the fold so the LCP image is not lazy. */
+  priority?: boolean;
 }) {
   return (
-    <div className={cn('min-w-0', className)}>
-      <Poster film={film} size={size} />
+    <div className={cn('poster-card min-w-0', className)}>
+      <Poster film={film} size={size} priority={priority} />
       <div className="mt-1.5 min-w-0">
         <Link
-          href={`/film/${film.slug}`}
+          href={filmHref(film)}
           className="block truncate text-[0.8125rem] font-medium leading-snug hover:text-ember"
         >
           {film.title}
@@ -123,12 +128,13 @@ export function PosterGrid({
   return (
     <div
       className={cn(
-        'grid gap-2.5',
+        'poster-grid grid gap-2.5',
         density === 'compact' && 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10',
         density === 'default' && 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8',
         density === 'roomy' && 'grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5',
         className,
       )}
+      data-reveal="grid"
     >
       {children}
     </div>

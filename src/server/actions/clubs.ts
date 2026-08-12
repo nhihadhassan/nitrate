@@ -97,6 +97,7 @@ export async function updateClubAction(input: {
   timezone?: string;
   interests?: string[];
   imageAssetId?: string | null;
+  blindRatingsEnabled?: boolean;
 }): Promise<ActionResult<{ slug: string }>> {
   return actionGuard(async () => {
     const user = await requireUser();

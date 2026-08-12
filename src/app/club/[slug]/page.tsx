@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ClubInvitePanel } from '@/components/club/invite-panel';
+import { LifecycleStrip } from '@/components/club/lifecycle-strip';
 import { NominatePanel } from '@/components/club/nominate-panel';
 import { RoundControls } from '@/components/club/round-controls';
 import { ScheduleScreeningForm } from '@/components/club/schedule-screening-form';
@@ -11,6 +12,8 @@ import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { AvatarStack } from '@/components/user/avatar';
+import { filmHref, screeningHref } from '@/lib/links';
+import { resolveClubState } from '@/lib/club';
 import { ROUND_STATUS_LABELS } from '@/lib/types';
 import { cn, formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
@@ -52,8 +55,8 @@ export default async function ClubDashboard({
     getUpcomingScreening(club.id),
     getClubMembers(club.id),
     isMember ? getClubQueue(club.id, 8) : Promise.resolve([]),
-    getClubStats(club.id),
-    getRecentlyCompleted(club.id, 3),
+    getClubStats(club.id, user?.id ?? null),
+    getRecentlyCompleted(club.id, 3, user?.id ?? null),
     isMember ? getClubIntelligence(club.id) : Promise.resolve(null),
   ]);
 
@@ -61,9 +64,22 @@ export default async function ClubDashboard({
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
 
+  const state = resolveClubState({
+    roundStatus: round?.status ?? null,
+    roundMode: round?.mode ?? null,
+    msUntilScreening: upcoming
+      ? upcoming.screening.scheduledAt.getTime() - Date.now()
+      : null,
+    awaitingViewerRating: isMember && completed.some((entry) => entry.ratingsHidden),
+    hasCompletedScreening: completed.length > 0,
+  });
+
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-10">
+        {/* Where the group is in its loop, before anything else on the page. */}
+        {isMember ? <LifecycleStrip stage={state.stage} headline={state.headline} /> : null}
+
         {/* Next up: the single most important thing on this page. */}
         {upcoming ? (
           <section className="overflow-hidden rounded-lg border border-iris/30 bg-iris/[0.05]">
@@ -282,10 +298,10 @@ export default async function ClubDashboard({
           <section>
             <SectionHeading title="Recently watched together" href={`/club/${club.slug}/history`} />
             <ul className="space-y-3">
-              {completed.map(({ screening, movie }) => (
+              {completed.map(({ screening, movie, average, ratingsHidden }) => (
                 <li key={screening.id}>
                   <Link
-                    href={`/club/${club.slug}/screening/${screening.id}`}
+                    href={screeningHref(club, screening)}
                     className="flex items-center gap-3 rounded-md border border-line p-2.5 transition-colors hover:border-line-strong"
                   >
                     <div className="w-11 shrink-0">
@@ -309,17 +325,17 @@ export default async function ClubDashboard({
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      {screening.groupRatingCount > 0 ? (
+                      {average != null ? (
                         <>
-                          <p className="font-display text-xl tabular">
-                            {(screening.groupRatingSum / screening.groupRatingCount / 2).toFixed(1)}
-                          </p>
+                          <p className="font-display text-xl tabular">{(average / 2).toFixed(1)}</p>
                           <p className="text-[0.625rem] text-dim">
                             {pluralize(screening.groupRatingCount, 'rating')}
                           </p>
                         </>
                       ) : (
-                        <p className="text-xs text-iris">Rate it</p>
+                        <p className="text-xs text-iris">
+                          {ratingsHidden ? 'Rate to reveal' : 'Rate it'}
+                        </p>
                       )}
                     </div>
                   </Link>
@@ -391,7 +407,12 @@ export default async function ClubDashboard({
                 then start a round.
               </p>
             ) : null}
-            <ClubInvitePanel clubId={club.id} inviteCode={club.inviteCode} compact />
+            <ClubInvitePanel
+              clubId={club.id}
+              clubName={club.name}
+              inviteCode={club.inviteCode}
+              compact
+            />
           </div>
         ) : null}
 
@@ -419,14 +440,46 @@ export default async function ClubDashboard({
               </dd>
             </div>
           </dl>
-          {stats.topRated ? (
-            <p className="mt-4 border-t border-line pt-3 text-xs text-muted">
-              Best so far:{' '}
-              <Link href={`/film/${stats.topRated.slug}`} className="text-text hover:text-iris">
-                {stats.topRated.title}
-              </Link>{' '}
-              <span className="tabular">({(stats.topRated.rating / 2).toFixed(1)})</span>
+          {stats.topGenres.length ? (
+            <p className="mt-3.5 border-t border-line pt-3 text-xs text-muted">
+              <span className="text-dim">Mostly </span>
+              {stats.topGenres
+                .slice(0, 3)
+                .map((genre) => genre.name.toLowerCase())
+                .join(', ')}
             </p>
+          ) : null}
+
+          {stats.topRated || stats.mostDivisive ? (
+            <dl className="mt-3 space-y-2 border-t border-line pt-3 text-xs">
+              {stats.topRated ? (
+                <div>
+                  <dt className="text-dim">Best so far</dt>
+                  <dd>
+                    <Link href={filmHref(stats.topRated)} className="text-text hover:text-iris">
+                      {stats.topRated.title}
+                    </Link>{' '}
+                    <span className="text-muted tabular">
+                      ({(stats.topRated.rating / 2).toFixed(1)})
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+              {stats.mostDivisive ? (
+                <div>
+                  <dt className="text-dim">Most divisive</dt>
+                  <dd>
+                    <Link href={filmHref(stats.mostDivisive)} className="text-text hover:text-iris">
+                      {stats.mostDivisive.title}
+                    </Link>{' '}
+                    <span className="text-muted tabular">
+                      ({(stats.mostDivisive.rating / 2).toFixed(1)} avg, ±
+                      {((stats.mostDivisive.spread ?? 0) / 2).toFixed(1)})
+                    </span>
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
           ) : null}
         </section>
 
@@ -486,7 +539,7 @@ function IntelligencePanel({
             <ul className="mt-1.5 space-y-1">
               {section.items.slice(0, 3).map((item) => (
                 <li key={item.movie.id} className="text-sm">
-                  <Link href={`/film/${item.movie.slug}`} className="hover:text-iris">
+                  <Link href={filmHref(item.movie)} className="hover:text-iris">
                     {item.movie.title}
                   </Link>
                   <span className="block text-[0.6875rem] text-dim">{item.reason}</span>
