@@ -84,7 +84,7 @@ export function Sheet({
   if (!open || typeof document === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-end justify-center sm:items-center">
+    <div className="mobile-viewport-overlay fixed inset-x-0 z-[120] flex items-end justify-center sm:inset-0 sm:items-center">
       <button
         type="button"
         aria-label={closeLabel}
@@ -98,14 +98,14 @@ export function Sheet({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          'animate-sheet relative flex max-h-[92dvh] w-full flex-col overflow-hidden border border-line bg-canvas-raised shadow-pop',
-          'rounded-t-xl sm:animate-rise sm:rounded-xl',
+          'animate-sheet relative flex max-h-[calc(var(--mobile-viewport-height,100dvh)-0.5rem)] w-full flex-col overflow-hidden border border-line bg-canvas-raised shadow-pop',
+          'rounded-t-xl sm:max-h-[92dvh] sm:animate-rise sm:rounded-xl',
           size === 'sm' && 'sm:max-w-md',
           size === 'md' && 'sm:max-w-lg',
           size === 'lg' && 'sm:max-w-2xl',
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3 sm:px-5">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-line px-4 py-3 sm:px-5">
           <div className="min-w-0">
             <h2 className="truncate font-display text-lg">{title}</h2>
             {description ? <p className="mt-0.5 text-xs text-dim">{description}</p> : null}
@@ -114,16 +114,16 @@ export function Sheet({
             type="button"
             onClick={onClose}
             aria-label={closeLabel}
-            className="-mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-dim transition-colors hover:bg-surface-hover hover:text-text"
+            className="-mr-1 flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-md text-dim transition-colors active:scale-95 hover:bg-surface-hover hover:text-text sm:h-8 sm:w-8"
           >
             <XIcon />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
+        <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto px-4 py-4 sm:px-5">{children}</div>
 
         {footer ? (
-          <div className="border-t border-line px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
+          <div className="shrink-0 border-t border-line bg-canvas-raised px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">
             {footer}
           </div>
         ) : null}

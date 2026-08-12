@@ -25,7 +25,7 @@ export function AppShell({
 
       <TopNav user={user} unreadCount={unreadCount} />
 
-      <main id="main" className="flex-1 pb-[calc(env(safe-area-inset-bottom)+4.5rem)] md:pb-16">
+      <main id="main" className="flex-1 pb-[calc(env(safe-area-inset-bottom)+5.25rem)] md:pb-16">
         <MotionOrchestrator>{children}</MotionOrchestrator>
       </main>
 

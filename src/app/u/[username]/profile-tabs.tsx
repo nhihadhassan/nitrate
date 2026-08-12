@@ -22,7 +22,7 @@ export function ProfileTabs({ username, isSelf }: { username: string; isSelf: bo
   ];
 
   return (
-    <nav aria-label="Profile sections" className="-mx-4 mt-8 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <nav aria-label="Profile sections" className="mobile-tabs -mx-4 mt-8 overflow-x-auto px-4 sm:mx-0 sm:px-0">
       <ul className="flex min-w-max gap-1 border-b border-line">
         {tabs.map((tab) => {
           const active = normalised === tab.href || pathname === tab.href;
@@ -32,7 +32,7 @@ export function ProfileTabs({ username, isSelf }: { username: string; isSelf: bo
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  '-mb-px inline-block border-b-2 px-3 py-2.5 text-sm transition-colors',
+                  '-mb-px flex min-h-11 items-center border-b-2 px-3 py-2.5 text-sm transition-colors',
                   active
                     ? 'border-ember font-medium text-text'
                     : 'border-transparent text-muted hover:text-text',

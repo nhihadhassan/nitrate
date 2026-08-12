@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { SearchIcon } from '@/components/ui/icons';
+import { SearchIcon, XIcon } from '@/components/ui/icons';
 import { posterUrl, profileUrl } from '@/lib/images';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +34,7 @@ export function QuickSearch({
 }) {
   const router = useRouter();
   const listId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   const [query, setQuery] = useState('');
@@ -52,6 +53,23 @@ export function QuickSearch({
     const frame = requestAnimationFrame(() => inputRef.current?.focus());
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener('keydown', onKeyDown);
     return () => {
@@ -119,7 +137,7 @@ export function QuickSearch({
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-start justify-center px-4 pt-[12vh]"
+      className="mobile-viewport-overlay fixed inset-x-0 z-[120] flex items-start justify-center sm:px-4 sm:pt-[12vh]"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -128,13 +146,22 @@ export function QuickSearch({
       <div className="search-backdrop absolute inset-0 bg-canvas/80 backdrop-blur-sm" aria-hidden />
 
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Search"
-        className="search-dialog relative w-full max-w-xl overflow-hidden rounded-lg border border-line bg-canvas-raised shadow-pop"
+        className="search-dialog relative flex h-full w-full max-w-xl flex-col overflow-hidden bg-canvas-raised shadow-pop sm:h-auto sm:max-h-[min(36rem,80dvh)] sm:rounded-lg sm:border sm:border-line"
       >
-        <div className="flex items-center gap-2.5 border-b border-line px-3.5">
-          <SearchIcon className="h-4 w-4 shrink-0 text-dim" />
+        <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-line bg-canvas-raised px-2 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] sm:static sm:gap-2.5 sm:px-3.5 sm:py-0">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close search"
+            className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-md text-muted active:scale-95 sm:hidden"
+          >
+            <XIcon className="h-5 w-5" />
+          </button>
+          <SearchIcon className="hidden h-4 w-4 shrink-0 text-dim sm:block" />
           <input
             ref={inputRef}
             type="text"
@@ -170,14 +197,14 @@ export function QuickSearch({
             }}
             placeholder="Search films, cast, members, clubs…"
             aria-label="Search"
-            className="h-12 w-full bg-transparent text-[0.9375rem] text-text placeholder:text-dim focus:outline-none"
+            className="h-12 min-w-0 w-full bg-transparent text-base text-text placeholder:text-dim focus:outline-none sm:text-[0.9375rem]"
           />
           <kbd className="hidden shrink-0 rounded-xs border border-line px-1.5 py-0.5 text-[0.625rem] text-dim sm:block">
             esc
           </kbd>
         </div>
 
-        <div className="max-h-[min(28rem,60vh)] overflow-y-auto overscroll-contain">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom)] sm:max-h-[min(28rem,60dvh)] sm:pb-0">
           {query.trim().length < 2 ? (
             <p className="px-4 py-6 text-sm text-dim">
               Type at least two characters. Films, cast and crew, members, lists and clubs.
@@ -216,7 +243,7 @@ export function QuickSearch({
                             onMouseEnter={() => setActive(index)}
                             onClick={() => go(item.href)}
                             className={cn(
-                              'search-result flex w-full items-center gap-3 px-3.5 py-2 text-left',
+                              'search-result flex min-h-14 w-full touch-manipulation items-center gap-3 px-3.5 py-2 text-left',
                               index === active ? 'bg-surface-hover' : 'hover:bg-surface-hover',
                             )}
                           >
@@ -242,7 +269,7 @@ export function QuickSearch({
           <button
             type="button"
             onClick={seeAll}
-            className="flex w-full items-center justify-between border-t border-line px-3.5 py-2.5 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-text"
+            className="sticky bottom-0 flex min-h-12 w-full items-center justify-between border-t border-line bg-canvas-raised px-3.5 py-2.5 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-text"
           >
             <span>See all results for “{query.trim()}”</span>
             <span aria-hidden>↵</span>

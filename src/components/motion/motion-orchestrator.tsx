@@ -128,6 +128,31 @@ export function MotionOrchestrator({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
+    const viewport = window.visualViewport;
+
+    function updateViewport() {
+      const height = viewport?.height ?? window.innerHeight;
+      const offsetTop = viewport?.offsetTop ?? 0;
+      document.documentElement.style.setProperty('--mobile-viewport-height', `${height}px`);
+      document.documentElement.style.setProperty('--mobile-viewport-offset', `${offsetTop}px`);
+      document.documentElement.toggleAttribute(
+        'data-keyboard-open',
+        window.innerHeight - height > 140,
+      );
+    }
+
+    updateViewport();
+    viewport?.addEventListener('resize', updateViewport);
+    viewport?.addEventListener('scroll', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    return () => {
+      viewport?.removeEventListener('resize', updateViewport);
+      viewport?.removeEventListener('scroll', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
     let frame = 0;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
     const update = () => {

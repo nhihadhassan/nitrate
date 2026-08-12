@@ -185,6 +185,8 @@ export default async function FilmPage({ params }: Params) {
                 />
               ) : null}
 
+              <div className="mt-6 md:hidden">{actions}</div>
+
               {movie.tagline ? (
                 <p className="mt-5 font-display text-lg italic text-muted">“{movie.tagline}”</p>
               ) : null}
@@ -210,8 +212,6 @@ export default async function FilmPage({ params }: Params) {
                   ))}
                 </div>
               ) : null}
-
-              <div className="mt-6 md:hidden">{actions}</div>
 
               <div className="mt-8 grid gap-6 sm:grid-cols-[minmax(0,17rem)_1fr]">
                 <CommunityRating

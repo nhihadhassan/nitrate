@@ -153,7 +153,7 @@ function Thread({
           className={cn(inputClass, 'resize-y')}
         />
         <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-muted">
             <input
               type="checkbox"
               checked={spoilers}
@@ -259,7 +259,7 @@ function PostRow({
       </div>
 
       {revealed ? (
-        <p className="mt-1.5 whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-muted">
+        <p className="mt-1.5 break-words whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
           {post.body}
         </p>
       ) : (
@@ -272,12 +272,12 @@ function PostRow({
         </button>
       )}
 
-      <div className="mt-1.5 flex gap-3 text-xs text-dim">
-        <button type="button" onClick={onReply} className="hover:text-text">
+      <div className="mt-1 flex flex-wrap gap-1 text-xs text-dim">
+        <button type="button" onClick={onReply} className="flex min-h-10 items-center px-2 hover:text-text sm:min-h-0 sm:px-0">
           Reply
         </button>
         {post.author.id !== viewerId ? (
-          <button type="button" onClick={onReport} className="hover:text-text">
+          <button type="button" onClick={onReport} className="flex min-h-10 items-center px-2 hover:text-text sm:min-h-0 sm:px-0">
             Report
           </button>
         ) : null}
@@ -295,7 +295,7 @@ function PostRow({
                 router.refresh();
               })
             }
-            className="hover:text-rose"
+            className="flex min-h-10 items-center px-2 hover:text-rose sm:min-h-0 sm:px-0"
           >
             Delete
           </button>

@@ -39,7 +39,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
   return (
     <header className="nav-shell sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-xl">
       <QuickSearch open={searchOpen} onClose={closeSearch} />
-      <div className="mx-auto flex h-14 max-w-[86rem] items-center gap-3 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-[86rem] items-center gap-1.5 px-3 min-[360px]:gap-2 sm:gap-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2 pr-1" aria-label={`${BRAND.name} home`}>
           <Wordmark />
         </Link>
@@ -68,7 +68,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
             type="button"
             onClick={openSearch}
             aria-label="Search"
-            className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text md:hidden"
+            className="flex h-11 w-11 touch-manipulation items-center justify-center rounded-md text-muted transition-colors active:scale-95 hover:bg-surface-hover hover:text-text md:hidden"
           >
             <SearchIcon />
           </button>
@@ -86,7 +86,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
                 aria-label={
                   unreadCount ? `Notifications, ${unreadCount} unread` : 'Notifications'
                 }
-                className="relative flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text"
+                className="relative flex h-11 w-11 touch-manipulation items-center justify-center rounded-md text-muted transition-colors active:scale-95 hover:bg-surface-hover hover:text-text sm:h-9 sm:w-9"
               >
                 <BellIcon />
                 {unreadCount > 0 ? (
@@ -102,13 +102,13 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
               <ThemeToggle />
               <Link
                 href="/login"
-                className="rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:text-text"
+                className="hidden min-h-11 items-center rounded-md px-2 text-sm text-muted transition-colors hover:text-text min-[350px]:flex sm:min-h-0 sm:px-3 sm:py-1.5"
               >
                 Sign in
               </Link>
               <Link
                 href="/signup"
-                className="rounded-md bg-ember px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-ember-soft"
+                className="flex min-h-11 items-center rounded-md bg-ember px-3 text-sm font-medium text-white transition-colors active:scale-[0.98] hover:bg-ember-soft sm:min-h-0 sm:py-1.5"
               >
                 Join
               </Link>
@@ -135,7 +135,7 @@ function Wordmark() {
         <span className="absolute right-[3px] top-[5px] h-[2px] w-[2px] rounded-full bg-canvas" />
         <span className="absolute bottom-[5px] right-[3px] h-[2px] w-[2px] rounded-full bg-canvas" />
       </span>
-      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight xs:inline">
+      <span className="hidden font-display text-[1.2rem] leading-none tracking-tight min-[390px]:inline">
         {BRAND.name}
       </span>
     </span>
@@ -207,7 +207,7 @@ function AccountMenu({ user }: { user: NavUser }) {
       {open ? (
         <div
           role="menu"
-          className="animate-rise absolute right-0 top-[calc(100%+0.5rem)] w-56 overflow-hidden rounded-lg border border-line bg-canvas-raised py-1 shadow-pop"
+          className="animate-rise fixed inset-x-3 top-[4.25rem] max-h-[calc(var(--mobile-viewport-height,100dvh)-5rem)] overflow-y-auto rounded-lg border border-line bg-canvas-raised py-1 shadow-pop sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+0.5rem)] sm:w-56"
         >
           <div className="border-b border-line px-3 py-2.5">
             <p className="truncate text-sm font-medium">{user.displayName}</p>
@@ -218,7 +218,7 @@ function AccountMenu({ user }: { user: NavUser }) {
               key={item.href}
               href={item.href}
               role="menuitem"
-              className="block px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-hover hover:text-text"
+              className="flex min-h-11 items-center px-3 py-2 text-sm text-muted transition-colors hover:bg-surface-hover hover:text-text sm:min-h-0"
             >
               {item.label}
             </Link>

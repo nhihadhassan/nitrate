@@ -223,7 +223,7 @@ function ResultRow({
       aria-selected={active}
       onClick={onPick}
       className={cn(
-        'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors',
+        'flex min-h-16 w-full touch-manipulation items-center gap-3 rounded-md px-2 py-2 text-left transition-colors',
         active ? 'bg-surface-hover' : 'hover:bg-surface-hover',
       )}
     >

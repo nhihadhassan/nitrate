@@ -153,7 +153,7 @@ export function VotingPanel({
                         onClick={() => vote(nominee.id)}
                         aria-pressed={isSelected}
                         className={cn(
-                          'flex shrink-0 items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                          'flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-md border px-3 py-1 text-xs font-medium transition-colors sm:min-h-0 sm:px-2.5',
                           isSelected
                             ? 'border-iris/50 bg-iris/15 text-iris'
                             : 'border-line text-muted hover:border-line-strong hover:text-text',

@@ -182,17 +182,17 @@ function CommentRow({
         <UserChip user={comment.author} size="sm" />
         <span className="shrink-0 text-xs text-dim">{relativeTime(comment.createdAt)}</span>
       </div>
-      <p className="mt-1.5 whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-muted">
+      <p className="mt-1.5 break-words whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
         {comment.body}
       </p>
-      <div className="mt-1.5 flex gap-3 text-xs text-dim">
+      <div className="mt-1 flex flex-wrap gap-1 text-xs text-dim">
         {viewerId ? (
-          <button type="button" onClick={onReply} className="hover:text-text">
+          <button type="button" onClick={onReply} className="flex min-h-10 items-center px-2 hover:text-text sm:min-h-0 sm:px-0">
             Reply
           </button>
         ) : null}
         {viewerId && viewerId !== comment.author.id ? (
-          <button type="button" onClick={onReport} className="hover:text-text">
+          <button type="button" onClick={onReport} className="flex min-h-10 items-center px-2 hover:text-text sm:min-h-0 sm:px-0">
             Report
           </button>
         ) : null}
@@ -210,7 +210,7 @@ function CommentRow({
                 router.refresh();
               })
             }
-            className="hover:text-rose"
+            className="flex min-h-10 items-center px-2 hover:text-rose sm:min-h-0 sm:px-0"
           >
             Delete
           </button>

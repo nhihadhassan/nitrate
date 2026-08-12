@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center px-4 py-12">
+    <div className="relative flex min-h-[calc(100dvh-3.5rem)] flex-col items-center justify-center overflow-hidden px-4 py-12">
       {/* A single warm bloom behind the form; enough atmosphere, no gradient soup. */}
       <div
         aria-hidden
