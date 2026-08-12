@@ -20,8 +20,8 @@ export type ClubStage =
   | 'discuss';
 
 export const CLUB_STAGES: { key: ClubStage; label: string }[] = [
-  { key: 'queue', label: 'Queue' },
-  { key: 'nominate', label: 'Nominate' },
+  { key: 'queue', label: 'Ideas' },
+  { key: 'nominate', label: 'Pick' },
   { key: 'decide', label: 'Decide' },
   { key: 'reveal', label: 'Reveal' },
   { key: 'schedule', label: 'Schedule' },
@@ -79,8 +79,8 @@ export function resolveClubState(input: ClubStageInput): ClubState {
         stage: 'nominate',
         headline:
           roundMode === 'wheel'
-            ? 'Submissions are open. Everyone puts one in, then the wheel decides.'
-            : 'Nominations are open. Put something forward before voting starts.',
+            ? 'Everyone is choosing a movie. The wheel decides when the picks are in.'
+            : 'Everyone is choosing a movie. Voting starts when the picks are in.',
       };
     case 'voting_open':
       return { stage: 'decide', headline: 'Voting is open. Pick the one you actually want.' };
@@ -103,6 +103,6 @@ export function resolveClubState(input: ClubStageInput): ClubState {
 
   return {
     stage: 'queue',
-    headline: 'Nothing in flight. Add to the shared queue, then open a round.',
+    headline: 'Nothing is being chosen right now. Save ideas, or choose the next movie.',
   };
 }

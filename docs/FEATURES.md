@@ -88,7 +88,7 @@ directory.
 - Roles: owner, admin, member — every permission checked server-side
 - Invites by standing club code or expiring single-use link; new users deep-link
   into the club after signup
-- Shared queue showing who added each film, how many members have it
+- Movie Ideas showing who saved each film, how many members want it
   watchlisted, how many have seen it, and whether the club already watched it
 - **Selection rounds as a real state machine** —
   `draft → nominations_open → voting_open → winner_selected → screening_scheduled → completed`,

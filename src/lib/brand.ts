@@ -29,7 +29,7 @@ export const BRAND = {
     'Nitrate is a film diary that gets better with people in it. Track what you watch, follow the taste you trust, and run a Movie Club that decides together.',
   /** One line for places that need to explain Movie Clubs specifically. */
   clubsPitch:
-    'A Movie Club is a shared queue, a way to decide, a night in the calendar and a permanent record of everything you have watched together.',
+    'A Movie Club keeps future ideas, helps everyone pick the next movie, plans the night and remembers everything you watched together.',
 } as const;
 
 /** `Some Page · Nitrate` */

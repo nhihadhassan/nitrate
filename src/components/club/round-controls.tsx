@@ -30,6 +30,7 @@ export function RoundControls({
   status,
   mode,
   nominationCount,
+  allMembersPicked,
 }: {
   clubId: string;
   clubSlug: string;
@@ -37,6 +38,7 @@ export function RoundControls({
   status: RoundStatus | null;
   mode?: 'vote' | 'wheel';
   nominationCount: number;
+  allMembersPicked: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -50,7 +52,7 @@ export function RoundControls({
     return (
       <>
         <Button variant="iris" onClick={() => setStarting(true)}>
-          Start a round
+          Choose the next movie
         </Button>
         {starting ? (
           <StartRoundSheet clubId={clubId} clubSlug={clubSlug} onClose={() => setStarting(false)} />
@@ -63,10 +65,10 @@ export function RoundControls({
     <div className="flex flex-wrap gap-2">
       {status === 'nominations_open' && mode !== 'wheel' ? (
         <Button
-          variant="iris"
+          variant={allMembersPicked ? 'iris' : 'outline'}
           size="sm"
           disabled={pending || nominationCount < 2}
-          title={nominationCount < 2 ? 'You need at least two nominations' : undefined}
+          title={nominationCount < 2 ? 'At least two movie picks are needed' : undefined}
           onClick={() =>
             startTransition(async () => {
               const result = await openVotingAction(roundId, clubId);
@@ -79,7 +81,7 @@ export function RoundControls({
             })
           }
         >
-          Open voting
+          {allMembersPicked ? 'Everyone is ready: open voting' : 'Open voting'}
         </Button>
       ) : null}
 
@@ -168,8 +170,8 @@ function StartRoundSheet({
     <Sheet
       open
       onClose={onClose}
-      title="Start a round"
-      description="Everyone puts a film forward. Then either the club votes, or the wheel decides."
+      title="Choose the next movie"
+      description="Everyone picks a movie. Then the club votes, or the wheel decides."
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose} disabled={pending}>
@@ -198,14 +200,14 @@ function StartRoundSheet({
                   setError(result.error);
                   return;
                 }
-                toast({ message: 'Submissions are open', tone: 'success' });
+                toast({ message: 'Everyone can start picking', tone: 'success' });
                 onClose();
                 router.push(`/club/${clubSlug}`);
                 router.refresh();
               });
             }}
           >
-            {pending ? 'Opening…' : mode === 'wheel' ? 'Open submissions' : 'Open nominations'}
+            {pending ? 'Starting…' : 'Start choosing'}
           </Button>
         </div>
       }
@@ -214,18 +216,18 @@ function StartRoundSheet({
         <FormError>{error}</FormError>
 
         <fieldset>
-          <legend className="mb-1.5 text-sm font-medium">How is it decided?</legend>
+          <legend className="mb-1.5 text-sm font-medium">How should we choose?</legend>
           <div className="grid gap-2 sm:grid-cols-2">
             <ModeCard
               active={mode === 'wheel'}
               title="Spin the wheel"
-              body="Everyone submits one film, then the wheel picks at random. Nobody can be blamed."
+              body="Everyone picks a movie. The wheel chooses one at random."
               onClick={() => setMode('wheel')}
             />
             <ModeCard
               active={mode === 'vote'}
-              title="Put it to a vote"
-              body="Members nominate, then vote. Totals stay hidden until the round closes."
+              title="Vote"
+              body="Everyone picks a movie, then members vote. Totals stay hidden until voting ends."
               onClick={() => setMode('vote')}
             />
           </div>
@@ -242,7 +244,7 @@ function StartRoundSheet({
           />
         </Field>
 
-        <Field label={mode === 'wheel' ? 'Submissions per member' : 'Nominations per member'} htmlFor="round-limit">
+        <Field label="Movies per person" htmlFor="round-limit">
           <select
             id="round-limit"
             value={limit}
@@ -257,7 +259,7 @@ function StartRoundSheet({
           </select>
         </Field>
 
-        <Field label={mode === 'wheel' ? 'Submissions close' : 'Nominations close'} htmlFor="round-nominations-close" optional>
+        <Field label="Pick deadline" htmlFor="round-nominations-close" optional>
           <DateTimePicker
             id="round-nominations-close"
             value={nominationsClose}
@@ -268,7 +270,7 @@ function StartRoundSheet({
         </Field>
 
         {mode === 'vote' ? (
-          <Field label="Voting closes" htmlFor="round-voting-close" optional>
+          <Field label="Voting deadline" htmlFor="round-voting-close" optional>
             <DateTimePicker
               id="round-voting-close"
               value={votingClose}

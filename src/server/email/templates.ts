@@ -91,7 +91,7 @@ export function wheelWinnerEmail(payload: WheelWinnerPayload): OutboundEmail {
   const bodyHtml = `
     <p style="margin:0 0 14px;">The wheel has spoken in <strong style="color:#f4f4f5;">${escapeHtml(payload.clubName)}</strong>.</p>
     <p style="margin:0 0 14px;">
-      Out of ${payload.contenderCount} submissions, this week's film is
+      Out of ${payload.contenderCount} picks, this week's film is
       <strong style="color:#f4f4f5;">${escapeHtml(title)}</strong>${
         payload.runtime ? ` — ${escapeHtml(payload.runtime)}` : ''
       }.
@@ -102,7 +102,7 @@ export function wheelWinnerEmail(payload: WheelWinnerPayload): OutboundEmail {
     `The wheel has spoken in ${payload.clubName}.`,
     ``,
     `This week's film: ${title}${payload.runtime ? ` — ${payload.runtime}` : ''}`,
-    `Submitted by ${payload.nominatedBy}, picked at random from ${payload.contenderCount} submissions.`,
+    `Picked by ${payload.nominatedBy}, chosen at random from ${payload.contenderCount} picks.`,
     ``,
     `Open the club: ${url}`,
   ].join('\n');
@@ -116,7 +116,7 @@ export function wheelWinnerEmail(payload: WheelWinnerPayload): OutboundEmail {
       body: bodyHtml,
       ctaLabel: 'Open the club',
       ctaUrl: url,
-      footnote: `Picked at random from ${payload.contenderCount} submissions.`,
+      footnote: `Chosen at random from ${payload.contenderCount} picks.`,
     }),
     text,
   };
@@ -132,8 +132,8 @@ export type SubmissionsOpenPayload = {
 export function submissionsOpenEmail(payload: SubmissionsOpenPayload): OutboundEmail {
   const url = `${env.siteUrl}/club/${payload.clubSlug}`;
   const bodyHtml = `
-    <p style="margin:0 0 14px;">Submissions are open in <strong style="color:#f4f4f5;">${escapeHtml(payload.clubName)}</strong>.</p>
-    <p style="margin:0;">Put one film forward${
+    <p style="margin:0 0 14px;"><strong style="color:#f4f4f5;">${escapeHtml(payload.clubName)}</strong> is choosing the next movie.</p>
+    <p style="margin:0;">Pick your movie${
       payload.closesAt ? `, before ${escapeHtml(payload.closesAt)}` : ''
     }. When everyone's in, the wheel decides.</p>`;
 
@@ -141,17 +141,17 @@ export function submissionsOpenEmail(payload: SubmissionsOpenPayload): OutboundE
     to: '',
     subject: `What should ${payload.clubName} watch this week?`,
     html: layout({
-      preheader: 'Put a film forward before the wheel spins.',
-      heading: 'Submissions are open',
+      preheader: 'Pick your movie before the wheel spins.',
+      heading: 'Pick your movie',
       body: bodyHtml,
-      ctaLabel: 'Submit a film',
+      ctaLabel: 'Pick my movie',
       ctaUrl: url,
     }),
     text: [
-      `Submissions are open in ${payload.clubName}.`,
+      `${payload.clubName} is choosing the next movie.`,
       payload.closesAt ? `Get your pick in before ${payload.closesAt}.` : '',
       ``,
-      `Submit a film: ${url}`,
+      `Pick your movie: ${url}`,
     ]
       .filter(Boolean)
       .join('\n'),

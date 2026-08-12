@@ -110,7 +110,7 @@ export function OnboardingFlow({
         const joined = await joinClubAction(invite.code);
         if (joined.ok) {
           await completeOnboardingAction(skipped);
-          router.push(`/club/${joined.data.slug}`);
+          router.push(`/club/${joined.data.slug}?welcome=joined`);
           router.refresh();
           return;
         }
@@ -460,7 +460,7 @@ export function OnboardingFlow({
               >
                 <p className="font-display text-xl">Start a Movie Club</p>
                 <p className="mt-1 text-sm text-muted">
-                  Shared queue, nominations, blind voting, movie nights. Takes thirty seconds.
+                  Movie Ideas, simple picks, blind voting, movie nights. Takes thirty seconds.
                 </p>
               </Link>
               <Link

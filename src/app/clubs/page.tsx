@@ -11,7 +11,7 @@ import { discoverPublicClubs, getUserClubs } from '@/server/services/clubs';
 
 export const metadata: Metadata = {
   title: 'Movie Clubs',
-  description: 'Nominate, vote, schedule and discuss films with your friends.',
+  description: 'Pick, vote, schedule and discuss movies with your friends.',
 };
 export const dynamic = 'force-dynamic';
 
@@ -31,7 +31,7 @@ export default async function ClubsPage() {
         <div className="max-w-xl">
           <h1 className="text-4xl sm:text-5xl">Movie Clubs</h1>
           <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
-            A shared queue, nominations, blind voting, a scheduled night and a private discussion.
+            Save movie ideas, pick what comes next, schedule the night and talk about it afterward.
             Everything a group chat is bad at.
           </p>
         </div>

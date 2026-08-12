@@ -14,7 +14,6 @@ import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { AvatarStack } from '@/components/user/avatar';
 import { filmHref, screeningHref } from '@/lib/links';
 import { resolveClubState } from '@/lib/club';
-import { ROUND_STATUS_LABELS } from '@/lib/types';
 import { cn, formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import {
@@ -61,6 +60,13 @@ export default async function ClubDashboard({
   ]);
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
+  const pickCounts = new Map<string, number>();
+  nominations?.nominations.forEach((nomination) => {
+    pickCounts.set(nomination.nominatedBy.id, (pickCounts.get(nomination.nominatedBy.id) ?? 0) + 1);
+  });
+  const allMembersPicked = Boolean(
+    round && members.length && members.every((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember),
+  );
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
 
@@ -77,9 +83,6 @@ export default async function ClubDashboard({
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-10">
-        {/* Where the group is in its loop, before anything else on the page. */}
-        {isMember ? <LifecycleStrip stage={state.stage} headline={state.headline} /> : null}
-
         {/* Next up: the single most important thing on this page. */}
         {upcoming ? (
           <section className="overflow-hidden rounded-lg border border-iris/30 bg-iris/[0.05]">
@@ -134,18 +137,23 @@ export default async function ClubDashboard({
           <section>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-2xl">
-                  {round.title || `Round ${round.roundNumber}`}
-                </h2>
+                <p className="eyebrow text-iris">Choosing the next movie</p>
+                <h2 className="mt-1 text-2xl">{round.title || 'Next movie night'}</h2>
                 <p className="mt-0.5 text-sm text-muted">
-                  {round.mode === 'wheel' && round.status === 'nominations_open'
-                    ? 'Submissions open — the wheel decides'
-                    : ROUND_STATUS_LABELS[round.status]}
+                  {round.status === 'nominations_open'
+                    ? round.mode === 'wheel'
+                      ? 'Everyone picks a movie, then the wheel decides.'
+                      : 'Everyone picks a movie, then the group votes.'
+                    : round.status === 'voting_open'
+                      ? 'The picks are in. Cast your vote.'
+                      : round.status === 'winner_selected'
+                        ? 'The next movie has been chosen.'
+                        : 'The next movie night is taking shape.'}
                   {round.status === 'nominations_open' && round.nominationsCloseAt
-                    ? ` · closes ${relativeTime(round.nominationsCloseAt)}`
+                    ? ` Picks close ${relativeTime(round.nominationsCloseAt)}.`
                     : ''}
                   {round.status === 'voting_open' && round.votingCloseAt
-                    ? ` · voting ends ${relativeTime(round.votingCloseAt)}`
+                    ? ` Voting ends ${relativeTime(round.votingCloseAt)}.`
                     : ''}
                 </p>
               </div>
@@ -157,6 +165,7 @@ export default async function ClubDashboard({
                   status={round.status}
                   mode={round.mode}
                   nominationCount={nominations.nominations.length}
+                  allMembersPicked={allMembersPicked}
                 />
               ) : null}
             </div>
@@ -166,10 +175,9 @@ export default async function ClubDashboard({
                 clubId={club.id}
                 clubSlug={club.slug}
                 roundId={round.id}
+                mode={round.mode}
+                justJoined={welcome === 'joined'}
                 limit={round.nominationLimitPerMember}
-                myNominations={
-                  nominations.nominations.filter((n) => n.nominatedBy.id === user?.id).length
-                }
                 nominations={nominations.nominations.map((n) => ({
                   id: n.id,
                   pitch: n.pitch,
@@ -182,6 +190,13 @@ export default async function ClubDashboard({
                     runtime: n.movie.runtime,
                   },
                   isMine: n.nominatedBy.id === user?.id,
+                }))}
+                members={members.map((member) => ({
+                  id: member.id,
+                  username: member.username,
+                  displayName: member.displayName,
+                  avatarAssetId: member.avatarAssetId,
+                  pickCount: pickCounts.get(member.id) ?? 0,
                 }))}
                 queue={queue.map((item) => ({
                   movieId: item.movie.id,
@@ -202,7 +217,8 @@ export default async function ClubDashboard({
                 <WheelPanel
                   clubId={club.id}
                   roundId={round.id}
-                  canSpin={round.status === 'nominations_open'}
+                  canSpin={isAdmin && round.status === 'nominations_open'}
+                  allMembersPicked={allMembersPicked}
                   alreadySpunWinnerId={round.winnerNominationId}
                   contenders={nominations.nominations.map((n) => ({
                     nominationId: n.id,
@@ -283,15 +299,18 @@ export default async function ClubDashboard({
                 roundId={null}
                 status={null}
                 nominationCount={0}
+                allMembersPicked={false}
               />
             ) : (
               <EmptyState
                 title="No round in progress"
-                description="An admin can open nominations whenever the group is ready to pick something."
+                description="An admin can start choosing whenever the group is ready for its next movie."
               />
             )}
           </section>
         ) : null}
+
+        {isMember ? <LifecycleStrip stage={state.stage} headline={state.headline} /> : null}
 
         {/* Recently watched */}
         {completed.length ? (
@@ -345,14 +364,14 @@ export default async function ClubDashboard({
           </section>
         ) : null}
 
-        {/* Shared queue preview */}
+        {/* Future ideas stay useful without competing with the current round. */}
         {isMember ? (
           <section>
             <SectionHeading
-              title="Shared queue"
-              subtitle="Anyone can add. The numbers show who already wants it."
+              title="Movie Ideas"
+              subtitle="Save movies your group might want to watch in a future round."
               href={`/club/${club.slug}/queue`}
-              linkLabel="Manage queue"
+              linkLabel="See all ideas"
             />
             {queue.length ? (
               <PosterGrid density="roomy">
@@ -378,11 +397,11 @@ export default async function ClubDashboard({
               </PosterGrid>
             ) : (
               <EmptyState
-                title="The queue is empty"
-                description="Add anything you would happily watch with this group."
+                title="No movie ideas yet"
+                description="Save something the group might want to watch another time."
                 action={
                   <Button asChild variant="outline">
-                    <Link href={`/club/${club.slug}/queue`}>Add a film</Link>
+                    <Link href={`/club/${club.slug}/queue`}>Save an idea</Link>
                   </Button>
                 }
               />
@@ -401,10 +420,10 @@ export default async function ClubDashboard({
               welcome && isAdmin && 'rounded-lg border border-iris/30 bg-iris/[0.07] p-3.5',
             )}
           >
-            {welcome && isAdmin ? (
+            {welcome === '1' && isAdmin ? (
               <p className="mb-2.5 text-sm leading-relaxed text-muted">
                 <span className="text-text">Your club is live.</span> Send this link to your group,
-                then start a round.
+                then choose the next movie.
               </p>
             ) : null}
             <ClubInvitePanel
@@ -524,7 +543,7 @@ function IntelligencePanel({
   const sections = [
     { title: 'On everyone’s radar', items: intelligence.onEveryonesRadar },
     { title: 'Nobody has seen', items: intelligence.nobodyHasSeen },
-    { title: 'From your queue', items: intelligence.fromTheQueue },
+    { title: 'From Movie Ideas', items: intelligence.fromTheQueue },
   ].filter((section) => section.items.length);
 
   if (!sections.length) return null;
