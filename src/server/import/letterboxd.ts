@@ -359,12 +359,28 @@ export type ImportSummary = {
   lists: number;
 };
 
+/** A slice reports enough for the client to keep going and show progress. */
+export type ImportProgress = { remaining: number; done: boolean; summary: ImportSummary };
+
 /**
- * Applies a matched batch. Idempotent in two ways: every diary entry carries a
- * deterministic `externalKey`, and every row is marked `imported` as it lands,
- * so re-running a partially-applied batch resumes rather than duplicating.
+ * Applies part of a matched batch, and finishes the batch off once the last row
+ * lands.
+ *
+ * Sliced for the same reason matching is: applying ~300 rows in one request took
+ * longer than a serverless invocation is allowed to live, and Vercel killed it
+ * with a 504 mid-import. Idempotency meant pressing the button again resumed
+ * correctly — every diary entry carries a deterministic `externalKey` and every
+ * row is marked `imported` as it lands — but relying on the user to retry a
+ * silent failure is not a design.
+ *
+ * Running totals live on the batch row rather than in memory, so they survive
+ * across slices.
  */
-export async function runImport(userId: string, batchId: string): Promise<ImportSummary> {
+export async function runImport(
+  userId: string,
+  batchId: string,
+  limit = 60,
+): Promise<ImportProgress> {
   const [batch] = await db.select().from(importBatches).where(eq(importBatches.id, batchId)).limit(1);
   if (!batch) throw new NotFoundError('That import no longer exists.');
   if (batch.userId !== userId) throw new PermissionError('That is not your import.');
@@ -374,6 +390,8 @@ export async function runImport(userId: string, batchId: string): Promise<Import
     .set({ status: 'importing', updatedAt: new Date() })
     .where(eq(importBatches.id, batchId));
 
+  // List items are held back for the final step: a list has to be created once,
+  // with all of its films, and that cannot be spread across slices.
   const rows = await db
     .select()
     .from(importRows)
@@ -381,8 +399,10 @@ export async function runImport(userId: string, batchId: string): Promise<Import
       and(
         eq(importRows.batchId, batchId),
         inArray(importRows.matchStatus, ['matched', 'ambiguous']),
+        sql`${importRows.kind} <> 'list_item'`,
       ),
-    );
+    )
+    .limit(limit);
 
   const summary: ImportSummary = {
     imported: 0,
@@ -393,11 +413,15 @@ export async function runImport(userId: string, batchId: string): Promise<Import
     lists: 0,
   };
 
-  const listBuckets = new Map<string, { movieId: string; position: number | null; note: string | null }[]>();
-
   for (const row of rows) {
     if (!row.matchedMovieId) {
       summary.skipped += 1;
+      // Must leave the 'matched'/'ambiguous' set, or it would be handed back on
+      // every slice and the loop would never finish.
+      await db
+        .update(importRows)
+        .set({ matchStatus: 'skipped' })
+        .where(eq(importRows.id, row.id));
       continue;
     }
 
@@ -462,17 +486,9 @@ export async function runImport(userId: string, batchId: string): Promise<Import
           }
           break;
 
-        case 'list_item': {
-          const listName = payload.listName ?? 'Imported list';
-          const bucket = listBuckets.get(listName) ?? [];
-          bucket.push({
-            movieId: row.matchedMovieId,
-            position: payload.position ?? null,
-            note: payload.note ?? null,
-          });
-          listBuckets.set(listName, bucket);
+        case 'list_item':
+          // Excluded from this query; handled once, in the final step.
           break;
-        }
       }
 
       summary.imported += 1;
@@ -492,6 +508,62 @@ export async function runImport(userId: string, batchId: string): Promise<Import
     }
   }
 
+  // Fold this slice's counts into the running totals held on the batch.
+  const previous = (batch.totals ?? {}) as Partial<ImportSummary>;
+  const running: ImportSummary = {
+    imported: (previous.imported ?? 0) + summary.imported,
+    skipped: (previous.skipped ?? 0) + summary.skipped,
+    failed: (previous.failed ?? 0) + summary.failed,
+    watchlist: (previous.watchlist ?? 0) + summary.watchlist,
+    diary: (previous.diary ?? 0) + summary.diary,
+    lists: previous.lists ?? 0,
+  };
+
+  const [{ value: remaining }] = await db
+    .select({ value: sql<number>`count(*)::int` })
+    .from(importRows)
+    .where(
+      and(
+        eq(importRows.batchId, batchId),
+        inArray(importRows.matchStatus, ['matched', 'ambiguous']),
+        sql`${importRows.kind} <> 'list_item'`,
+      ),
+    );
+
+  if (remaining > 0) {
+    await db
+      .update(importBatches)
+      .set({ totals: running, updatedAt: new Date() })
+      .where(eq(importBatches.id, batchId));
+    return { remaining, done: false, summary: running };
+  }
+
+  // Last slice: build the lists, then close the batch out.
+  const listRows = await db
+    .select()
+    .from(importRows)
+    .where(
+      and(
+        eq(importRows.batchId, batchId),
+        inArray(importRows.matchStatus, ['matched', 'ambiguous']),
+        eq(importRows.kind, 'list_item'),
+      ),
+    );
+
+  const listBuckets = new Map<string, { movieId: string; position: number | null; note: string | null }[]>();
+  for (const row of listRows) {
+    if (!row.matchedMovieId) continue;
+    const payload = row.payload as { listName?: string; position?: number | null; note?: string | null };
+    const listName = payload.listName ?? 'Imported list';
+    const bucket = listBuckets.get(listName) ?? [];
+    bucket.push({
+      movieId: row.matchedMovieId,
+      position: payload.position ?? null,
+      note: payload.note ?? null,
+    });
+    listBuckets.set(listName, bucket);
+  }
+
   for (const [listName, items] of listBuckets) {
     try {
       const ordered = [...items].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
@@ -506,10 +578,24 @@ export async function runImport(userId: string, batchId: string): Promise<Import
       for (const item of ordered) {
         await addListItem(list.id, userId, item.movieId, item.note);
       }
-      summary.lists += 1;
+      running.lists += 1;
+      running.imported += ordered.length;
     } catch {
-      summary.failed += 1;
+      running.failed += 1;
     }
+  }
+
+  if (listRows.length) {
+    await db
+      .update(importRows)
+      .set({ matchStatus: 'imported' })
+      .where(
+        and(
+          eq(importRows.batchId, batchId),
+          inArray(importRows.matchStatus, ['matched', 'ambiguous']),
+          eq(importRows.kind, 'list_item'),
+        ),
+      );
   }
 
   const [{ value: unresolved }] = await db
@@ -528,11 +614,11 @@ export async function runImport(userId: string, batchId: string): Promise<Import
       status: 'completed',
       completedAt: new Date(),
       updatedAt: new Date(),
-      totals: { ...summary, unresolved },
+      totals: { ...running, unresolved },
     })
     .where(eq(importBatches.id, batchId));
 
-  return summary;
+  return { remaining: 0, done: true, summary: running };
 }
 
 export async function getBatch(userId: string, batchId: string) {

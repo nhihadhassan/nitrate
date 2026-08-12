@@ -38,6 +38,45 @@ export async function getFavoriteFilms(userId: string): Promise<(Movie & { posit
   return rows.map((r) => ({ ...r.movie, position: r.position }));
 }
 
+/**
+ * Everything onboarding needs to redraw itself after a reload.
+ *
+ * Each step writes as it goes, so the data was never actually lost — but the
+ * form used to start blank, which looks identical to losing it. This reads the
+ * work back so a refresh is survivable.
+ */
+export async function getOnboardingProgress(
+  userId: string,
+  starterSlugs: string[],
+  suggestedIds: string[],
+): Promise<{
+  favorites: (Movie & { position: number })[];
+  ratings: Record<string, { rating: number | null; liked: boolean }>;
+  following: string[];
+}> {
+  const [favorites, rated, followed] = await Promise.all([
+    getFavoriteFilms(userId),
+    starterSlugs.length
+      ? db
+          .select({ slug: movies.slug, rating: userMovieState.rating, liked: userMovieState.liked })
+          .from(userMovieState)
+          .innerJoin(movies, eq(movies.id, userMovieState.movieId))
+          .where(and(eq(userMovieState.userId, userId), inArray(movies.slug, starterSlugs)))
+      : Promise.resolve([]),
+    suggestedIds.length
+      ? db
+          .select({ id: follows.followingId })
+          .from(follows)
+          .where(and(eq(follows.followerId, userId), inArray(follows.followingId, suggestedIds)))
+      : Promise.resolve([]),
+  ]);
+
+  const ratings: Record<string, { rating: number | null; liked: boolean }> = {};
+  for (const row of rated) ratings[row.slug] = { rating: row.rating, liked: row.liked };
+
+  return { favorites, ratings, following: followed.map((row) => row.id) };
+}
+
 /** Replaces the whole set atomically; positions are 1..4. */
 export async function setFavoriteFilms(userId: string, movieIds: string[]): Promise<void> {
   await db.transaction(async (tx) => {

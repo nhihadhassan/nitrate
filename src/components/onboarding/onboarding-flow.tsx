@@ -10,7 +10,7 @@ import { LikeMark } from '@/components/film/stars';
 import { FilmPicker, type PickedFilm } from '@/components/log/film-picker';
 import { ImageUpload } from '@/components/media/image-upload';
 import { Button } from '@/components/ui/button';
-import { CheckIcon } from '@/components/ui/icons';
+import { CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { Container, Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Avatar } from '@/components/user/avatar';
 import { cn } from '@/lib/utils';
@@ -39,7 +39,16 @@ export function OnboardingFlow({
   starterFilms,
   suggestedUsers,
   invite,
+  initialStep = 0,
+  progress,
 }: {
+  initialStep?: number;
+  /** What earlier steps already saved, so a reload does not look like a reset. */
+  progress?: {
+    favorites: PickedFilm[];
+    ratings: Record<string, { rating: number | null; liked: boolean }>;
+    following: string[];
+  };
   user: { username: string; displayName: string; avatarAssetId: string | null; bio: string | null };
   starterFilms: StarterFilm[];
   suggestedUsers: {
@@ -52,7 +61,7 @@ export function OnboardingFlow({
   invite: { code: string; name: string } | null;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Math.min(Math.max(initialStep, 0), STEPS.length - 1));
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -60,13 +69,39 @@ export function OnboardingFlow({
   const [bio, setBio] = useState(user.bio ?? '');
   const [avatarAssetId, setAvatarAssetId] = useState(user.avatarAssetId);
 
-  const [favorites, setFavorites] = useState<PickedFilm[]>([]);
-  const [rated, setRated] = useState<Record<string, { rating: number | null; liked: boolean }>>({});
-  const [followed, setFollowed] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<PickedFilm[]>(progress?.favorites ?? []);
+  const [rated, setRated] = useState<Record<string, { rating: number | null; liked: boolean }>>(
+    progress?.ratings ?? {},
+  );
+  const [followed, setFollowed] = useState<Set<string>>(new Set(progress?.following ?? []));
+
+  /**
+   * The step lives in the URL so a refresh comes back to the same place.
+   *
+   * `history.replaceState` rather than the router: this is the same page with
+   * the same data, and a server round-trip on every step would be a stutter for
+   * nothing. Replace rather than push, so the browser Back button leaves
+   * onboarding instead of walking back through it one step at a time — the
+   * in-page Back button is for that.
+   */
+  function goTo(index: number) {
+    const clamped = Math.min(Math.max(index, 0), STEPS.length - 1);
+    setStep(clamped);
+    setError(null);
+    const url = new URL(window.location.href);
+    if (clamped === 0) url.searchParams.delete('step');
+    else url.searchParams.set('step', String(clamped));
+    window.history.replaceState(null, '', url);
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+  }
 
   function next() {
     void trackOnboardingStepAction(STEPS[step]);
-    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    goTo(step + 1);
+  }
+
+  function back() {
+    goTo(step - 1);
   }
 
   function finish(skipped: boolean) {
@@ -109,6 +144,20 @@ export function OnboardingFlow({
           </span>
         ))}
       </nav>
+
+      {/* Sits above the step rather than in each footer, so every step —
+          including the last one, which has its own buttons — can go back. */}
+      {step > 0 ? (
+        <button
+          type="button"
+          onClick={back}
+          disabled={pending}
+          className="mb-5 -ml-1 flex items-center gap-1 rounded-md px-1 py-1 text-sm text-muted transition-colors hover:text-text disabled:opacity-50"
+        >
+          <ChevronRightIcon className="h-3.5 w-3.5 rotate-180" />
+          Back to {STEPS[step - 1].toLowerCase()}
+        </button>
+      ) : null}
 
       <FormError>{error}</FormError>
 

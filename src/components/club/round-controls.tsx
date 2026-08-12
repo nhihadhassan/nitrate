@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
@@ -257,23 +258,23 @@ function StartRoundSheet({
         </Field>
 
         <Field label={mode === 'wheel' ? 'Submissions close' : 'Nominations close'} htmlFor="round-nominations-close" optional>
-          <input
+          <DateTimePicker
             id="round-nominations-close"
-            type="datetime-local"
             value={nominationsClose}
-            onChange={(event) => setNominationsClose(event.target.value)}
-            className={inputClass}
+            onChange={setNominationsClose}
+            accent="iris"
+            placeholder="No deadline"
           />
         </Field>
 
         {mode === 'vote' ? (
           <Field label="Voting closes" htmlFor="round-voting-close" optional>
-            <input
+            <DateTimePicker
               id="round-voting-close"
-              type="datetime-local"
               value={votingClose}
-              onChange={(event) => setVotingClose(event.target.value)}
-              className={inputClass}
+              onChange={setVotingClose}
+              accent="iris"
+              placeholder="No deadline"
             />
           </Field>
         ) : null}

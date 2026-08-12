@@ -11,7 +11,7 @@ import {
   matchBatch,
   runImport,
   setRowMatch,
-  type ImportSummary,
+  type ImportProgress,
 } from '@/server/import/letterboxd';
 import { consumeRateLimit } from '@/server/rate-limit';
 
@@ -71,13 +71,15 @@ export async function resolveImportRowAction(
 
 export async function confirmImportAction(
   batchId: string,
-): Promise<ActionResult<ImportSummary>> {
+): Promise<ActionResult<ImportProgress>> {
   return actionGuard(async () => {
     const user = await requireUser();
-    const summary = await runImport(user.id, batchId);
+    const progress = await runImport(user.id, batchId);
+    if (!progress.done) return progress;
+    const summary = progress.summary;
     await track('import_completed', user.id, { batchId, ...summary });
     revalidatePath(`/@${user.username}`);
     revalidatePath('/');
-    return summary;
+    return progress;
   });
 }

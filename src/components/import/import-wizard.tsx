@@ -53,6 +53,7 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
   const [matching, setMatching] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [total, setTotal] = useState<number | null>(null);
+  const [importRemaining, setImportRemaining] = useState<number | null>(null);
   const [summary, setSummary] = useState<Record<string, number> | null>(
     initialBatch?.status === 'completed' ? initialBatch.totals : null,
   );
@@ -330,17 +331,37 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
             disabled={pending}
             onClick={() =>
               startTransition(async () => {
-                const result = await confirmImportAction(batch.id);
-                if (!result.ok) {
-                  setError(result.error);
-                  return;
+                setError(null);
+                // Applied in slices for the same reason matching is: one
+                // request for the whole batch outlives the invocation.
+                let previous = Infinity;
+                for (;;) {
+                  const result = await confirmImportAction(batch.id);
+                  if (!result.ok) {
+                    setError(result.error);
+                    return;
+                  }
+                  setImportRemaining(result.data.remaining);
+                  if (result.data.done) {
+                    setImportRemaining(null);
+                    setSummary(result.data.summary as unknown as Record<string, number>);
+                    toast({ message: 'Import complete', tone: 'success' });
+                    return;
+                  }
+                  if (result.data.remaining >= previous) {
+                    setError('The import stopped making progress. Press import again to resume.');
+                    return;
+                  }
+                  previous = result.data.remaining;
                 }
-                setSummary(result.data as unknown as Record<string, number>);
-                toast({ message: 'Import complete', tone: 'success' });
               })
             }
           >
-            {pending ? 'Importing…' : 'Import my history'}
+            {pending
+              ? importRemaining !== null
+                ? `Importing… ${pluralize(importRemaining, 'row')} to go`
+                : 'Importing…'
+              : 'Import my history'}
           </Button>
         </div>
       </section>

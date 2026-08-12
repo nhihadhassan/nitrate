@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react';
 
 import { FilmPicker, type PickedFilm } from '@/components/log/film-picker';
 import { Button } from '@/components/ui/button';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
@@ -96,13 +97,13 @@ export function ScheduleScreeningForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="When" htmlFor="screening-when" hint={`Shown to members in ${timezone}`}>
-          <input
+          <DateTimePicker
             id="screening-when"
-            type="datetime-local"
             value={when}
-            onChange={(event) => setWhen(event.target.value)}
+            onChange={setWhen}
+            accent="iris"
             required
-            className={inputClass}
+            placeholder="Pick a night"
           />
         </Field>
 

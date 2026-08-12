@@ -10,6 +10,8 @@ import {
   diaryEntries,
   follows,
   emailDeliveries,
+  importBatches,
+  importRows,
   movies,
   selectionRounds,
   userMovieState,
@@ -43,6 +45,7 @@ import {
   viewerHasSeenScreeningFilm,
 } from '@/server/services/clubs';
 import { flushEmailQueue } from '@/server/email/queue';
+import { runImport } from '@/server/import/letterboxd';
 import { wheelWinnerEmail } from '@/server/email/templates';
 import { consumeRateLimit } from '@/server/rate-limit';
 import { getHomeFeed } from '@/server/services/feed';
@@ -665,4 +668,58 @@ suite('nitrate integration', () => {
       .where(and(eq(diaryEntries.userId, noor.id), eq(diaryEntries.externalKey, externalKey)));
     expect(count).toBe(1);
   }, 30_000);
+
+  /**
+   * Applying a whole batch in one request 504'd in production. This asserts the
+   * slicing: totals accumulate across calls, the batch only completes on the
+   * last one, and the counts match a single-pass run.
+   */
+  it('applies an import across several slices and completes exactly once', async () => {
+    const [batch] = await db
+      .insert(importBatches)
+      .values({ userId: maya.id, fileNames: ['watchlist.csv'], status: 'preview', totals: {} })
+      .returning();
+
+    await db.insert(importRows).values(
+      [heat, stalker].map((movie, index) => ({
+        batchId: batch.id,
+        kind: 'watchlist' as const,
+        rawTitle: movie.title,
+        rawYear: movie.year,
+        payload: {},
+        matchedMovieId: movie.id,
+        matchStatus: 'matched' as const,
+        dedupeKey: `${tag}-slice-${index}`,
+      })),
+    );
+
+    // One row per slice, so two rows must take two calls.
+    const first = await runImport(maya.id, batch.id, 1);
+    expect(first.done).toBe(false);
+    expect(first.remaining).toBe(1);
+    expect(first.summary.watchlist).toBe(1);
+
+    const second = await runImport(maya.id, batch.id, 1);
+    expect(second.done).toBe(true);
+    expect(second.remaining).toBe(0);
+    // Accumulated across both slices rather than reset by the second.
+    expect(second.summary.watchlist).toBe(2);
+    expect(second.summary.imported).toBe(2);
+    expect(second.summary.failed).toBe(0);
+
+    const [applied] = await db
+      .select()
+      .from(importBatches)
+      .where(eq(importBatches.id, batch.id))
+      .limit(1);
+    expect(applied.status).toBe('completed');
+
+    const [{ value: leftover }] = await db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(importRows)
+      .where(and(eq(importRows.batchId, batch.id), eq(importRows.matchStatus, 'matched')));
+    expect(leftover).toBe(0);
+
+    await db.delete(importBatches).where(eq(importBatches.id, batch.id));
+  }, 60_000);
 });

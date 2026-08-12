@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { AvatarStack } from '@/components/user/avatar';
 import { ROUND_STATUS_LABELS } from '@/lib/types';
-import { formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
+import { cn, formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import {
   getActiveRound,
@@ -64,19 +64,6 @@ export default async function ClubDashboard({
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-10">
-        {welcome && isAdmin ? (
-          <section className="rounded-lg border border-iris/30 bg-iris/[0.07] p-4">
-            <p className="font-display text-xl">Your club is live</p>
-            <p className="mt-1.5 text-sm text-muted">
-              Send the invite link to your group. Once a couple of people are in, open a nomination
-              round and let them fight it out.
-            </p>
-            <div className="mt-3.5">
-              <ClubInvitePanel clubId={club.id} inviteCode={club.inviteCode} />
-            </div>
-          </section>
-        ) : null}
-
         {/* Next up: the single most important thing on this page. */}
         {upcoming ? (
           <section className="overflow-hidden rounded-lg border border-iris/30 bg-iris/[0.05]">
@@ -389,7 +376,24 @@ export default async function ClubDashboard({
       </div>
 
       <aside className="space-y-8">
-        {isMember ? <ClubInvitePanel clubId={club.id} inviteCode={club.inviteCode} compact /> : null}
+        {/* A brand-new club used to get a full-width "Your club is live" banner
+            above the fold, repeating the invite panel that already lives here.
+            The welcome now just adds a line of guidance to the real panel. */}
+        {isMember ? (
+          <div
+            className={cn(
+              welcome && isAdmin && 'rounded-lg border border-iris/30 bg-iris/[0.07] p-3.5',
+            )}
+          >
+            {welcome && isAdmin ? (
+              <p className="mb-2.5 text-sm leading-relaxed text-muted">
+                <span className="text-text">Your club is live.</span> Send this link to your group,
+                then start a round.
+              </p>
+            ) : null}
+            <ClubInvitePanel clubId={club.id} inviteCode={club.inviteCode} compact />
+          </div>
+        ) : null}
 
         <section className="rounded-lg border border-line bg-surface/50 p-4">
           <p className="eyebrow">Club record</p>
