@@ -20,7 +20,7 @@ const LABELS: Record<string, string> = {
   comment_reply: 'replied to your comment',
   club_invitation: 'invited you to a club',
   club_member_joined: 'joined the club',
-  club_nominations_opened: 'opened nominations',
+  club_nominations_opened: 'started choosing the next movie',
   club_voting_opened: 'opened voting',
   club_voting_ending: 'voting is closing soon',
   club_winner_selected: 'a film was chosen',

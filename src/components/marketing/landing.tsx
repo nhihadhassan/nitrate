@@ -19,7 +19,7 @@ const LOOPS = [
   {
     label: 'Our films',
     title: 'Decide together, then remember it',
-    body: 'A Movie Club has a shared queue, a way to pick, a night in the calendar and a permanent record. Everyone puts one film in and the wheel settles it — no campaigning, no deadlock, nobody to blame.',
+    body: 'A Movie Club saves future ideas, makes everyone’s next pick clear, plans the night and keeps a permanent record. Everyone picks one movie and the wheel settles it.',
   },
 ];
 
@@ -82,12 +82,12 @@ export function LandingPage() {
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl sm:text-4xl">The bit nobody else does properly</h2>
             <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
-              A Movie Club is a real place, not a tab. Suggest films to a shared queue that shows who
-              already wants to see them and who has already seen them. Every week everyone puts one
-              film forward, then <span className="text-text">spin the wheel</span> — it picks at
+              A Movie Club is a real place, not a tab. Save future ideas and see who
+              already wants to see them and who has already seen them. Every week everyone picks one
+              movie, then <span className="text-text">spin the wheel</span>. It chooses at
               random, emails the group, and nobody gets blamed. Or put it to a blind vote if you
               prefer. Schedule the night, RSVP, watch, then rate it blind before the reveal. Every
-              screening becomes a permanent entry in your club&apos;s shared history — attendees,
+              screening becomes a permanent entry in your club&apos;s shared history: attendees,
               ratings, discussion and all.
             </p>
             <Button asChild variant="iris" size="lg" className="mt-8">

@@ -637,12 +637,7 @@ export async function nominate(input: {
   await db.transaction(async (tx) => {
     const round = await loadRound(input.roundId, tx);
     await requireMembership(round.clubId, input.userId, 'member', tx);
-    if (round.status !== 'nominations_open') {
-      throw new ConflictError('Nominations are not open for this round.');
-    }
-    if (round.nominationsCloseAt && round.nominationsCloseAt < new Date()) {
-      throw new ConflictError('The nomination window has closed.');
-    }
+    await assertPickWindow(round);
 
     const [{ value: mine }] = await tx
       .select({ value: sql<number>`count(*)::int` })
@@ -656,48 +651,101 @@ export async function nominate(input: {
       );
     if (mine >= round.nominationLimitPerMember) {
       throw new ValidationError(
-        `You have used all ${round.nominationLimitPerMember} of your nominations for this round.`,
+        `You have already made all ${round.nominationLimitPerMember} of your picks for this round.`,
       );
     }
 
-    // Duplicate titles are a dead end, so say who got there first.
-    const [duplicate] = await tx
-      .select({ id: nominations.id, by: users.displayName })
+    await insertPick(input, round, tx);
+  });
+}
+
+async function assertPickWindow(round: SelectionRound): Promise<void> {
+  if (round.status !== 'nominations_open') {
+    throw new ConflictError('Movie picks are closed for this round.');
+  }
+  if (round.nominationsCloseAt && round.nominationsCloseAt < new Date()) {
+    throw new ConflictError('The time to pick a movie has ended.');
+  }
+}
+
+async function insertPick(
+  input: { roundId: string; userId: string; movieId: string; pitch: string | null },
+  round: SelectionRound,
+  tx: DbOrTx,
+): Promise<void> {
+  const [duplicate] = await tx
+    .select({ id: nominations.id, by: users.displayName })
+    .from(nominations)
+    .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
+    .where(
+      and(
+        eq(nominations.roundId, input.roundId),
+        eq(nominations.movieId, input.movieId),
+        isNull(nominations.withdrawnAt),
+      ),
+    )
+    .limit(1);
+  if (duplicate) {
+    throw new ConflictError(`${duplicate.by} already picked that movie for this round.`);
+  }
+
+  const alreadyScreened = await tx
+    .select({ id: screenings.id })
+    .from(screenings)
+    .where(
+      and(
+        eq(screenings.clubId, round.clubId),
+        eq(screenings.movieId, input.movieId),
+        eq(screenings.status, 'completed'),
+      ),
+    )
+    .limit(1);
+  if (alreadyScreened.length) {
+    throw new ConflictError('The club has already watched that movie together.');
+  }
+
+  await tx.insert(nominations).values({
+    roundId: input.roundId,
+    movieId: input.movieId,
+    nominatedByUserId: input.userId,
+    pitch: input.pitch,
+  });
+}
+
+/** Replace a member's pick atomically, so a failed replacement keeps the old pick. */
+export async function replaceNomination(input: {
+  nominationId: string;
+  roundId: string;
+  userId: string;
+  movieId: string;
+  pitch: string | null;
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
       .from(nominations)
-      .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
       .where(
         and(
+          eq(nominations.id, input.nominationId),
           eq(nominations.roundId, input.roundId),
-          eq(nominations.movieId, input.movieId),
           isNull(nominations.withdrawnAt),
         ),
       )
       .limit(1);
-    if (duplicate) {
-      throw new ConflictError(`${duplicate.by} already nominated that film for this round.`);
+    if (!current) throw new NotFoundError('Your current pick is no longer available.');
+    if (current.nominatedByUserId !== input.userId) {
+      throw new PermissionError('You can only change your own pick.');
     }
 
-    const alreadyScreened = await tx
-      .select({ id: screenings.id })
-      .from(screenings)
-      .where(
-        and(
-          eq(screenings.clubId, round.clubId),
-          eq(screenings.movieId, input.movieId),
-          eq(screenings.status, 'completed'),
-        ),
-      )
-      .limit(1);
-    if (alreadyScreened.length) {
-      throw new ConflictError('The club has already watched that film together.');
-    }
+    const round = await loadRound(input.roundId, tx);
+    await requireMembership(round.clubId, input.userId, 'member', tx);
+    await assertPickWindow(round);
 
-    await tx.insert(nominations).values({
-      roundId: input.roundId,
-      movieId: input.movieId,
-      nominatedByUserId: input.userId,
-      pitch: input.pitch,
-    });
+    await tx
+      .update(nominations)
+      .set({ withdrawnAt: new Date() })
+      .where(eq(nominations.id, current.id));
+    await insertPick(input, round, tx);
   });
 }
 
@@ -708,14 +756,14 @@ export async function withdrawNomination(nominationId: string, userId: string): 
       .from(nominations)
       .where(eq(nominations.id, nominationId))
       .limit(1);
-    if (!nomination) throw new NotFoundError('That nomination is already gone.');
+    if (!nomination) throw new NotFoundError('That pick is already gone.');
     const round = await loadRound(nomination.roundId, tx);
     const membership = await requireMembership(round.clubId, userId, 'member', tx);
     if (nomination.nominatedByUserId !== userId && membership.role === 'member') {
-      throw new PermissionError('Only the nominator or an admin can withdraw this.');
+      throw new PermissionError('Only the person who picked this movie or an admin can remove it.');
     }
     if (round.status !== 'nominations_open') {
-      throw new ConflictError('Nominations can only be withdrawn while the window is open.');
+      throw new ConflictError('Picks can only be changed while everyone is still choosing.');
     }
     await tx.update(nominations).set({ withdrawnAt: new Date() }).where(eq(nominations.id, nominationId));
   });
@@ -738,7 +786,7 @@ export async function openVoting(roundId: string, userId: string): Promise<Selec
       .from(nominations)
       .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)));
     if (total < 2) {
-      throw new ValidationError('You need at least two nominations before voting can open.');
+      throw new ValidationError('You need at least two movie picks before voting can open.');
     }
 
     const [updated] = await tx
@@ -927,7 +975,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
     }
 
     if (contenders.length < 2) {
-      throw new ValidationError('You need at least two submissions before spinning.');
+      throw new ValidationError('You need at least two movie picks before spinning.');
     }
     assertTransition(locked.status, 'winner_selected');
 
@@ -1990,7 +2038,7 @@ export async function getClubIntelligence(clubId: string): Promise<{
     fromTheQueue: queue.map((r) => ({
       movie: r.movie,
       metric: r.metric,
-      reason: r.metric > 0 ? `${r.metric} already want to see it` : 'Waiting in the queue',
+      reason: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
     })),
   };
 }
@@ -2107,7 +2155,7 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
         title: null,
         mode: 'wheel',
         nominationLimitPerMember: 1,
-        // Submissions close just before the next weekly slot.
+        // Picks close just before the next weekly slot.
         nominationsCloseAt: new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000),
         votingCloseAt: null,
       });

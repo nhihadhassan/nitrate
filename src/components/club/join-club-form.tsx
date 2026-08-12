@@ -31,7 +31,7 @@ export function JoinClubForm({ initialCode }: { initialCode?: string }) {
             message: result.data.alreadyMember ? 'You are already in this club' : 'Welcome to the club',
             tone: 'success',
           });
-          router.push(`/club/${result.data.slug}`);
+          router.push(`/club/${result.data.slug}?welcome=joined`);
           router.refresh();
         });
       }}

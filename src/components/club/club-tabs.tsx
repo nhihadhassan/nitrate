@@ -19,7 +19,7 @@ export function ClubTabs({
 
   const tabs = [
     { href: base, label: 'Dashboard' },
-    ...(isMember ? [{ href: `${base}/queue`, label: 'Queue' }] : []),
+    ...(isMember ? [{ href: `${base}/queue`, label: 'Movie Ideas' }] : []),
     { href: `${base}/history`, label: 'History' },
     { href: `${base}/members`, label: 'Members' },
     ...(isAdmin ? [{ href: `${base}/settings`, label: 'Settings' }] : []),

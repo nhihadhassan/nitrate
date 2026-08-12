@@ -27,6 +27,7 @@ import {
   nominate,
   openVoting,
   postDiscussion,
+  replaceNomination,
   removeFromQueue,
   removeMember,
   requireMembership,
@@ -225,6 +226,7 @@ export async function addQueueItemAction(
     await track('club_queue_added', user.id, { clubId: input.clubId, movieId: movie.id });
     const club = await getClubById(input.clubId);
     revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/queue`);
     return null;
   });
 }
@@ -238,6 +240,7 @@ export async function removeQueueItemAction(
     await removeFromQueue(clubId, user.id, itemId);
     const club = await getClubById(clubId);
     revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/queue`);
     return null;
   });
 }
@@ -279,8 +282,8 @@ export async function startRoundAction(
       url: `/club/${club.slug}`,
       body:
         parsed.mode === 'wheel'
-          ? `Submissions are open in ${club.name} — the wheel decides`
-          : `Nominations are open in ${club.name}`,
+          ? `${club.name} is choosing the next movie. Pick yours, then the wheel decides.`
+          : `${club.name} is choosing the next movie. Pick yours before voting starts.`,
       dedupeKey: `round_open:${round.id}`,
     });
 
@@ -316,6 +319,36 @@ export async function withdrawNominationAction(
     const user = await requireUser();
     await withdrawNomination(nominationId, user.id);
     revalidatePath(`/club/${clubSlug}`);
+    return null;
+  });
+}
+
+export async function replaceNominationAction(
+  input: {
+    nominationId: string;
+    roundId: string;
+    clubId: string;
+    pitch?: string | null;
+  } & FilmRefInput,
+): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const movie = await resolveFilm(input);
+    await replaceNomination({
+      nominationId: input.nominationId,
+      roundId: input.roundId,
+      userId: user.id,
+      movieId: movie.id,
+      pitch: input.pitch?.trim() || null,
+    });
+    await track('nomination_created', user.id, {
+      clubId: input.clubId,
+      movieId: movie.id,
+      replaced: true,
+    });
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/queue`);
     return null;
   });
 }

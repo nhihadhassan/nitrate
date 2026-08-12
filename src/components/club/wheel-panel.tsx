@@ -38,12 +38,14 @@ export function WheelPanel({
   contenders,
   alreadySpunWinnerId,
   canSpin,
+  allMembersPicked,
 }: {
   clubId: string;
   roundId: string;
   contenders: Contender[];
   alreadySpunWinnerId: string | null;
   canSpin: boolean;
+  allMembersPicked: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -80,6 +82,15 @@ export function WheelPanel({
     });
   }
 
+  if (!alreadySpunWinnerId && !allMembersPicked) {
+    return (
+      <div className="rounded-lg border border-line bg-surface/30 px-4 py-3 text-sm text-muted">
+        <span className="font-medium text-text">Next: spin the wheel.</span>{' '}
+        It unlocks when everyone has picked.
+      </div>
+    );
+  }
+
   if (winner && revealed) {
     return (
       <div className="winner-card animate-reveal rounded-lg border border-iris/40 bg-iris/[0.07] p-5" data-pointer-light>
@@ -103,10 +114,10 @@ export function WheelPanel({
               <p className="mt-2 text-sm leading-relaxed text-muted">“{winner.pitch}”</p>
             ) : null}
             <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-dim">
-              <span>Submitted by</span>
+              <span>Picked by</span>
               <UserChip user={winner.nominatedBy} size="xs" />
               <span>
-                · chosen at random from {pluralize(contenders.length, 'submission')}
+                · chosen at random from {pluralize(contenders.length, 'pick')}
               </span>
             </div>
             <p className="mt-3 text-xs text-jade">Everyone in the club has been emailed.</p>
@@ -134,7 +145,7 @@ export function WheelPanel({
         <div className="text-center">
           {contenders.length < 2 ? (
             <p className="text-sm text-dim">
-              The wheel needs at least two submissions. {pluralize(contenders.length, 'film')} so far.
+              The wheel needs at least two picks. {pluralize(contenders.length, 'movie')} so far.
             </p>
           ) : animateTo !== null ? (
             <p className="text-sm text-muted">Spinning…</p>
@@ -144,13 +155,12 @@ export function WheelPanel({
                 {pending ? 'Spinning…' : 'Spin the wheel'}
               </Button>
               <p className="mt-2 text-xs text-dim">
-                {pluralize(contenders.length, 'submission')} in. The result is decided on the
-                server — one spin, no re-rolls.
+                {pluralize(contenders.length, 'pick')} in. One spin, no re-rolls.
               </p>
             </>
           ) : (
             <p className="text-sm text-dim">
-              {pluralize(contenders.length, 'submission')} in. Waiting for someone to spin.
+              {pluralize(contenders.length, 'pick')} in. Waiting for someone to spin.
             </p>
           )}
         </div>

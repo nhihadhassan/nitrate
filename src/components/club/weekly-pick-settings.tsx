@@ -31,7 +31,7 @@ export function WeeklyPickSettings({
     <section className="rounded-lg border border-line p-4">
       <h2 className="text-xl">Weekly pick</h2>
       <p className="mt-1.5 text-sm leading-relaxed text-muted">
-        Open submissions automatically once a week and email everyone to put a film forward. When
+        Start choosing automatically once a week and email everyone to pick a movie. When
         the club is ready, anyone can spin the wheel.
       </p>
 
@@ -53,7 +53,7 @@ export function WeeklyPickSettings({
       {enabled ? (
         <div className="mt-4 max-w-xs">
           <Field
-            label="Open submissions on"
+            label="Start choosing on"
             htmlFor="weekly-day"
             hint={`Each ${DAYS[day]}, in ${timezone}.`}
           >

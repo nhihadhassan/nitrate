@@ -36,6 +36,7 @@ import {
   nominate,
   openVoting,
   postDiscussion,
+  replaceNomination,
   requireMembership,
   scheduleScreening,
   setRsvp,
@@ -334,12 +335,12 @@ suite('nitrate integration', () => {
     const third = await makeMovie('Alien', 1979);
     await expect(
       nominate({ roundId: round.id, userId: alex.id, movieId: third.id, pitch: null }),
-    ).rejects.toThrow(/nominations/i);
+    ).rejects.toThrow(/picks/i);
 
-    // Duplicate nominations are rejected with an explanation.
+    // Duplicate picks are rejected with an explanation.
     await expect(
       nominate({ roundId: round.id, userId: noor.id, movieId: heat.id, pitch: null }),
-    ).rejects.toThrow(/already nominated/i);
+    ).rejects.toThrow(/already picked/i);
 
     // Voting cannot be skipped: no votes before it opens.
     const nominationsBefore = await getRoundNominations(round.id, alex.id);
@@ -515,16 +516,42 @@ suite('nitrate integration', () => {
     const alien = await makeMovie('Alien Wheel', 1979);
     await nominate({ roundId: round.id, userId: alex.id, movieId: alien.id, pitch: null });
 
+    // Changing a pick is one transaction: the old pick disappears only when
+    // the replacement is valid and safely inserted.
+    const blade = await makeMovie('Blade Wheel', 1998);
+    const beforeChange = await getRoundNominations(round.id, alex.id);
+    await replaceNomination({
+      nominationId: beforeChange.nominations[0].id,
+      roundId: round.id,
+      userId: alex.id,
+      movieId: blade.id,
+      pitch: 'Vampire night',
+    });
+    const afterChange = await getRoundNominations(round.id, alex.id);
+    expect(afterChange.nominations.map((pick) => pick.movie.id)).toEqual([blade.id]);
+
     // One submission is not a wheel.
     await expect(spinWheel(round.id, alex.id)).rejects.toThrow(/at least two/i);
 
     const thing = await makeMovie('The Thing Wheel', 1982);
     await nominate({ roundId: round.id, userId: maya.id, movieId: thing.id, pitch: 'Trust no one' });
 
+    await expect(
+      replaceNomination({
+        nominationId: afterChange.nominations[0].id,
+        roundId: round.id,
+        userId: alex.id,
+        movieId: thing.id,
+        pitch: null,
+      }),
+    ).rejects.toThrow(/already picked/i);
+    const afterFailedChange = await getRoundNominations(round.id, alex.id);
+    expect(afterFailedChange.nominations.some((pick) => pick.movie.id === blade.id)).toBe(true);
+
     const first = await spinWheel(round.id, maya.id);
     expect(first.alreadySpun).toBe(false);
     expect(first.winner).not.toBeNull();
-    expect([alien.id, thing.id]).toContain(first.winner!.movie.id);
+    expect([blade.id, thing.id]).toContain(first.winner!.movie.id);
     expect(first.order).toHaveLength(2);
     expect(first.winnerIndex).toBeGreaterThanOrEqual(0);
     // The winner must be the segment the client will animate to.
@@ -594,7 +621,7 @@ suite('nitrate integration', () => {
     // Plain text must stand on its own for clients that block HTML.
     expect(email.text).toContain('The Thing (1982)');
     expect(email.text).toContain('Maya');
-    expect(email.text).toContain('4 submissions');
+    expect(email.text).toContain('4 picks');
   });
 
   it('escapes club names so a title cannot inject markup into an email', () => {

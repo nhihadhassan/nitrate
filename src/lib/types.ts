@@ -56,7 +56,7 @@ export type RoundStatus =
 
 export const ROUND_STATUS_LABELS: Record<RoundStatus, string> = {
   draft: 'Draft',
-  nominations_open: 'Nominations open',
+  nominations_open: 'Picking movies',
   voting_open: 'Voting open',
   winner_selected: 'Winner selected',
   screening_scheduled: 'Screening scheduled',

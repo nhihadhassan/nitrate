@@ -77,15 +77,21 @@ export function VotingPanel({
 
   return (
     <div>
-      <p className="mb-3 text-sm text-muted">
-        {open
-          ? viewerVoted || selected
-            ? 'Your vote is in. You can change it until voting closes.'
-            : `Pick one. Totals stay hidden until the round closes — ${pluralize(memberCount, 'member')} can vote.`
-          : totalsVisible
-            ? `${pluralize(totalVotes, 'vote')} cast.`
-            : 'Voting has closed.'}
-      </p>
+      <div className="mb-4 rounded-lg border border-iris/40 bg-iris/[0.06] p-4 sm:p-5">
+        <p className="eyebrow text-iris">{viewerVoted || selected ? 'Your vote' : 'Your turn'}</p>
+        <h3 className="mt-1 text-2xl">
+          {open ? (viewerVoted || selected ? 'Your vote is in' : 'Cast your vote') : 'Voting complete'}
+        </h3>
+        <p className="mt-1.5 text-sm text-muted">
+          {open
+            ? viewerVoted || selected
+              ? 'You can change it until voting closes.'
+              : `Choose one of the movies below. Totals stay hidden until voting ends, and ${pluralize(memberCount, 'member')} can vote.`
+            : totalsVisible
+              ? `${pluralize(totalVotes, 'vote')} cast.`
+              : 'Voting has closed.'}
+        </p>
+      </div>
 
       <ul className="grid gap-3 sm:grid-cols-2">
         {nominations.map((nominee) => {
