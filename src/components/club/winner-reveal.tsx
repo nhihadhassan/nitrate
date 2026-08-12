@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { filmHref } from '@/lib/links';
@@ -25,6 +25,8 @@ export function WinnerReveal({
   onClose: () => void;
 }) {
   const [revealed, setRevealed] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setRevealed(true), 700);
@@ -32,18 +34,46 @@ export function WinnerReveal({
   }, []);
 
   useEffect(() => {
+    restoreFocusRef.current = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+
     function onKey(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+      const items = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled])'),
+      );
+      if (!items.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+      restoreFocusRef.current?.focus?.();
+    };
   }, [onClose]);
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label="Winning film"
+      tabIndex={-1}
       className="fixed inset-0 z-[130] flex items-center justify-center bg-black/85 px-6 text-center backdrop-blur-sm"
     >
       <div>
@@ -62,7 +92,7 @@ export function WinnerReveal({
                 <Link href={filmHref({ slug })}>See the film</Link>
               </Button>
               <Button variant="outline" onClick={onClose}>
-                Schedule it
+                Schedule Movie Night
               </Button>
             </div>
           </>

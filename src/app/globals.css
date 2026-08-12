@@ -549,6 +549,29 @@ select:focus {
     color-mix(in srgb, var(--surface) 28%, transparent);
 }
 
+.club-card {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--iris) 5%, transparent), transparent 56%),
+    color-mix(in srgb, var(--surface) 42%, transparent);
+}
+
+.club-card::after {
+  content: '';
+  position: absolute;
+  right: -2rem;
+  bottom: -3rem;
+  width: 8rem;
+  height: 8rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--iris) 12%, transparent);
+  pointer-events: none;
+  transition: transform var(--duration-slow) var(--ease-out-expo);
+}
+
+.club-card:hover::after {
+  transform: translate(-0.4rem, -0.35rem) scale(1.08);
+}
+
 @utility hairline {
   border-bottom: 1px solid var(--line);
 }
