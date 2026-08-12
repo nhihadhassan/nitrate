@@ -16,6 +16,14 @@ const nextConfig: NextConfig = {
     // Server Actions receive image uploads (already downscaled client-side).
     serverActions: { bodySizeLimit: '4mb' },
   },
+  async redirects() {
+    // The importer used to live under /settings, which meant a signed-out
+    // visitor following an old link hit the settings auth wall and landed on a
+    // bare sign-in form for the wrong page. Redirecting here rather than from a
+    // route handler matters: the settings layout would otherwise redirect to
+    // login before the page under it ever rendered.
+    return [{ source: '/settings/import', destination: '/import', permanent: true }];
+  },
   async rewrites() {
     // `/@username` is the canonical profile URL, but `@` is reserved for
     // parallel-route slots in the App Router, so the pages live under /u/.
