@@ -53,6 +53,13 @@ one `cache()`d resolution, and the root `loading.tsx` was replaced by
 route-level ones so `/film/[slug]` has no Suspense boundary above it to flush a
 shell before the redirect is thrown.
 
+**The corollary is a rule: a route that can `redirect()` must not have a
+`loading.tsx` above it.** The boundary flushes the shell first, so the redirect
+degrades from a 307 to a 200 plus a client-side navigation. `/watchlist` was
+briefly given one and started answering 200 to signed-out requests — no data
+leaked, but an auth-gated route should not render at all. Loading states live
+only on the public browse routes, which never redirect.
+
 ### 5. Blind ratings hold on every surface
 
 A club that rates blind must not see a film's group score anywhere before the
