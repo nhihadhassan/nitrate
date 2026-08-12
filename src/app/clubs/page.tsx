@@ -55,7 +55,9 @@ export default async function ClubsPage() {
                 <li key={club.id}>
                   <Link
                     href={`/club/${club.slug}`}
-                    className="flex h-full flex-col rounded-lg border border-line p-4 transition-colors hover:border-iris/40"
+                    className="interactive-card club-card flex h-full flex-col rounded-lg border border-line p-4 hover:border-iris/40"
+                    data-pointer-light
+                    data-reveal="card"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="font-display text-xl leading-tight">{club.name}</p>
@@ -122,7 +124,9 @@ export default async function ClubsPage() {
               <li key={club.id}>
                 <Link
                   href={`/club/${club.slug}`}
-                  className="block rounded-lg border border-line p-4 transition-colors hover:border-iris/40"
+                  className="interactive-card club-card block rounded-lg border border-line p-4 hover:border-iris/40"
+                  data-pointer-light
+                  data-reveal="card"
                 >
                   <p className="font-display text-xl leading-tight">{club.name}</p>
                   {club.description ? (
