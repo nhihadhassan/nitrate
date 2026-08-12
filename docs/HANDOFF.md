@@ -11,7 +11,7 @@ Written to be read by someone who has never seen the project.
 | --- | --- |
 | Source | GitHub — `nhihadhassan/nitrate` (private) |
 | Hosting | Vercel project `nitrate`, team `nhihadhassan-2432s-projects` |
-| Live URL | `https://nitrate-nhihadhassan-2432s-projects.vercel.app` |
+| Live URL | `https://nitrate-iota.vercel.app` |
 | Database | Supabase project `rachel-tracker` (`zgafubhzhxikuknihmnu`), ca-central-1 |
 | Film data | TMDB API |
 | Email | Resend, sending as `movienight@nhihadhassan.ca` |
