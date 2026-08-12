@@ -1,4 +1,4 @@
-# Nhach Bule Dick Movie Club
+# Rachad Julijan Diyack Movie Club
 
 A social film diary for the group — and the movie club that runs itself.
 
@@ -20,6 +20,7 @@ random**, and the group gets an email telling them what they're watching.
 | **[FEATURES](docs/FEATURES.md)** | Everything that is built and working |
 | **[DECISIONS](docs/DECISIONS.md)** | Why the code looks like this, the bugs found and how, deployment history |
 | **[ROADMAP](docs/ROADMAP.md)** | What to do next, in order of what actually unblocks people |
+| **[RENAMING](docs/RENAMING.md)** | How to change the product's name — one constant, five exceptions, five minutes |
 
 ---
 

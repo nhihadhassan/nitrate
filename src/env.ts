@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { BRAND } from '@/lib/brand';
+
 /**
  * Environment access. Values are read lazily so that a production build never
  * fails just because a runtime-only secret is absent from the build container.
@@ -32,7 +34,9 @@ export const env = {
     return process.env.RESEND_API_KEY?.trim() || null;
   },
   get emailFrom() {
-    return process.env.EMAIL_FROM?.trim() || 'NBD Movie Club <onboarding@resend.dev>';
+    // Reads the brand rather than repeating it, so a rename cannot leave a
+    // stale name on the one string recipients see before they open anything.
+    return process.env.EMAIL_FROM?.trim() || `${BRAND.short} <onboarding@resend.dev>`;
   },
   get cronSecret() {
     return process.env.CRON_SECRET?.trim() || null;

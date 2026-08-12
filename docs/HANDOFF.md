@@ -1,6 +1,6 @@
 # Handoff
 
-Everything you need to run, operate and hand off **Nhach Bule Dick Movie Club**.
+Everything you need to run, operate and hand off **Rachad Julijan Diyack Movie Club**.
 Written to be read by someone who has never seen the project.
 
 ---
@@ -147,7 +147,8 @@ open advisories; 15.1.6 was rejected outright. Do not downgrade.
 `nitrate_app` role, the `nitrate_session` cookie, `nitrate-theme` localStorage
 key and the `nitrate-*` CSS animation names. This is deliberate: renaming them
 buys nothing a user can see and would mean a data migration plus signing
-everyone out. All *user-facing* naming comes from `src/lib/brand.ts`.
+everyone out. All *user-facing* naming comes from `src/lib/brand.ts`; to change
+the product's name, follow `docs/RENAMING.md`.
 
 **Avatars and club images live in Postgres** as `bytea`, served from
 `/media/[id]` with immutable caching. Fine at this scale; move to object storage

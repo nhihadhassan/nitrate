@@ -58,6 +58,24 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
   );
   const [pending, startTransition] = useTransition();
 
+  /**
+   * Re-sync from the server when the batch we were given actually changes.
+   *
+   * `useState(initialBatch)` seeds once and then ignores the prop forever. When
+   * matching finishes, the loop calls `router.replace`, the server re-renders
+   * with `status: 'preview'` — and without this the component would sit on its
+   * stale `matching` state showing "Finishing up." until the user reloaded by
+   * hand. Comparing during render rather than in an effect avoids rendering the
+   * wrong screen for a frame.
+   */
+  const serverSignature = `${initialBatch?.id ?? ''}:${initialBatch?.status ?? ''}`;
+  const [syncedSignature, setSyncedSignature] = useState(serverSignature);
+  if (serverSignature !== syncedSignature) {
+    setSyncedSignature(serverSignature);
+    setBatch(initialBatch);
+    setSummary(initialBatch?.status === 'completed' ? initialBatch.totals : null);
+  }
+
   const batchId = batch?.id ?? null;
   const isMatching = batch?.status === 'matching';
 
@@ -97,7 +115,12 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
         previous = result.data.remaining;
       }
       setMatching(false);
-      if (!cancelled) router.replace(`/settings/import?batch=${batchId}`);
+      if (cancelled) return;
+      // `replace` alone is a no-op when the URL already carries this batch —
+      // which it does on any resumed import — so refresh to force the server
+      // component to re-read the batch and hand us the preview.
+      router.replace(`/settings/import?batch=${batchId}`);
+      router.refresh();
     }
 
     void loop();

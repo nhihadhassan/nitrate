@@ -76,7 +76,10 @@ repeated TMDB failures and serves the local catalogue, with the UI saying so.
 MVP; revisit if the table grows.
 
 **Brand naming is one constant.** `src/lib/brand.ts` is the only place the
-product's name appears. Internal identifiers deliberately do not use it.
+product's name appears. Internal identifiers deliberately do not use it. The
+name has now changed twice, which paid for the abstraction twice over — the
+procedure, including the handful of files that cannot import TypeScript, is in
+`docs/RENAMING.md`.
 
 ---
 
@@ -174,6 +177,7 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
 | 11 Aug 2026 | Cron moved hourly → daily (Vercel Hobby limit); weekly trigger gates on weekday only |
 | 11 Aug 2026 | Wheel labels kept upright instead of rotating radially |
 | 11 Aug 2026 | Rebrand from Nitrate to Nhach Bule Dick Movie Club |
+| 11 Aug 2026 | Renamed to Rachad Julijan Diyack Movie Club; procedure written up in `docs/RENAMING.md` |
 | 11 Aug 2026 | Deployment protection turned off — the site is public |
 | 11 Aug 2026 | Resend configured on the verified `nhihadhassan.ca` domain; live send confirmed |
 | 11 Aug 2026 | `NEXT_PUBLIC_SITE_URL` set in production — the first test email carried `localhost` links |
