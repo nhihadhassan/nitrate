@@ -25,6 +25,7 @@ import {
   cancelRound,
   castVote,
   closeVoting,
+  closePicks,
   completeScreening,
   confirmAttendance,
   createClub,
@@ -467,6 +468,43 @@ suite('nitrate integration', () => {
     expect(
       intelligence.fromTheQueue.some((s) => s.movie.id === stalker.id),
     ).toBe(true);
+  }, 30_000);
+
+  it('requires an admin decision before an incomplete expired wheel round can continue', async () => {
+    const deadlineClub = await createClub({
+      ownerId: alex.id,
+      name: `Deadline Club ${tag}`,
+      description: null,
+      visibility: 'private',
+      timezone: 'UTC',
+      interests: [],
+      imageAssetId: null,
+    });
+    created.clubIds.push(deadlineClub.id);
+    await joinClubByCode(deadlineClub.inviteCode, maya.id);
+    await joinClubByCode(deadlineClub.inviteCode, noor.id);
+    const round = await startRound({
+      clubId: deadlineClub.id,
+      userId: alex.id,
+      title: 'Deadline test',
+      mode: 'wheel',
+      nominationLimitPerMember: 1,
+      nominationsCloseAt: new Date(Date.now() + 60_000),
+      votingCloseAt: null,
+    });
+    const first = await makeMovie('Deadline First', 2001);
+    const second = await makeMovie('Deadline Second', 2002);
+    await nominate({ roundId: round.id, userId: alex.id, movieId: first.id, pitch: null });
+    await nominate({ roundId: round.id, userId: maya.id, movieId: second.id, pitch: null });
+    await db
+      .update(selectionRounds)
+      .set({ nominationsCloseAt: new Date(Date.now() - 1_000) })
+      .where(eq(selectionRounds.id, round.id));
+
+    await expect(spinWheel(round.id, maya.id)).rejects.toThrow(/admin to close/i);
+    await closePicks(round.id, alex.id);
+    const resolved = await spinWheel(round.id, maya.id);
+    expect(resolved.winner).not.toBeNull();
   }, 30_000);
 
   /* ---------------------------------------------------------------------- */

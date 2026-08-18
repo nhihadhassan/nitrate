@@ -17,6 +17,8 @@ import {
   getEditorialRails,
   getFriendsAreWatching,
   getFriendsLoved,
+  getFriendsWantToWatch,
+  getPopularWithClubs,
   getFromYourFavouriteGenre,
   getPopularReviews,
   getWatchlistRail,
@@ -40,6 +42,8 @@ export default async function ExplorePage() {
     rails,
     friendsWatching,
     friendsLoved,
+    clubPopular,
+    friendsWant,
     watchlist,
     becauseYouLoved,
     favouriteGenre,
@@ -50,6 +54,8 @@ export default async function ExplorePage() {
     getEditorialRails(),
     user ? getFriendsAreWatching(user.id, 12) : Promise.resolve([]),
     user ? getFriendsLoved(user.id, 12) : Promise.resolve([]),
+    user ? getPopularWithClubs(user.id, 12) : Promise.resolve([]),
+    user ? getFriendsWantToWatch(user.id, 12) : Promise.resolve([]),
     user ? getWatchlistRail(user.id, 12) : Promise.resolve([]),
     user ? getBecauseYouLoved(user.id, 12) : Promise.resolve(null),
     user ? getFromYourFavouriteGenre(user.id, 12) : Promise.resolve(null),
@@ -96,6 +102,18 @@ export default async function ExplorePage() {
           subtitle="The most-logged films across the people you follow, this month."
           films={friendsWatching}
           eager={firstRail === 'friends-watching'}
+        />
+
+        <Rail
+          title="Popular with your clubs"
+          subtitle="Movie Ideas your groups are already circling."
+          films={clubPopular}
+        />
+
+        <Rail
+          title="Friends want to watch"
+          subtitle="Watchlist overlap from people who share it publicly."
+          films={friendsWant}
         />
 
         <Rail

@@ -49,6 +49,10 @@ export function NominatePanel({
   nominations,
   members,
   queue,
+  watchlist,
+  suggestions,
+  pickingOpen = true,
+  showContenders = false,
 }: {
   clubId: string;
   clubSlug: string;
@@ -59,6 +63,10 @@ export function NominatePanel({
   nominations: NominationItem[];
   members: (Person & { pickCount: number })[];
   queue: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
+  watchlist: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
+  suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reason: string }[];
+  pickingOpen?: boolean;
+  showContenders?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
@@ -99,7 +107,9 @@ export function NominatePanel({
                 ? waiting
                   ? `You're in. Waiting for ${pluralize(waiting, 'more member')}.`
                   : `Everyone is ready. Next, ${decision}.`
-                : `Everyone gets ${limit === 1 ? 'one pick' : `up to ${limit} picks`}. Once everyone has chosen, ${decision}.`}
+                : pickingOpen
+                  ? `Everyone gets ${limit === 1 ? 'one pick' : `up to ${limit} picks`}. Once everyone has chosen, ${decision}.`
+                  : 'Picks are closed while the club decides what happens next.'}
             </p>
 
             {mine.length ? (
@@ -139,9 +149,9 @@ export function NominatePanel({
               </ul>
             ) : null}
 
-            {remaining > 0 ? (
+            {remaining > 0 && pickingOpen ? (
               <Button variant="iris" size="lg" className="mt-4 w-full justify-center sm:w-auto" onClick={() => openPicker()}>
-                {mine.length ? 'Pick another movie' : 'Choose my movie'}
+                {mine.length ? 'Pick another movie' : 'Pick your movie'}
               </Button>
             ) : null}
           </div>
@@ -175,7 +185,7 @@ export function NominatePanel({
         </div>
       </section>
 
-      {nominations.length ? (
+      {nominations.length && showContenders ? (
         <details className="group rounded-lg border border-line bg-surface/30 p-3.5">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium">
             <span>Movies picked ({nominations.length})</span>
@@ -207,6 +217,8 @@ export function NominatePanel({
           mode={mode}
           replacingId={replacingId}
           queue={queue}
+          watchlist={watchlist}
+          suggestions={suggestions}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -220,6 +232,8 @@ function PickMovieSheet({
   mode,
   replacingId,
   queue,
+  watchlist,
+  suggestions,
   onClose,
 }: {
   clubId: string;
@@ -227,6 +241,8 @@ function PickMovieSheet({
   mode: 'vote' | 'wheel';
   replacingId: string | null;
   queue: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
+  watchlist: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
+  suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reason: string }[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -241,7 +257,7 @@ function PickMovieSheet({
       open
       onClose={onClose}
       title={replacingId ? 'Change your pick' : 'Pick your movie'}
-      description="Search for anything, or choose one of the group's saved ideas."
+      description="Pick from Movie Ideas, your watchlist, or a film the group already wants."
       footer={film ? (
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={onClose} disabled={pending}>Cancel</Button>
@@ -312,6 +328,12 @@ function PickMovieSheet({
               </ul>
             </section>
           ) : null}
+          {watchlist.length ? (
+            <QuickPickList title="From your watchlist" items={watchlist} onPick={setFilm} />
+          ) : null}
+          {suggestions.length ? (
+            <QuickPickList title="Good for this group" items={suggestions} onPick={setFilm} />
+          ) : null}
           <section>
             <p className="eyebrow mb-2">Search for any movie</p>
             <FilmPicker autoFocus onPick={setFilm} placeholder="Search for a movie…" />
@@ -319,5 +341,36 @@ function PickMovieSheet({
         </div>
       )}
     </Sheet>
+  );
+}
+
+function QuickPickList({
+  title,
+  items,
+  onPick,
+}: {
+  title: string;
+  items: { movieId: string; title: string; year: number | null; posterPath: string | null; reason?: string }[];
+  onPick: (film: PickedFilm) => void;
+}) {
+  return (
+    <section>
+      <p className="eyebrow mb-2">{title}</p>
+      <ul className="space-y-1">
+        {items.slice(0, 6).map((item) => (
+          <li key={item.movieId}>
+            <button
+              type="button"
+              onClick={() => onPick({ movieId: item.movieId, title: item.title, year: item.year, posterPath: item.posterPath })}
+              className="flex min-h-11 w-full items-center rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-surface-hover"
+            >
+              <span className="min-w-0 flex-1 truncate">{item.title}</span>
+              <span className="ml-2 shrink-0 text-xs text-dim tabular">{item.year}</span>
+              {item.reason ? <span className="ml-2 hidden max-w-32 truncate text-[0.6875rem] text-iris sm:inline">{item.reason}</span> : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

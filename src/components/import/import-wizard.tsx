@@ -44,7 +44,7 @@ type Batch = {
  * Matching is driven from here in slices so a 2,000-film export shows steady
  * progress instead of a spinner that might be a timeout.
  */
-export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
+export function ImportWizard({ initialBatch, returnTo = null }: { initialBatch: Batch | null; returnTo?: string | null }) {
   const router = useRouter();
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -179,7 +179,7 @@ export function ImportWizard({ initialBatch }: { initialBatch: Batch | null }) {
         ) : null}
         <div className="flex gap-2">
           <Button asChild variant="primary">
-            <Link href="/">Go to your feed</Link>
+            <Link href={returnTo ?? '/'}>{returnTo ? 'Continue setup' : 'Go to your feed'}</Link>
           </Button>
           <Button variant="outline" onClick={() => { setSummary(null); setBatch(null); }}>
             Import more

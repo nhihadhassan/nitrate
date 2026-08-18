@@ -252,6 +252,54 @@ export async function getViewerClubRatings(
   });
 }
 
+export type ClubInterestOnFilm = {
+  clubId: string;
+  name: string;
+  slug: string;
+  wantCount: number;
+  seenCount: number;
+  inIdeas: boolean;
+  activeRoundId: string | null;
+};
+
+/** Member-only group context for the practical question: should this become a club movie? */
+export async function getViewerClubInterest(viewerId: string | null, movieId: string): Promise<ClubInterestOnFilm[]> {
+  if (!viewerId) return [];
+  const rows = await db
+    .select({
+      clubId: clubs.id,
+      name: clubs.name,
+      slug: clubs.slug,
+      wantCount: sql<number>`(
+        select count(*) from nitrate.user_movie_state ums
+        join nitrate.club_members cm on cm.user_id = ums.user_id
+        where cm.club_id = ${clubs.id} and cm.status = 'active'
+          and ums.movie_id = ${movieId} and ums.in_watchlist
+      )::int`,
+      seenCount: sql<number>`(
+        select count(*) from nitrate.user_movie_state ums
+        join nitrate.club_members cm on cm.user_id = ums.user_id
+        where cm.club_id = ${clubs.id} and cm.status = 'active'
+          and ums.movie_id = ${movieId} and ums.watched
+      )::int`,
+      inIdeas: sql<boolean>`exists (
+        select 1 from nitrate.club_queue_items qi
+        where qi.club_id = ${clubs.id} and qi.movie_id = ${movieId} and qi.removed_at is null
+      )`,
+      activeRoundId: sql<string | null>`(
+        select sr.id from nitrate.selection_rounds sr
+        where sr.club_id = ${clubs.id} and sr.status = 'nominations_open'
+          and sr.picks_closed_at is null
+          and (sr.nominations_close_at is null or sr.nominations_close_at > now())
+        order by sr.created_at desc limit 1
+      )`,
+    })
+    .from(clubMembers)
+    .innerJoin(clubs, eq(clubs.id, clubMembers.clubId))
+    .where(and(eq(clubMembers.userId, viewerId), eq(clubMembers.status, 'active'), isNull(clubs.deletedAt)));
+  return rows;
+}
+
 export type FilmReview = {
   id: string;
   rating: number | null;

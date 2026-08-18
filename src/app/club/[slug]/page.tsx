@@ -16,9 +16,11 @@ import { filmHref, screeningHref } from '@/lib/links';
 import { resolveClubState } from '@/lib/club';
 import { cn, formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
+import { getWatchlistPreview } from '@/server/services/profile';
 import {
   getActiveRound,
   getClubBySlug,
+  getClubActivity,
   getClubIntelligence,
   getClubMembers,
   getClubQueue,
@@ -49,7 +51,7 @@ export default async function ClubDashboard({
   const isMember = membership?.status === 'active';
   const isAdmin = isMember && membership.role !== 'member';
 
-  const [round, upcoming, members, queue, stats, completed, intelligence] = await Promise.all([
+  const [round, upcoming, members, queue, stats, completed, intelligence, activity, watchlist] = await Promise.all([
     getActiveRound(club.id),
     getUpcomingScreening(club.id),
     getClubMembers(club.id),
@@ -57,6 +59,8 @@ export default async function ClubDashboard({
     getClubStats(club.id, user?.id ?? null),
     getRecentlyCompleted(club.id, 3, user?.id ?? null),
     isMember ? getClubIntelligence(club.id) : Promise.resolve(null),
+    isMember ? getClubActivity(club.id) : Promise.resolve([]),
+    isMember && user ? getWatchlistPreview(user.id, 12) : Promise.resolve([]),
   ]);
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
@@ -67,6 +71,13 @@ export default async function ClubDashboard({
   const allMembersPicked = Boolean(
     round && members.length && members.every((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember),
   );
+  const picksExpired = Boolean(
+    round?.status === 'nominations_open' &&
+      round.nominationsCloseAt &&
+      round.nominationsCloseAt.getTime() <= Date.now(),
+  );
+  const picksClosed = Boolean(round?.picksClosedAt);
+  const canAdvanceFromPicks = allMembersPicked || picksClosed;
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
 
@@ -135,9 +146,10 @@ export default async function ClubDashboard({
         {/* Current decision */}
         {round && nominations ? (
           <section>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-3 rounded-lg border border-iris/30 bg-iris/[0.045] p-4 sm:p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="eyebrow text-iris">Choosing the next movie</p>
+                <p className="eyebrow text-iris">Round {round.roundNumber} · {round.status === 'nominations_open' ? picksExpired || picksClosed ? 'Picks closed' : 'Picks open' : round.status.replace(/_/g, ' ')}</p>
                 <h2 className="mt-1 text-2xl">{round.title || 'Next movie night'}</h2>
                 <p className="mt-0.5 text-sm text-muted">
                   {round.status === 'nominations_open'
@@ -150,7 +162,9 @@ export default async function ClubDashboard({
                         ? 'The next movie has been chosen.'
                         : 'The next movie night is taking shape.'}
                   {round.status === 'nominations_open' && round.nominationsCloseAt
-                    ? ` Picks close ${relativeTime(round.nominationsCloseAt)}.`
+                    ? picksExpired || picksClosed
+                      ? ` Pick deadline was ${relativeTime(round.nominationsCloseAt)}.`
+                      : ` Picks close ${relativeTime(round.nominationsCloseAt)}.`
                     : ''}
                   {round.status === 'voting_open' && round.votingCloseAt
                     ? ` Voting ends ${relativeTime(round.votingCloseAt)}.`
@@ -166,7 +180,21 @@ export default async function ClubDashboard({
                   mode={round.mode}
                   nominationCount={nominations.nominations.length}
                   allMembersPicked={allMembersPicked}
+                  picksExpired={picksExpired}
+                  picksClosed={picksClosed}
                 />
+              ) : null}
+              </div>
+              {round.status === 'nominations_open' ? (
+                <p className="mt-3 text-xs text-muted">
+                  {canAdvanceFromPicks
+                    ? round.mode === 'wheel'
+                      ? 'The wheel is ready. Any club member can spin it.'
+                      : 'The picks are ready. An admin can open voting.'
+                    : picksExpired
+                      ? 'The pick deadline has passed. Waiting for an admin to continue or extend it.'
+                      : `${nominations.nominations.length} picks in · ${members.filter((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember).length} of ${members.length} members ready.`}
+                </p>
               ) : null}
             </div>
 
@@ -204,6 +232,21 @@ export default async function ClubDashboard({
                   year: item.movie.year,
                   posterPath: item.movie.posterPath,
                 }))}
+                watchlist={watchlist.map((movie) => ({
+                  movieId: movie.id,
+                  title: movie.title,
+                  year: movie.year,
+                  posterPath: movie.posterPath,
+                }))}
+                suggestions={(intelligence?.onEveryonesRadar ?? []).map((item) => ({
+                  movieId: item.movie.id,
+                  title: item.movie.title,
+                  year: item.movie.year,
+                  posterPath: item.movie.posterPath,
+                  reason: item.reason,
+                }))}
+                pickingOpen={!picksExpired && !picksClosed}
+                showContenders={canAdvanceFromPicks}
               />
             ) : null}
 
@@ -217,8 +260,8 @@ export default async function ClubDashboard({
                 <WheelPanel
                   clubId={club.id}
                   roundId={round.id}
-                  canSpin={isAdmin && round.status === 'nominations_open'}
-                  allMembersPicked={allMembersPicked}
+                  canSpin={isMember && round.status === 'nominations_open' && canAdvanceFromPicks}
+                  allMembersPicked={canAdvanceFromPicks}
                   alreadySpunWinnerId={round.winnerNominationId}
                   contenders={nominations.nominations.map((n) => ({
                     nominationId: n.id,
@@ -504,6 +547,8 @@ export default async function ClubDashboard({
 
         {intelligence ? <IntelligencePanel intelligence={intelligence} /> : null}
 
+        {activity.length ? <ClubActivity activity={activity} clubSlug={club.slug} /> : null}
+
         <section>
           <SectionHeading
             title={<span className="text-lg">Members</span>}
@@ -531,6 +576,49 @@ export default async function ClubDashboard({
   );
 }
 
+function ClubActivity({
+  activity,
+  clubSlug,
+}: {
+  clubSlug: string;
+  activity: Awaited<ReturnType<typeof getClubActivity>>;
+}) {
+  const verb: Record<(typeof activity)[number]['type'], string> = {
+    club_member_joined: 'joined the club',
+    club_movie_picked: 'made their pick',
+    club_movie_selected: 'selected',
+    club_screening_scheduled: 'scheduled movie night for',
+    club_screening_rsvp: 'is going to',
+    club_screening_completed: 'finished watching',
+    club_rating_submitted: 'rated',
+  };
+  return (
+    <section>
+      <SectionHeading title={<span className="text-lg">Club activity</span>} className="mb-2.5" />
+      <ul className="space-y-2.5">
+        {activity.slice(0, 6).map((item) => (
+          <li key={item.id} className="text-xs leading-relaxed text-muted">
+            <Link href={`/@${item.actor.username}`} className="font-medium text-text hover:text-iris">
+              {item.actor.displayName}
+            </Link>{' '}
+            {verb[item.type]}
+            {!item.hideMovie && item.movie ? (
+              <>
+                {' '}
+                <Link href={filmHref(item.movie)} className="text-text hover:text-iris">{item.movie.title}</Link>
+              </>
+            ) : null}
+            <span className="text-dim"> · {relativeTime(item.createdAt)}</span>
+          </li>
+        ))}
+      </ul>
+      <Link href={`/club/${clubSlug}/history`} className="mt-3 inline-block text-xs text-muted hover:text-iris">
+        See club history
+      </Link>
+    </section>
+  );
+}
+
 function IntelligencePanel({
   intelligence,
 }: {
@@ -541,16 +629,16 @@ function IntelligencePanel({
   };
 }) {
   const sections = [
-    { title: 'On everyone’s radar', items: intelligence.onEveryonesRadar },
+    { title: 'Most wanted', items: intelligence.onEveryonesRadar },
     { title: 'Nobody has seen', items: intelligence.nobodyHasSeen },
-    { title: 'From Movie Ideas', items: intelligence.fromTheQueue },
+    { title: 'Already in Movie Ideas', items: intelligence.fromTheQueue },
   ].filter((section) => section.items.length);
 
   if (!sections.length) return null;
 
   return (
     <section>
-      <p className="eyebrow mb-2.5">Ideas for next time</p>
+      <p className="eyebrow mb-2.5">What should we watch?</p>
       <div className="space-y-4">
         {sections.map((section) => (
           <div key={section.title}>

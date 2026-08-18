@@ -15,7 +15,9 @@ import {
   cancelScreening,
   castVote,
   closeVoting,
+  closePicks,
   completeScreening,
+  extendPickDeadline,
   confirmAttendance,
   createClub,
   createInvite,
@@ -368,6 +370,35 @@ export async function openVotingAction(
       body: `Voting is open in ${club.name}`,
       dedupeKey: `voting_open:${roundId}`,
     });
+    revalidatePath(`/club/${club.slug}`);
+    return null;
+  });
+}
+
+export async function continueExpiredPicksAction(
+  roundId: string,
+  clubId: string,
+): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    await closePicks(roundId, user.id);
+    const club = await getClubById(clubId);
+    revalidatePath(`/club/${club.slug}`);
+    return null;
+  });
+}
+
+export async function extendPickDeadlineAction(input: {
+  roundId: string;
+  clubId: string;
+  deadline: string;
+}): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const deadline = new Date(input.deadline);
+    if (Number.isNaN(deadline.getTime())) throw new ValidationError('Choose a valid pick deadline.');
+    await extendPickDeadline(input.roundId, user.id, deadline);
+    const club = await getClubById(input.clubId);
     revalidatePath(`/club/${club.slug}`);
     return null;
   });
