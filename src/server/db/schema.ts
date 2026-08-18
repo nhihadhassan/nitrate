@@ -80,9 +80,13 @@ export const activityType = nitrate.enum('activity_type', [
   'list_updated',
   'user_followed',
   'club_created',
+  'club_member_joined',
+  'club_movie_picked',
   'club_movie_selected',
   'club_screening_scheduled',
+  'club_screening_rsvp',
   'club_screening_completed',
+  'club_rating_submitted',
 ]);
 export const notificationType = nitrate.enum('notification_type', [
   'new_follower',
@@ -870,6 +874,8 @@ export const selectionRounds = nitrate.table(
     mode: selectionMode('mode').notNull().default('vote'),
     nominationLimitPerMember: smallint('nomination_limit_per_member').notNull().default(1),
     nominationsCloseAt: timestamp('nominations_close_at', { withTimezone: true }),
+    /** Set by an admin when an incomplete round should proceed with the picks in. */
+    picksClosedAt: timestamp('picks_closed_at', { withTimezone: true }),
     votingCloseAt: timestamp('voting_close_at', { withTimezone: true }),
     winnerNominationId: uuid('winner_nomination_id'),
 

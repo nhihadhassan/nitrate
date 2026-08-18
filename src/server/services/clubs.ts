@@ -427,6 +427,13 @@ export async function joinClubByCode(code: string, userId: string): Promise<Join
       await tx.insert(clubMembers).values({ clubId, userId, role: 'member' });
     }
 
+    await tx.insert(activityEvents).values({
+      actorId: userId,
+      type: 'club_member_joined',
+      clubId,
+      visibility: 'private',
+    });
+
     await tx
       .update(clubs)
       .set({ memberCount: sql`${clubs.memberCount} + 1` })
@@ -663,6 +670,9 @@ async function assertPickWindow(round: SelectionRound): Promise<void> {
   if (round.status !== 'nominations_open') {
     throw new ConflictError('Movie picks are closed for this round.');
   }
+  if (round.picksClosedAt) {
+    throw new ConflictError('An admin has closed picks for this round.');
+  }
   if (round.nominationsCloseAt && round.nominationsCloseAt < new Date()) {
     throw new ConflictError('The time to pick a movie has ended.');
   }
@@ -709,6 +719,14 @@ async function insertPick(
     movieId: input.movieId,
     nominatedByUserId: input.userId,
     pitch: input.pitch,
+  });
+  await tx.insert(activityEvents).values({
+    actorId: input.userId,
+    type: 'club_movie_picked',
+    clubId: round.clubId,
+    movieId: input.movieId,
+    visibility: 'private',
+    metadata: { roundId: input.roundId },
   });
 }
 
@@ -762,10 +780,62 @@ export async function withdrawNomination(nominationId: string, userId: string): 
     if (nomination.nominatedByUserId !== userId && membership.role === 'member') {
       throw new PermissionError('Only the person who picked this movie or an admin can remove it.');
     }
-    if (round.status !== 'nominations_open') {
-      throw new ConflictError('Picks can only be changed while everyone is still choosing.');
-    }
+    await assertPickWindow(round);
     await tx.update(nominations).set({ withdrawnAt: new Date() }).where(eq(nominations.id, nominationId));
+  });
+}
+
+async function picksAreComplete(round: SelectionRound, tx: DbOrTx): Promise<boolean> {
+  const [{ value: members }] = await tx
+    .select({ value: sql<number>`count(*)::int` })
+    .from(clubMembers)
+    .where(and(eq(clubMembers.clubId, round.clubId), eq(clubMembers.status, 'active')));
+  const [{ value: picks }] = await tx
+    .select({ value: sql<number>`count(*)::int` })
+    .from(nominations)
+    .where(and(eq(nominations.roundId, round.id), isNull(nominations.withdrawnAt)));
+  return members > 0 && picks >= members * round.nominationLimitPerMember;
+}
+
+async function mayAdvanceFromPicks(round: SelectionRound, tx: DbOrTx): Promise<boolean> {
+  return Boolean(round.picksClosedAt) || (await picksAreComplete(round, tx));
+}
+
+/** An expired round only advances when an admin explicitly accepts the picks in. */
+export async function closePicks(roundId: string, userId: string): Promise<SelectionRound> {
+  return db.transaction(async (tx) => {
+    const round = await loadRound(roundId, tx);
+    await requireMembership(round.clubId, userId, 'admin', tx);
+    if (round.status !== 'nominations_open') throw new ConflictError('This round is no longer collecting picks.');
+    if (!round.nominationsCloseAt || round.nominationsCloseAt > new Date()) {
+      throw new ConflictError('Picks can only be closed early after their deadline has passed.');
+    }
+    const [{ value: total }] = await tx
+      .select({ value: sql<number>`count(*)::int` })
+      .from(nominations)
+      .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)));
+    if (total < 2) throw new ValidationError('At least two movie picks are needed to continue.');
+    const [updated] = await tx
+      .update(selectionRounds)
+      .set({ picksClosedAt: new Date(), updatedAt: new Date() })
+      .where(eq(selectionRounds.id, roundId))
+      .returning();
+    return updated;
+  });
+}
+
+export async function extendPickDeadline(roundId: string, userId: string, deadline: Date): Promise<SelectionRound> {
+  if (deadline <= new Date()) throw new ValidationError('Choose a future pick deadline.');
+  return db.transaction(async (tx) => {
+    const round = await loadRound(roundId, tx);
+    await requireMembership(round.clubId, userId, 'admin', tx);
+    if (round.status !== 'nominations_open') throw new ConflictError('This round is no longer collecting picks.');
+    const [updated] = await tx
+      .update(selectionRounds)
+      .set({ nominationsCloseAt: deadline, picksClosedAt: null, updatedAt: new Date() })
+      .where(eq(selectionRounds.id, roundId))
+      .returning();
+    return updated;
   });
 }
 
@@ -787,6 +857,9 @@ export async function openVoting(roundId: string, userId: string): Promise<Selec
       .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)));
     if (total < 2) {
       throw new ValidationError('You need at least two movie picks before voting can open.');
+    }
+    if (!(await mayAdvanceFromPicks(round, tx))) {
+      throw new ConflictError('Wait for every member to pick, or close the expired deadline first.');
     }
 
     const [updated] = await tx
@@ -976,6 +1049,9 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
 
     if (contenders.length < 2) {
       throw new ValidationError('You need at least two movie picks before spinning.');
+    }
+    if (!(await mayAdvanceFromPicks(locked, tx))) {
+      throw new ConflictError('Wait for every member to pick, or for an admin to close the expired deadline.');
     }
     assertTransition(locked.status, 'winner_selected');
 
@@ -1236,13 +1312,25 @@ export async function setRsvp(
 ): Promise<void> {
   const screening = await getScreeningById(screeningId);
   await requireMembership(screening.clubId, userId);
-  await db
-    .insert(attendances)
-    .values({ screeningId, userId, rsvp, respondedAt: new Date() })
-    .onConflictDoUpdate({
-      target: [attendances.screeningId, attendances.userId],
-      set: { rsvp, respondedAt: new Date() },
-    });
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(attendances)
+      .values({ screeningId, userId, rsvp, respondedAt: new Date() })
+      .onConflictDoUpdate({
+        target: [attendances.screeningId, attendances.userId],
+        set: { rsvp, respondedAt: new Date() },
+      });
+    if (rsvp === 'going') {
+      await tx.insert(activityEvents).values({
+        actorId: userId,
+        type: 'club_screening_rsvp',
+        clubId: screening.clubId,
+        movieId: screening.movieId,
+        screeningId,
+        visibility: 'private',
+      });
+    }
+  });
 }
 
 export async function confirmAttendance(
@@ -1366,6 +1454,14 @@ export async function submitClubRating(
           groupRatingCount: sql`${screenings.groupRatingCount} + 1`,
         })
         .where(eq(screenings.id, screeningId));
+      await tx.insert(activityEvents).values({
+        actorId: userId,
+        type: 'club_rating_submitted',
+        clubId: screening.clubId,
+        movieId: screening.movieId,
+        screeningId,
+        visibility: 'private',
+      });
     }
   });
 }
@@ -2041,6 +2137,67 @@ export async function getClubIntelligence(clubId: string): Promise<{
       reason: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
     })),
   };
+}
+
+export type ClubActivityItem = {
+  id: string;
+  type:
+    | 'club_member_joined'
+    | 'club_movie_picked'
+    | 'club_movie_selected'
+    | 'club_screening_scheduled'
+    | 'club_screening_rsvp'
+    | 'club_screening_completed'
+    | 'club_rating_submitted';
+  createdAt: Date;
+  actor: { username: string; displayName: string; avatarAssetId: string | null };
+  movie: { slug: string; title: string; year: number | null } | null;
+  screeningId: string | null;
+  hideMovie: boolean;
+};
+
+/** A deliberately small, member-only pulse of the things that move a club forward. */
+export async function getClubActivity(clubId: string, limit = 8): Promise<ClubActivityItem[]> {
+  const [active] = await db
+    .select()
+    .from(selectionRounds)
+    .where(and(eq(selectionRounds.clubId, clubId), eq(selectionRounds.status, 'nominations_open')))
+    .orderBy(desc(selectionRounds.createdAt))
+    .limit(1);
+  const rows = await db
+    .select({ event: activityEvents, username: users.username, displayName: users.displayName, avatarAssetId: users.avatarAssetId, movie: movies })
+    .from(activityEvents)
+    .innerJoin(users, eq(users.id, activityEvents.actorId))
+    .leftJoin(movies, eq(movies.id, activityEvents.movieId))
+    .where(
+      and(
+        eq(activityEvents.clubId, clubId),
+        inArray(activityEvents.type, [
+          'club_member_joined',
+          'club_movie_picked',
+          'club_movie_selected',
+          'club_screening_scheduled',
+          'club_screening_rsvp',
+          'club_screening_completed',
+          'club_rating_submitted',
+        ]),
+      ),
+    )
+    .orderBy(desc(activityEvents.createdAt))
+    .limit(limit);
+
+  return rows.map((row) => ({
+    id: row.event.id,
+    type: row.event.type as ClubActivityItem['type'],
+    createdAt: row.event.createdAt,
+    actor: { username: row.username, displayName: row.displayName, avatarAssetId: row.avatarAssetId },
+    movie: row.movie ? { slug: row.movie.slug, title: row.movie.title, year: row.movie.year } : null,
+    screeningId: row.event.screeningId,
+    hideMovie:
+      row.event.type === 'club_movie_picked' &&
+      active?.id === row.event.metadata.roundId &&
+      !active.picksClosedAt,
+  }));
 }
 
 /* -------------------------------------------------------------------------- */

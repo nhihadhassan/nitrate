@@ -7,6 +7,8 @@ import { COMMUNITY_RANKING, PROVIDER_RANKING, bayesianAverage } from '@/lib/rank
 import { db } from '@/server/db';
 import {
   diaryEntries,
+  clubMembers,
+  clubQueueItems,
   follows,
   genres as genresTable,
   movieGenres,
@@ -77,12 +79,44 @@ export async function getEditorialRails(): Promise<EditorialRails> {
 
   return {
     trending: pick(groups[0]),
-    nowPlaying: pick(groups[1]),
+    nowPlaying: pick(groups[1]).map((film) => ({
+      ...film,
+      caption: film.year && film.year < new Date().getFullYear() - 1 ? 'Re-release' : undefined,
+    })),
     canon: pick(groups[2]),
     upcoming: pick(groups[3]),
     genres: genres.data,
     degraded: trending.degraded || canon.degraded,
   };
+}
+
+/** Watchlists are personal, so this only uses friends who made theirs public. */
+export async function getFriendsWantToWatch(userId: string, limit = 12): Promise<RailFilm[]> {
+  const rows = await db
+    .select({ movie: movies, count: sql<number>`count(distinct ${userMovieState.userId})::int` })
+    .from(userMovieState)
+    .innerJoin(movies, eq(movies.id, userMovieState.movieId))
+    .innerJoin(follows, eq(follows.followingId, userMovieState.userId))
+    .innerJoin(users, eq(users.id, userMovieState.userId))
+    .where(and(eq(follows.followerId, userId), eq(userMovieState.inWatchlist, true), eq(users.showWatchlistPublicly, true)))
+    .groupBy(movies.id)
+    .orderBy(desc(sql`count(distinct ${userMovieState.userId})`), desc(movies.providerPopularity))
+    .limit(limit);
+  return rows.map((row) => ({ ...toFilmRef(row.movie), caption: `${row.count} ${row.count === 1 ? 'friend wants to watch' : 'friends want to watch'}` }));
+}
+
+/** A small rail from the shared Movie Ideas already present in the viewer's clubs. */
+export async function getPopularWithClubs(userId: string, limit = 12): Promise<RailFilm[]> {
+  const rows = await db
+    .select({ movie: movies, count: sql<number>`count(distinct ${clubQueueItems.clubId})::int` })
+    .from(clubQueueItems)
+    .innerJoin(movies, eq(movies.id, clubQueueItems.movieId))
+    .innerJoin(clubMembers, and(eq(clubMembers.clubId, clubQueueItems.clubId), eq(clubMembers.userId, userId)))
+    .where(and(eq(clubMembers.status, 'active'), isNull(clubQueueItems.removedAt)))
+    .groupBy(movies.id)
+    .orderBy(desc(sql`count(distinct ${clubQueueItems.clubId})`), desc(movies.providerPopularity))
+    .limit(limit);
+  return rows.map((row) => ({ ...toFilmRef(row.movie), caption: `${row.count} ${row.count === 1 ? 'club wants to watch' : 'clubs want to watch'}` }));
 }
 
 /* -------------------------------------------------------------------------- */

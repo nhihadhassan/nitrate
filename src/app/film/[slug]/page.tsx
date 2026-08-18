@@ -5,6 +5,7 @@ import { cache } from 'react';
 import { notFound, redirect } from 'next/navigation';
 
 import { FilmActions } from '@/components/film/film-actions';
+import { ClubFilmAction } from '@/components/club/club-film-action';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { AverageRating, LikeMark, RatingHistogram, RatingNumber, Stars } from '@/components/film/stars';
 import { ReviewBody } from '@/components/review/review-body';
@@ -24,6 +25,7 @@ import {
   getListsContaining,
   getRelatedFilms,
   getViewerClubRatings,
+  getViewerClubInterest,
 } from '@/server/services/film-page';
 import { getUserMovieState } from '@/server/services/films';
 
@@ -75,12 +77,13 @@ export default async function FilmPage({ params }: Params) {
   const viewer = await getCurrentUser();
   const viewerRef = viewer ? { id: viewer.id, role: viewer.role } : null;
 
-  const [credits, genres, friendContext, clubRatings, reviews, containingLists, related, viewerState] =
+  const [credits, genres, friendContext, clubRatings, clubInterest, reviews, containingLists, related, viewerState] =
     await Promise.all([
       getFilmCredits(movie.id),
       getFilmGenres(movie.id),
       getFriendContext(viewer?.id ?? null, movie.id),
       getViewerClubRatings(viewer?.id ?? null, movie.id),
+      getViewerClubInterest(viewer?.id ?? null, movie.id),
       getFilmReviews(movie.id, viewerRef, { limit: 5 }),
       getListsContaining(movie.id, viewerRef, 4),
       getRelatedFilms(movie, 12),
@@ -224,6 +227,7 @@ export default async function FilmPage({ params }: Params) {
 
                 <div className="space-y-6">
                   {clubRatings.length ? <ClubRatings ratings={clubRatings} /> : null}
+                  {clubInterest.length ? <ClubInterest interest={clubInterest} movieId={movie.id} /> : null}
                   <FriendsPanel context={friendContext} signedIn={Boolean(viewer)} />
                 </div>
               </div>
@@ -408,6 +412,34 @@ export default async function FilmPage({ params }: Params) {
         ) : null}
       </Container>
     </article>
+  );
+}
+
+function ClubInterest({
+  interest,
+  movieId,
+}: {
+  interest: Awaited<ReturnType<typeof getViewerClubInterest>>;
+  movieId: string;
+}) {
+  return (
+    <section className="rounded-lg border border-iris/25 bg-iris/[0.045] p-3.5">
+      <p className="eyebrow text-iris">Your clubs</p>
+      <ul className="mt-2.5 space-y-2">
+        {interest.slice(0, 3).map((club) => (
+          <li key={club.clubId} className="flex items-center justify-between gap-3 text-sm">
+            <div className="min-w-0">
+              <Link href={`/club/${club.slug}`} className="font-medium hover:text-iris">{club.name}</Link>
+              <p className="text-xs text-muted">
+                {club.wantCount ? `${club.wantCount} want to watch` : 'No one has it saved'}
+                {club.seenCount ? ` · ${club.seenCount} seen` : ' · nobody has seen it'}
+              </p>
+            </div>
+            <ClubFilmAction clubId={club.clubId} movieId={movieId} activeRoundId={club.activeRoundId} inIdeas={club.inIdeas} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

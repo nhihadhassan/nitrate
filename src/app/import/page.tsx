@@ -30,18 +30,19 @@ export const maxDuration = 60;
 export default async function ImportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ batch?: string }>;
+  searchParams: Promise<{ batch?: string; returnTo?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) return <ImportPitch />;
 
-  const { batch: batchParam } = await searchParams;
+  const { batch: batchParam, returnTo } = await searchParams;
   const activeId = batchParam ?? (await getLatestBatch(user.id))?.id ?? null;
   const active =
     activeId && batchParam ? await getBatch(user.id, activeId).catch(() => null) : null;
 
   return (
     <ImportWizard
+      returnTo={returnTo?.startsWith('/') ? returnTo : null}
       initialBatch={
         active
           ? {

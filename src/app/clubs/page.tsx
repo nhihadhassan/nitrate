@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { JoinClubForm } from '@/components/club/join-club-form';
+import { ClubLoopPreview } from '@/components/club/club-loop-preview';
 import { Button } from '@/components/ui/button';
 import { Badge, Container, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { formatDateTimeInZone, pluralize } from '@/lib/utils';
@@ -30,10 +31,7 @@ export default async function ClubsPage() {
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-xl">
           <h1 className="text-4xl sm:text-5xl">Movie Clubs</h1>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
-            Save movie ideas, pick what comes next, schedule the night and talk about it afterward.
-            Everything a group chat is bad at.
-          </p>
+          <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">Movie night without the group-chat chaos.</p>
         </div>
         {user ? (
           <Button asChild variant="iris" size="lg">
@@ -45,6 +43,11 @@ export default async function ClubsPage() {
           </Button>
         )}
       </header>
+
+      <section className="mb-14">
+        <p className="eyebrow mb-3 text-iris">How it works</p>
+        <ClubLoopPreview />
+      </section>
 
       {user ? (
         <section className="mb-14">

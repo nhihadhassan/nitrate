@@ -179,8 +179,13 @@ export function OnboardingFlow({
             ))}
           </ul>
           <div className="mt-10 flex gap-2">
-            <Button variant="primary" size="lg" onClick={next}>
-              Let&apos;s go
+            {!invite ? (
+              <Button asChild variant="primary" size="lg">
+                <Link href="/import?returnTo=%2Fonboarding%3Fstep%3D1">Import from Letterboxd</Link>
+              </Button>
+            ) : null}
+            <Button variant={invite ? 'primary' : 'outline'} size="lg" onClick={next}>
+              {invite ? "Let's go" : 'Start fresh'}
             </Button>
             <Button variant="ghost" size="lg" onClick={() => finish(true)} disabled={pending}>
               Skip setup

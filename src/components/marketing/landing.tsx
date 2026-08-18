@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
+import { ClubLoopPreview } from '@/components/club/club-loop-preview';
 import { Container } from '@/components/ui/primitives';
 import { BRAND } from '@/lib/brand';
 
@@ -82,14 +83,9 @@ export function LandingPage() {
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl sm:text-4xl">The bit nobody else does properly</h2>
             <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
-              A Movie Club is a real place, not a tab. Save future ideas and see who
-              already wants to see them and who has already seen them. Every week everyone picks one
-              movie, then <span className="text-text">spin the wheel</span>. It chooses at
-              random, emails the group, and nobody gets blamed. Or put it to a blind vote if you
-              prefer. Schedule the night, RSVP, watch, then rate it blind before the reveal. Every
-              screening becomes a permanent entry in your club&apos;s shared history: attendees,
-              ratings, discussion and all.
+              This is what taste looks like. One place to choose, watch and remember films with the people who matter.
             </p>
+            <div className="mt-7 text-left"><ClubLoopPreview compact /></div>
             <Button asChild variant="iris" size="lg" className="mt-8">
               <Link href="/signup">Start a club</Link>
             </Button>

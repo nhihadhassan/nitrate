@@ -22,6 +22,13 @@
       "when": 1786503878222,
       "tag": "0002_blind_ratings_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1786600000000,
+      "tag": "0003_club_round_closure_and_activity",
+      "breakpoints": true
     }
   ]
 }
