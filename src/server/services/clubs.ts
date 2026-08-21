@@ -2039,6 +2039,12 @@ export type ClubSuggestion = {
   metric: number;
 };
 
+export type ClubShortlistItem = {
+  movie: Movie;
+  score: number;
+  reasons: string[];
+};
+
 /**
  * Deliberately simple, explainable group signals. Each one answers a question a
  * human would ask out loud in the group chat, and each is a single indexed
@@ -2048,6 +2054,7 @@ export async function getClubIntelligence(clubId: string): Promise<{
   onEveryonesRadar: ClubSuggestion[];
   nobodyHasSeen: ClubSuggestion[];
   fromTheQueue: ClubSuggestion[];
+  shortlist: ClubShortlistItem[];
 }> {
   const [{ value: memberCount }] = await db
     .select({ value: sql<number>`count(*)::int` })
@@ -2055,7 +2062,7 @@ export async function getClubIntelligence(clubId: string): Promise<{
     .where(and(eq(clubMembers.clubId, clubId), eq(clubMembers.status, 'active')));
 
   if (memberCount === 0) {
-    return { onEveryonesRadar: [], nobodyHasSeen: [], fromTheQueue: [] };
+    return { onEveryonesRadar: [], nobodyHasSeen: [], fromTheQueue: [], shortlist: [] };
   }
 
   const screened = db
@@ -2063,7 +2070,7 @@ export async function getClubIntelligence(clubId: string): Promise<{
     .from(screenings)
     .where(and(eq(screenings.clubId, clubId), ne(screenings.status, 'cancelled')));
 
-  const [radar, unseen, queue] = await Promise.all([
+  const [radar, unseen, queue, memberStates, topGenres, activeRound] = await Promise.all([
     // On multiple members' watchlists.
     db
       .select({ movie: movies, metric: sql<number>`count(*)::int` })
@@ -2118,7 +2125,125 @@ export async function getClubIntelligence(clubId: string): Promise<{
       .where(and(eq(clubQueueItems.clubId, clubId), isNull(clubQueueItems.removedAt)))
       .orderBy(desc(clubQueueItems.createdAt))
       .limit(8),
+
+    // The source data for the ranked shortlist. It is intentionally scoped to
+    // active club members, so personal watchlist visibility never escapes the club.
+    db
+      .select({ movie: movies, userId: userMovieState.userId, inWatchlist: userMovieState.inWatchlist, watched: userMovieState.watched })
+      .from(userMovieState)
+      .innerJoin(movies, eq(movies.id, userMovieState.movieId))
+      .innerJoin(
+        clubMembers,
+        and(
+          eq(clubMembers.userId, userMovieState.userId),
+          eq(clubMembers.clubId, clubId),
+          eq(clubMembers.status, 'active'),
+        ),
+      )
+      .where(or(eq(userMovieState.inWatchlist, true), eq(userMovieState.watched, true))),
+
+    // A small taste signal, not an opaque recommendation model.
+    db
+      .select({ genreId: movieGenres.genreId, rating: sql<number>`avg(${userMovieState.rating})` })
+      .from(userMovieState)
+      .innerJoin(
+        clubMembers,
+        and(
+          eq(clubMembers.userId, userMovieState.userId),
+          eq(clubMembers.clubId, clubId),
+          eq(clubMembers.status, 'active'),
+        ),
+      )
+      .innerJoin(movieGenres, eq(movieGenres.movieId, userMovieState.movieId))
+      .where(sql`${userMovieState.rating} is not null`)
+      .groupBy(movieGenres.genreId)
+      .orderBy(desc(sql`avg(${userMovieState.rating})`))
+      .limit(3),
+
+    db
+      .select()
+      .from(selectionRounds)
+      .where(and(eq(selectionRounds.clubId, clubId), eq(selectionRounds.status, 'nominations_open')))
+      .orderBy(desc(selectionRounds.createdAt))
+      .limit(1)
   ]);
+
+  const [currentPicks] = activeRound.length
+    ? await Promise.all([
+        db
+          .select({ movieId: nominations.movieId })
+          .from(nominations)
+          .where(and(eq(nominations.roundId, activeRound[0].id), isNull(nominations.withdrawnAt))),
+      ])
+    : [[]];
+
+  const screenedIds = new Set((await screened).map((row) => row.movieId));
+  const pickedIds = new Set(currentPicks.map((row) => row.movieId));
+  const queued = new Map(queue.map((item) => [item.movie.id, item.movie]));
+  const candidates = new Map<string, { movie: Movie; watchlisters: Set<string>; watchers: Set<string>; inIdeas: boolean }>();
+
+  for (const item of memberStates) {
+    if (!item.inWatchlist) continue;
+    const candidate = candidates.get(item.movie.id) ?? {
+      movie: item.movie,
+      watchlisters: new Set<string>(),
+      watchers: new Set<string>(),
+      inIdeas: queued.has(item.movie.id),
+    };
+    candidate.watchlisters.add(item.userId);
+    if (item.watched) candidate.watchers.add(item.userId);
+    candidates.set(item.movie.id, candidate);
+  }
+  for (const movie of queued.values()) {
+    if (!candidates.has(movie.id)) {
+      candidates.set(movie.id, { movie, watchlisters: new Set<string>(), watchers: new Set<string>(), inIdeas: true });
+    }
+  }
+
+  // Add watched state after candidates have been established, so it contributes
+  // to the unseen count without turning every watched film into a suggestion.
+  for (const item of memberStates) {
+    const candidate = candidates.get(item.movie.id);
+    if (candidate && item.watched) candidate.watchers.add(item.userId);
+  }
+
+  const topGenreIds = new Set(topGenres.map((genre) => genre.genreId));
+  const movieTopGenres = new Map<string, boolean>();
+  if (topGenreIds.size) {
+    const rows = await db
+      .select({ movieId: movieGenres.movieId })
+      .from(movieGenres)
+      .where(inArray(movieGenres.genreId, [...topGenreIds]));
+    rows.forEach((row) => movieTopGenres.set(row.movieId, true));
+  }
+
+  const shortlist = [...candidates.values()]
+    .filter((candidate) => !screenedIds.has(candidate.movie.id) && !pickedIds.has(candidate.movie.id))
+    .map((candidate) => {
+      const watchlistCount = candidate.watchlisters.size;
+      const unseenCount = memberCount - candidate.watchers.size;
+      const matchesTaste = movieTopGenres.has(candidate.movie.id);
+      const score = 3 * watchlistCount + unseenCount + (candidate.inIdeas ? 2 : 0) + (matchesTaste ? 1 : 0);
+      const reasons = [
+        watchlistCount ? { weight: 3 * watchlistCount, text: `${watchlistCount} ${watchlistCount === 1 ? 'member wants' : 'members want'} to watch` } : null,
+        unseenCount === memberCount ? { weight: unseenCount, text: 'Nobody in the club has seen it' } : null,
+        candidate.inIdeas ? { weight: 2, text: 'Already in Movie Ideas' } : null,
+        matchesTaste ? { weight: 1, text: 'Matches a genre your club rates highly' } : null,
+      ]
+        .filter((reason): reason is { weight: number; text: string } => Boolean(reason))
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 2)
+        .map((reason) => reason.text);
+      return {
+        movie: candidate.movie,
+        score,
+        reasons,
+        communityRating: candidate.movie.ratingCount ? candidate.movie.ratingSum / candidate.movie.ratingCount : candidate.movie.providerVoteAverage,
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.communityRating - a.communityRating || b.movie.providerPopularity - a.movie.providerPopularity)
+    .slice(0, 4)
+    .map(({ communityRating: _communityRating, ...item }) => item);
 
   return {
     onEveryonesRadar: radar.map((r) => ({
@@ -2136,6 +2261,7 @@ export async function getClubIntelligence(clubId: string): Promise<{
       metric: r.metric,
       reason: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
     })),
+    shortlist,
   };
 }
 

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ClubInvitePanel } from '@/components/club/invite-panel';
+import { ClubShortlist } from '@/components/club/club-shortlist';
 import { LifecycleStrip } from '@/components/club/lifecycle-strip';
 import { NominatePanel } from '@/components/club/nominate-panel';
 import { RoundControls } from '@/components/club/round-controls';
@@ -78,6 +79,7 @@ export default async function ClubDashboard({
   );
   const picksClosed = Boolean(round?.picksClosedAt);
   const canAdvanceFromPicks = allMembersPicked || picksClosed;
+  const currentUserPickCount = nominations?.nominations.filter((nomination) => nomination.nominatedBy.id === user?.id).length ?? 0;
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
 
@@ -238,12 +240,12 @@ export default async function ClubDashboard({
                   year: movie.year,
                   posterPath: movie.posterPath,
                 }))}
-                suggestions={(intelligence?.onEveryonesRadar ?? []).map((item) => ({
+                suggestions={(intelligence?.shortlist ?? []).map((item) => ({
                   movieId: item.movie.id,
                   title: item.movie.title,
                   year: item.movie.year,
                   posterPath: item.movie.posterPath,
-                  reason: item.reason,
+                  reason: item.reasons.join(' · '),
                 }))}
                 pickingOpen={!picksExpired && !picksClosed}
                 showContenders={canAdvanceFromPicks}
@@ -545,7 +547,16 @@ export default async function ClubDashboard({
           ) : null}
         </section>
 
-        {intelligence ? <IntelligencePanel intelligence={intelligence} /> : null}
+        {intelligence ? (
+          <ClubShortlist
+            items={intelligence.shortlist}
+            clubId={club.id}
+            roundId={round?.status === 'nominations_open' ? round.id : null}
+            canPick={Boolean(
+              isMember && round?.status === 'nominations_open' && !picksExpired && !picksClosed && currentUserPickCount < (round?.nominationLimitPerMember ?? 0),
+            )}
+          />
+        ) : null}
 
         {activity.length ? <ClubActivity activity={activity} clubSlug={club.slug} /> : null}
 
@@ -615,47 +626,6 @@ function ClubActivity({
       <Link href={`/club/${clubSlug}/history`} className="mt-3 inline-block text-xs text-muted hover:text-iris">
         See club history
       </Link>
-    </section>
-  );
-}
-
-function IntelligencePanel({
-  intelligence,
-}: {
-  intelligence: {
-    onEveryonesRadar: { movie: { id: string; slug: string; title: string }; reason: string }[];
-    nobodyHasSeen: { movie: { id: string; slug: string; title: string }; reason: string }[];
-    fromTheQueue: { movie: { id: string; slug: string; title: string }; reason: string }[];
-  };
-}) {
-  const sections = [
-    { title: 'Most wanted', items: intelligence.onEveryonesRadar },
-    { title: 'Nobody has seen', items: intelligence.nobodyHasSeen },
-    { title: 'Already in Movie Ideas', items: intelligence.fromTheQueue },
-  ].filter((section) => section.items.length);
-
-  if (!sections.length) return null;
-
-  return (
-    <section>
-      <p className="eyebrow mb-2.5">What should we watch?</p>
-      <div className="space-y-4">
-        {sections.map((section) => (
-          <div key={section.title}>
-            <p className="text-xs font-medium text-muted">{section.title}</p>
-            <ul className="mt-1.5 space-y-1">
-              {section.items.slice(0, 3).map((item) => (
-                <li key={item.movie.id} className="text-sm">
-                  <Link href={filmHref(item.movie)} className="hover:text-iris">
-                    {item.movie.title}
-                  </Link>
-                  <span className="block text-[0.6875rem] text-dim">{item.reason}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
     </section>
   );
 }

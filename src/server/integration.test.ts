@@ -30,6 +30,7 @@ import {
   confirmAttendance,
   createClub,
   getClubIntelligence,
+  getActiveRound,
   getClubQueue,
   getClubRatings,
   getRoundNominations,
@@ -342,6 +343,8 @@ suite('nitrate integration', () => {
     await expect(
       nominate({ roundId: round.id, userId: noor.id, movieId: heat.id, pitch: null }),
     ).rejects.toThrow(/already picked/i);
+    // Every active member needs a pick before this open-ended round can move on.
+    await nominate({ roundId: round.id, userId: noor.id, movieId: third.id, pitch: null });
 
     // Voting cannot be skipped: no votes before it opens.
     const nominationsBefore = await getRoundNominations(round.id, alex.id);
@@ -468,6 +471,18 @@ suite('nitrate integration', () => {
     expect(
       intelligence.fromTheQueue.some((s) => s.movie.id === stalker.id),
     ).toBe(true);
+    const suggested = intelligence.shortlist.find((s) => s.movie.id === stalker.id);
+    expect(suggested).toBeDefined();
+    expect(suggested?.reasons).toContain('Already in Movie Ideas');
+  }, 30_000);
+
+  it('does not suggest a film that is already picked in the current round', async () => {
+    const round = await getActiveRound(club.id);
+    expect(round).not.toBeNull();
+    await nominate({ roundId: round!.id, userId: noor.id, movieId: stalker.id, pitch: null });
+
+    const intelligence = await getClubIntelligence(club.id);
+    expect(intelligence.shortlist.some((suggestion) => suggestion.movie.id === stalker.id)).toBe(false);
   }, 30_000);
 
   it('requires an admin decision before an incomplete expired wheel round can continue', async () => {
