@@ -66,9 +66,7 @@ export default async function ClubDashboard({
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
   const pickCounts = new Map<string, number>();
-  nominations?.nominations.forEach((nomination) => {
-    pickCounts.set(nomination.nominatedBy.id, (pickCounts.get(nomination.nominatedBy.id) ?? 0) + 1);
-  });
+  Object.entries(nominations?.memberPickCounts ?? {}).forEach(([memberId, count]) => pickCounts.set(memberId, count));
   const allMembersPicked = Boolean(
     round && members.length && members.every((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember),
   );
@@ -180,7 +178,7 @@ export default async function ClubDashboard({
                   roundId={round.id}
                   status={round.status}
                   mode={round.mode}
-                  nominationCount={nominations.nominations.length}
+                  nominationCount={nominations.nominationCount}
                   allMembersPicked={allMembersPicked}
                   picksExpired={picksExpired}
                   picksClosed={picksClosed}
@@ -195,7 +193,7 @@ export default async function ClubDashboard({
                       : 'The picks are ready. An admin can open voting.'
                     : picksExpired
                       ? 'The pick deadline has passed. Waiting for an admin to continue or extend it.'
-                      : `${nominations.nominations.length} picks in · ${members.filter((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember).length} of ${members.length} members ready.`}
+                      : `${nominations.nominationCount} picks in · ${members.filter((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember).length} of ${members.length} members ready.`}
                 </p>
               ) : null}
             </div>
@@ -248,7 +246,7 @@ export default async function ClubDashboard({
                   reason: item.reasons.join(' · '),
                 }))}
                 pickingOpen={!picksExpired && !picksClosed}
-                showContenders={canAdvanceFromPicks}
+                showContenders={nominations.contendersVisible}
               />
             ) : null}
 

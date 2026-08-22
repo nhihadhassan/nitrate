@@ -1152,12 +1152,22 @@ export type NominationView = {
 export async function getRoundNominations(
   roundId: string,
   viewerId: string | null,
-): Promise<{ nominations: NominationView[]; totalsVisible: boolean; viewerVoted: boolean }> {
+): Promise<{
+  nominations: NominationView[];
+  totalsVisible: boolean;
+  viewerVoted: boolean;
+  nominationCount: number;
+  memberPickCounts: Record<string, number>;
+  contendersVisible: boolean;
+}> {
   const round = await loadRound(roundId);
-  const totalsVisible =
+  const membership = await getMembership(round.clubId, viewerId);
+  const isActiveMember = membership?.status === 'active';
+  const roundIsResolved =
     round.status === 'winner_selected' ||
     round.status === 'screening_scheduled' ||
     round.status === 'completed';
+  const totalsVisible = isActiveMember && roundIsResolved;
 
   const rows = await db
     .select({
@@ -1174,7 +1184,28 @@ export async function getRoundNominations(
     .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)))
     .orderBy(totalsVisible ? desc(nominations.voteCount) : asc(nominations.createdAt));
 
-  const viewerVote = viewerId
+  const activeMembers = await db
+    .select({ userId: clubMembers.userId })
+    .from(clubMembers)
+    .where(and(eq(clubMembers.clubId, round.clubId), eq(clubMembers.status, 'active')));
+  const activeMemberIds = new Set(activeMembers.map((member) => member.userId));
+  const memberPickCounts = rows.reduce<Record<string, number>>((counts, row) => {
+    if (activeMemberIds.has(row.userId)) counts[row.userId] = (counts[row.userId] ?? 0) + 1;
+    return counts;
+  }, {});
+  const allMembersPicked =
+    activeMembers.length > 0 &&
+    activeMembers.every((member) => (memberPickCounts[member.userId] ?? 0) >= round.nominationLimitPerMember);
+  // Vote contenders stay sealed until voting opens. The wheel is the reveal,
+  // so its contenders are available only once it is actually ready to spin.
+  const contendersVisible = Boolean(
+    isActiveMember &&
+      (roundIsResolved ||
+        round.status === 'voting_open' ||
+        (round.mode === 'wheel' && round.status === 'nominations_open' && (allMembersPicked || Boolean(round.picksClosedAt)))),
+  );
+
+  const viewerVote = viewerId && isActiveMember
     ? await db
         .select({ nominationId: votes.nominationId })
         .from(votes)
@@ -1185,7 +1216,10 @@ export async function getRoundNominations(
   return {
     totalsVisible,
     viewerVoted: viewerVote.length > 0,
-    nominations: rows.map((row) => ({
+    nominationCount: isActiveMember ? rows.length : 0,
+    memberPickCounts: isActiveMember ? memberPickCounts : {},
+    contendersVisible,
+    nominations: (contendersVisible ? rows : isActiveMember ? rows.filter((row) => row.userId === viewerId) : []).map((row) => ({
       id: row.nomination.id,
       movie: row.movie,
       pitch: row.nomination.pitch,

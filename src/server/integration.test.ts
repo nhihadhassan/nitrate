@@ -349,6 +349,9 @@ suite('nitrate integration', () => {
     // Voting cannot be skipped: no votes before it opens.
     const nominationsBefore = await getRoundNominations(round.id, alex.id);
     expect(nominationsBefore.totalsVisible).toBe(false);
+    expect(nominationsBefore.nominations).toHaveLength(1);
+    expect(nominationsBefore.nominations[0].movie.id).toBe(heat.id);
+    expect(nominationsBefore.memberPickCounts[maya.id]).toBe(1);
     await expect(
       castVote(round.id, alex.id, nominationsBefore.nominations[0].id),
     ).rejects.toThrow(/not open/i);
