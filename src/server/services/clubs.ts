@@ -1481,13 +1481,14 @@ export async function submitClubRating(
         .where(eq(screenings.id, screeningId));
     } else {
       await tx.insert(clubRatings).values({ screeningId, userId, rating });
-      await tx
+      const [updatedScreening] = await tx
         .update(screenings)
         .set({
           groupRatingSum: sql`${screenings.groupRatingSum} + ${rating}`,
           groupRatingCount: sql`${screenings.groupRatingCount} + 1`,
         })
-        .where(eq(screenings.id, screeningId));
+        .where(eq(screenings.id, screeningId))
+        .returning({ groupRatingSum: screenings.groupRatingSum, groupRatingCount: screenings.groupRatingCount });
       await tx.insert(activityEvents).values({
         actorId: userId,
         type: 'club_rating_submitted',
@@ -1496,6 +1497,28 @@ export async function submitClubRating(
         screeningId,
         visibility: 'private',
       });
+
+      const [{ value: memberCount }] = await tx
+        .select({ value: sql<number>`count(*)::int` })
+        .from(clubMembers)
+        .where(and(eq(clubMembers.clubId, screening.clubId), eq(clubMembers.status, 'active')));
+      if (updatedScreening.groupRatingCount >= memberCount && memberCount > 0) {
+        const [alreadyRevealed] = await tx
+          .select({ id: activityEvents.id })
+          .from(activityEvents)
+          .where(and(eq(activityEvents.screeningId, screeningId), eq(activityEvents.type, 'club_ratings_revealed')))
+          .limit(1);
+        if (!alreadyRevealed) {
+          await tx.insert(activityEvents).values({
+            actorId: userId,
+            type: 'club_ratings_revealed',
+            clubId: screening.clubId,
+            movieId: screening.movieId,
+            screeningId,
+            visibility: 'private',
+          });
+        }
+      }
     }
   });
 }
@@ -2308,12 +2331,14 @@ export type ClubActivityItem = {
     | 'club_screening_scheduled'
     | 'club_screening_rsvp'
     | 'club_screening_completed'
-    | 'club_rating_submitted';
+    | 'club_rating_submitted'
+    | 'club_ratings_revealed';
   createdAt: Date;
   actor: { username: string; displayName: string; avatarAssetId: string | null };
   movie: { slug: string; title: string; year: number | null } | null;
   screeningId: string | null;
   hideMovie: boolean;
+  finalAverage: number | null;
 };
 
 /** A deliberately small, member-only pulse of the things that move a club forward. */
@@ -2325,10 +2350,11 @@ export async function getClubActivity(clubId: string, limit = 8): Promise<ClubAc
     .orderBy(desc(selectionRounds.createdAt))
     .limit(1);
   const rows = await db
-    .select({ event: activityEvents, username: users.username, displayName: users.displayName, avatarAssetId: users.avatarAssetId, movie: movies })
+    .select({ event: activityEvents, username: users.username, displayName: users.displayName, avatarAssetId: users.avatarAssetId, movie: movies, screening: screenings })
     .from(activityEvents)
     .innerJoin(users, eq(users.id, activityEvents.actorId))
     .leftJoin(movies, eq(movies.id, activityEvents.movieId))
+    .leftJoin(screenings, eq(screenings.id, activityEvents.screeningId))
     .where(
       and(
         eq(activityEvents.clubId, clubId),
@@ -2340,6 +2366,7 @@ export async function getClubActivity(clubId: string, limit = 8): Promise<ClubAc
           'club_screening_rsvp',
           'club_screening_completed',
           'club_rating_submitted',
+          'club_ratings_revealed',
         ]),
       ),
     )
@@ -2357,6 +2384,10 @@ export async function getClubActivity(clubId: string, limit = 8): Promise<ClubAc
       row.event.type === 'club_movie_picked' &&
       active?.id === row.event.metadata.roundId &&
       !active.picksClosedAt,
+    finalAverage:
+      row.event.type === 'club_ratings_revealed' && row.screening && row.screening.groupRatingCount
+        ? row.screening.groupRatingSum / row.screening.groupRatingCount
+        : null,
   }));
 }
 

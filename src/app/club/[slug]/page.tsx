@@ -600,6 +600,7 @@ function ClubActivity({
     club_screening_rsvp: 'is going to',
     club_screening_completed: 'finished watching',
     club_rating_submitted: 'rated',
+    club_ratings_revealed: 'completed the club average for',
   };
   return (
     <section>
@@ -618,6 +619,9 @@ function ClubActivity({
               </>
             ) : null}
             <span className="text-dim"> · {relativeTime(item.createdAt)}</span>
+            {item.finalAverage !== null ? (
+              <span className="text-dim"> · {(item.finalAverage / 2).toFixed(1)}/5</span>
+            ) : null}
           </li>
         ))}
       </ul>

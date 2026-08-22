@@ -87,6 +87,7 @@ export const activityType = nitrate.enum('activity_type', [
   'club_screening_rsvp',
   'club_screening_completed',
   'club_rating_submitted',
+  'club_ratings_revealed',
 ]);
 export const notificationType = nitrate.enum('notification_type', [
   'new_follower',

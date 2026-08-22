@@ -31,6 +31,7 @@ import {
   createClub,
   getClubIntelligence,
   getActiveRound,
+  getClubActivity,
   getClubQueue,
   getClubRatings,
   getRoundNominations,
@@ -418,6 +419,12 @@ suite('nitrate integration', () => {
     expect(afterMayaRates.revealed).toBe(true);
     expect(afterMayaRates.average).toBe(8);
     expect(afterMayaRates.spread).toHaveLength(2);
+
+    // The final score is a club moment, but only after everyone has rated.
+    await submitClubRating(screening.id, noor.id, 8);
+    const activity = await getClubActivity(club.id, 20);
+    const finalRating = activity.find((item) => item.type === 'club_ratings_revealed');
+    expect(finalRating?.finalAverage).toBe(8);
 
     // Discussion, with the spoiler gate keyed off having seen the film.
     await confirmAttendance(screening.id, maya.id, true);
