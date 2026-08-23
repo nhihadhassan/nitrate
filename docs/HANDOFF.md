@@ -9,12 +9,12 @@ Written to be read by someone who has never seen the project.
 
 | Thing | Where |
 | --- | --- |
-| Source | GitHub — `nhihadhassan/nitrate` (private) |
+| Source | GitHub — `nhihadhassan/nitrate` (public) |
 | Hosting | Vercel project `nitrate`, team `nhihadhassan-2432s-projects` |
 | Live URL | `https://nitrate-iota.vercel.app` |
 | Database | Supabase project `rachel-tracker` (`zgafubhzhxikuknihmnu`), ca-central-1 |
 | Film data | TMDB API |
-| Email | Resend, sending as `movienight@nhihadhassan.ca` |
+| Email | Resend, sending as `noreply@your-domain.example` |
 
 > **The repo, Vercel project, URL and product name are all `nitrate` again.**
 > The product briefly carried a club's name; that is now separated — `BRAND` in
@@ -68,7 +68,7 @@ Set in Vercel for **production and preview**, and in `.env.local` for dev.
 | `MOVIE_PROVIDER` | ✅ set | `tmdb`. Set `offline` to force the local catalogue |
 | `CRON_SECRET` | ✅ set | Bearer token the weekly job must present |
 | `RESEND_API_KEY` | ✅ set | Verified working — a live send returned a provider message id |
-| `EMAIL_FROM` | ✅ set | `movienight@nhihadhassan.ca`, on a Resend-verified domain |
+| `EMAIL_FROM` | ✅ set | `noreply@your-domain.example`, on a Resend-verified domain |
 | `NEXT_PUBLIC_SITE_URL` | ✅ set | **Every link in outgoing email is built from this.** Set explicitly in production rather than relying on Vercel's own variable, because mail rendered anywhere else silently emits `localhost` links |
 
 ---
@@ -79,8 +79,8 @@ Set in Vercel for **production and preview**, and in `.env.local` for dev.
 `/clubs`, `/login` and `/signup` all return 200 with no authentication. Friends
 can sign up from any device, phone included.
 
-**Email sends for real.** `nhihadhassan.ca` is verified in Resend with sending
-enabled, so mail goes out as `movienight@nhihadhassan.ca` and can reach any
+**Email sends for real.** `your-domain.example` is verified in Resend with sending
+enabled, so mail goes out as `noreply@your-domain.example` and can reach any
 address. Verified by pushing a message through the real queue and getting a
 provider message id back.
 

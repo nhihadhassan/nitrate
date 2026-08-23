@@ -46,7 +46,7 @@ Each one is a plain string in a file that has no access to TypeScript.
 sender name in your friends' inboxes, shown before they open anything.
 
 ```bash
-printf 'Nitrate <movienight@nhihadhassan.ca>' \
+printf 'Nitrate <noreply@your-domain.example>' \
   | npx vercel env add EMAIL_FROM production --force --token "$VERCEL_TOKEN"
 ```
 

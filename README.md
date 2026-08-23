@@ -106,3 +106,7 @@ idempotency. It namespaces and cleans up everything it creates.
 
 Film metadata and artwork are provided by [TMDB](https://www.themoviedb.org/).
 This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+## Licence
+
+Released under the [MIT License](LICENSE).

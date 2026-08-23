@@ -216,7 +216,7 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
 | 11 Aug 2026 | Renamed to Rachad Julijan Diyack Movie Club; procedure written up in `docs/RENAMING.md` |
 | 11 Aug 2026 | Renamed back to Nitrate, and app branding separated from club branding: a club now names only its own page |
 | 11 Aug 2026 | Deployment protection turned off — the site is public |
-| 11 Aug 2026 | Resend configured on the verified `nhihadhassan.ca` domain; live send confirmed |
+| 11 Aug 2026 | Resend configured on a verified sending domain; live send confirmed |
 | 11 Aug 2026 | `NEXT_PUBLIC_SITE_URL` set in production — the first test email carried `localhost` links |
 
 ---
