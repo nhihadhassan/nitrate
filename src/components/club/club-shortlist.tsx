@@ -7,11 +7,12 @@ import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { filmHref } from '@/lib/links';
+import { recommendationReasonLabel, type RecommendationReason } from '@/lib/recommendations';
 import { nominateAction } from '@/server/actions/clubs';
 
 type ShortlistItem = {
   movie: { id: string; slug: string; title: string; year: number | null };
-  reasons: string[];
+  reasons: RecommendationReason[];
 };
 
 /** A short, explainable answer to the question every club asks. */
@@ -67,7 +68,7 @@ export function ClubShortlist({
                 </Button>
               ) : null}
             </div>
-            <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-muted">{item.reasons.join(' · ')}</p>
+            <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-muted">{item.reasons.map(recommendationReasonLabel).join(' · ')}</p>
           </li>
         ))}
       </ul>

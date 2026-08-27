@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import { Poster } from '@/components/film/poster';
 import { FilmPicker, type PickedFilm } from '@/components/log/film-picker';
 import { Button } from '@/components/ui/button';
+import { recommendationReasonLabel, type RecommendationReason } from '@/lib/recommendations';
 import { CheckIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
@@ -64,7 +65,7 @@ export function NominatePanel({
   members: (Person & { pickCount: number })[];
   queue: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
   watchlist: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
-  suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reason: string }[];
+  suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reasons: RecommendationReason[] }[];
   pickingOpen?: boolean;
   showContenders?: boolean;
 }) {
@@ -242,7 +243,7 @@ function PickMovieSheet({
   replacingId: string | null;
   queue: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
   watchlist: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
-  suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reason: string }[];
+  suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reasons: RecommendationReason[] }[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -350,7 +351,7 @@ function QuickPickList({
   onPick,
 }: {
   title: string;
-  items: { movieId: string; title: string; year: number | null; posterPath: string | null; reason?: string }[];
+  items: { movieId: string; title: string; year: number | null; posterPath: string | null; reasons?: RecommendationReason[] }[];
   onPick: (film: PickedFilm) => void;
 }) {
   return (
@@ -366,7 +367,7 @@ function QuickPickList({
             >
               <span className="min-w-0 flex-1 truncate">{item.title}</span>
               <span className="ml-2 shrink-0 text-xs text-dim tabular">{item.year}</span>
-              {item.reason ? <span className="ml-2 hidden max-w-32 truncate text-[0.6875rem] text-iris sm:inline">{item.reason}</span> : null}
+              {item.reasons?.length ? <span className="ml-2 hidden max-w-32 truncate text-[0.6875rem] text-iris sm:inline">{item.reasons.map(recommendationReasonLabel).join(' · ')}</span> : null}
             </button>
           </li>
         ))}

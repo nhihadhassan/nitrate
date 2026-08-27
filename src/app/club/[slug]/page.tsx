@@ -280,7 +280,7 @@ export default async function ClubDashboard({
                   title: item.movie.title,
                   year: item.movie.year,
                   posterPath: item.movie.posterPath,
-                  reason: item.reasons.join(' · '),
+                  reasons: item.reasons,
                 }))}
                 pickingOpen={!picksExpired && !picksClosed}
                 showContenders={nominations.contendersVisible}

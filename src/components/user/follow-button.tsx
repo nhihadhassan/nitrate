@@ -11,10 +11,12 @@ export function FollowButton({
   userId,
   initialFollowing,
   signedIn,
+  source,
 }: {
   userId: string;
   initialFollowing: boolean;
   signedIn: boolean;
+  source?: 'recommendation';
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -35,7 +37,7 @@ export function FollowButton({
         const next = !following;
         setFollowing(next);
         startTransition(async () => {
-          const result = await toggleFollowAction(userId);
+          const result = await toggleFollowAction(userId, source);
           if (!result.ok) {
             setFollowing(!next);
             toast({ message: result.error, tone: 'error' });
