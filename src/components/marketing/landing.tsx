@@ -102,7 +102,7 @@ export async function LandingPage() {
 
       <Container className="py-16 sm:py-24">
         <div className="grid gap-14 md:grid-cols-3 md:gap-10">
-          <section>
+          <section className="min-w-0">
             <p className="font-display text-3xl text-ember/70 tabular">01</p>
             <p className="eyebrow mt-3">Your films</p>
             <h2 className="mt-1.5 text-xl leading-snug">Keep the diary you actually reread</h2>
@@ -124,7 +124,7 @@ export async function LandingPage() {
             ) : null}
           </section>
 
-          <section>
+          <section className="min-w-0">
             <p className="font-display text-3xl text-ember/70 tabular">02</p>
             <p className="eyebrow mt-3">Their films</p>
             <h2 className="mt-1.5 text-xl leading-snug">Discover through people, not an algorithm</h2>
@@ -139,7 +139,7 @@ export async function LandingPage() {
             ) : null}
           </section>
 
-          <section>
+          <section className="min-w-0">
             <p className="font-display text-3xl text-ember/70 tabular">03</p>
             <p className="eyebrow mt-3">Our films</p>
             <h2 className="mt-1.5 text-xl leading-snug">Decide together, then remember it</h2>
