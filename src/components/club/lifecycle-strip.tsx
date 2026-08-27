@@ -9,7 +9,16 @@ import { cn } from '@/lib/utils';
  * whole strip collapses to the current stage plus its neighbours on small
  * screens, where nine labels would be unreadable anyway.
  */
-export function LifecycleStrip({ stage, headline }: { stage: ClubStage; headline: string }) {
+export function LifecycleStrip({
+  stage,
+  headline,
+  youNeedTo,
+}: {
+  stage: ClubStage;
+  headline: string;
+  /** The viewer's own next action, or null when it is not their move. */
+  youNeedTo?: string | null;
+}) {
   const currentIndex = CLUB_STAGES.findIndex((step) => step.key === stage);
 
   return (
@@ -51,6 +60,9 @@ export function LifecycleStrip({ stage, headline }: { stage: ClubStage; headline
         })}
       </ol>
       <p className="mt-2.5 text-sm text-muted">{headline}</p>
+      {youNeedTo ? (
+        <p className="mt-1 text-sm font-medium text-ember">You: {youNeedTo}</p>
+      ) : null}
     </section>
   );
 }

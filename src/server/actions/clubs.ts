@@ -138,6 +138,8 @@ export async function joinClubAction(
     }
 
     revalidatePath('/clubs');
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/members`);
     return { slug: club.slug, alreadyMember };
   });
 }
@@ -176,8 +178,11 @@ export async function createInviteAction(input: {
 export async function leaveClubAction(clubId: string): Promise<ActionResult<null>> {
   return actionGuard(async () => {
     const user = await requireUser();
+    const club = await getClubById(clubId);
     await removeMember(clubId, user.id, user.id, 'leave');
     revalidatePath('/clubs');
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/members`);
     return null;
   });
 }
@@ -210,6 +215,7 @@ export async function moderateMemberAction(input: {
     }
 
     revalidatePath(`/club/${club.slug}/members`);
+    revalidatePath(`/club/${club.slug}`);
     return null;
   });
 }
@@ -309,6 +315,7 @@ export async function nominateAction(
     await track('nomination_created', user.id, { clubId: input.clubId, movieId: movie.id });
     const club = await getClubById(input.clubId);
     revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/queue`);
     return null;
   });
 }
@@ -583,6 +590,7 @@ export async function scheduleScreeningAction(
     });
 
     revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/screening/${screening.id}`);
     return { screeningId: screening.id };
   });
 }
@@ -639,6 +647,7 @@ export async function completeScreeningAction(
     });
 
     revalidatePath(`/club/${clubSlug}/screening/${screeningId}`);
+    revalidatePath(`/club/${clubSlug}`);
     return null;
   });
 }
@@ -653,6 +662,7 @@ export async function setRsvpAction(input: {
     await setRsvp(input.screeningId, user.id, input.rsvp);
     await track('screening_rsvp', user.id, { screeningId: input.screeningId, rsvp: input.rsvp });
     revalidatePath(`/club/${input.clubSlug}/screening/${input.screeningId}`);
+    revalidatePath(`/club/${input.clubSlug}`);
     return null;
   });
 }
@@ -687,6 +697,7 @@ export async function submitClubRatingAction(input: {
       rating: input.rating,
     });
     revalidatePath(`/club/${input.clubSlug}/screening/${input.screeningId}`);
+    revalidatePath(`/club/${input.clubSlug}`);
     return null;
   });
 }

@@ -16,7 +16,7 @@ export default async function NewClubPage() {
     <Container size="narrow" className="py-8">
       <h1 className="text-3xl sm:text-4xl">Start a Movie Club</h1>
       <p className="mt-2 text-sm text-muted">
-        You&apos;ll get an invite link straight after. Everything else — queue, nominations, voting,
+        You&apos;ll get an invite link straight after. Everything else — Movie Ideas, picks, voting,
         scheduling — is already set up.
       </p>
       <div className="mt-7">

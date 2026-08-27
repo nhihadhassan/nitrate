@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { PosterRail } from '@/components/film/poster-rail';
 import { LikeMark, Stars } from '@/components/film/stars';
 import { ListCard } from '@/components/list/list-card';
 import { ReviewBody } from '@/components/review/review-body';
@@ -96,50 +96,56 @@ export default async function ExplorePage() {
           </p>
         ) : null}
 
-        {/* Their films: the social layer leads, because it is the reason to be here. */}
-        <Rail
-          title="Friends are watching"
-          subtitle="The most-logged films across the people you follow, this month."
-          films={friendsWatching}
-          eager={firstRail === 'friends-watching'}
-        />
+        {/* Your people: the social layer leads, because it is the reason to be here. */}
+        {hasSocial || (becauseYouLoved?.films.length ?? 0) > 0 || watchlist.length ? (
+          <div className="space-y-8">
+            <p className="eyebrow">Your people</p>
 
-        <Rail
-          title="Popular with your clubs"
-          subtitle="Movie Ideas your groups are already circling."
-          films={clubPopular}
-        />
+            <Rail
+              title="Friends are watching"
+              subtitle="The most-logged films across the people you follow, this month."
+              films={friendsWatching}
+              eager={firstRail === 'friends-watching'}
+            />
 
-        <Rail
-          title="Friends want to watch"
-          subtitle="Watchlist overlap from people who share it publicly."
-          films={friendsWant}
-        />
+            <Rail
+              title="Popular with your clubs"
+              subtitle="Movie Ideas your groups are already circling."
+              films={clubPopular}
+            />
 
-        <Rail
-          title="Friends loved"
-          subtitle="Films the people you follow gave a heart to, that you have not seen."
-          films={friendsLoved}
-          eager={firstRail === 'friends-loved'}
-        />
+            <Rail
+              title="Friends want to watch"
+              subtitle="Watchlist overlap from people who share it publicly."
+              films={friendsWant}
+            />
 
-        {becauseYouLoved?.films.length ? (
-          <Rail
-            title={`Because you loved ${becauseYouLoved.seed.title}`}
-            subtitle="Neighbours of one of your five-star films."
-            films={becauseYouLoved.films}
-            eager={firstRail === 'because-you-loved'}
-          />
+            <Rail
+              title="Friends loved"
+              subtitle="Films the people you follow gave a heart to, that you have not seen."
+              films={friendsLoved}
+              eager={firstRail === 'friends-loved'}
+            />
+
+            {becauseYouLoved?.films.length ? (
+              <Rail
+                title={`Because you loved ${becauseYouLoved.seed.title}`}
+                subtitle="Neighbours of one of your five-star films."
+                films={becauseYouLoved.films}
+                eager={firstRail === 'because-you-loved'}
+              />
+            ) : null}
+
+            <Rail
+              title="On your watchlist"
+              subtitle="You already said you would."
+              films={watchlist}
+              href="/watchlist"
+              linkLabel="Full watchlist"
+              eager={firstRail === 'watchlist'}
+            />
+          </div>
         ) : null}
-
-        <Rail
-          title="On your watchlist"
-          subtitle="You already said you would."
-          films={watchlist}
-          href="/watchlist"
-          linkLabel="Full watchlist"
-          eager={firstRail === 'watchlist'}
-        />
 
         {user && !hasSocial ? (
           <EmptyState
@@ -156,137 +162,152 @@ export default async function ExplorePage() {
           />
         ) : null}
 
-        <Rail
-          title="Trending this week"
-          subtitle="What the wider film world is turning over."
-          films={rails.trending}
-          eager={firstRail === 'trending'}
-        />
+        {/* The wider film world: generic catalogue browsing, after the social layer. */}
+        <div className="space-y-8">
+          <p className="eyebrow">The wider film world</p>
 
-        <Rail
-          title="Rated highest here"
-          subtitle="By members, weighted so one glowing rating cannot outrank a hundred."
-          films={communityTop}
-        />
-
-        <Rail title="In cinemas now" films={rails.nowPlaying} />
-
-        <Rail
-          title="The canon"
-          subtitle="Highly rated by a lot of people — weighted by how many, not just how high."
-          films={rails.canon}
-        />
-
-        {favouriteGenre ? (
           <Rail
-            title={`More ${favouriteGenre.genre.toLowerCase()}`}
-            subtitle="Your most-watched genre, minus everything you have already seen."
-            films={favouriteGenre.films}
+            title="Trending this week"
+            subtitle="What the wider film world is turning over."
+            films={rails.trending}
+            eager={firstRail === 'trending'}
           />
-        ) : null}
 
-        <Rail
-          title="Coming soon"
-          subtitle="Worth putting on the watchlist early."
-          films={rails.upcoming}
-        />
+          <Rail title="In cinemas now" films={rails.nowPlaying} />
 
-        <section>
-          <SectionHeading title="By decade" subtitle="Pick an era and dig." />
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-            {DECADES.map((decade) => (
-              <Link
-                key={decade}
-                href={`/films?decade=${decade}`}
-                className="group relative overflow-hidden rounded-md border border-line px-3 py-6 text-center transition-colors hover:border-ember/40"
-              >
-                <span className="font-display text-2xl transition-colors group-hover:text-ember tabular">
-                  {decade}s
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+          <Rail
+            title="Rated highest here"
+            subtitle="By members, weighted so one glowing rating cannot outrank a hundred."
+            films={communityTop}
+          />
 
-        {rails.genres.length ? (
+          <Rail
+            title="The canon"
+            subtitle="Highly rated by a lot of people — weighted by how many, not just how high."
+            films={rails.canon}
+          />
+
+          {favouriteGenre ? (
+            <Rail
+              title={`More ${favouriteGenre.genre.toLowerCase()}`}
+              subtitle="Your most-watched genre, minus everything you have already seen."
+              films={favouriteGenre.films}
+            />
+          ) : null}
+
+          <Rail
+            title="Coming soon"
+            subtitle="Worth putting on the watchlist early."
+            films={rails.upcoming}
+          />
+        </div>
+
+        <div className="space-y-8">
+          <p className="eyebrow">Browse</p>
+
           <section>
-            <SectionHeading title="By genre" />
-            <div className="flex flex-wrap gap-2">
-              {rails.genres.map((genre) => (
+            <SectionHeading title="By decade" subtitle="Pick an era and dig." />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
+              {DECADES.map((decade) => (
                 <Link
-                  key={genre.providerId}
-                  href={`/films?genre=${genre.providerId}`}
-                  className="rounded-md border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
+                  key={decade}
+                  href={`/films?decade=${decade}`}
+                  className="group relative overflow-hidden rounded-md border border-line px-3 py-6 text-center transition-colors hover:border-ember/40"
                 >
-                  {genre.name}
+                  <span className="font-display text-2xl transition-colors group-hover:text-ember tabular">
+                    {decade}s
+                  </span>
                 </Link>
               ))}
             </div>
           </section>
-        ) : null}
 
-        {reviews.length ? (
-          <section>
-            <SectionHeading title="Reviews worth reading" />
-            <div className="grid gap-6 md:grid-cols-2">
-              {reviews.map((review) => (
-                <article key={review.id} className="rounded-lg border border-line p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <UserChip user={review.author} size="sm" />
-                    <div className="flex items-center gap-2">
-                      <Stars value={review.rating} size="sm" />
-                      {review.liked ? (
-                        <LikeMark className="text-sm text-rose" label="Liked this film" />
-                      ) : null}
-                    </div>
-                  </div>
+          {rails.genres.length ? (
+            <section>
+              <SectionHeading title="By genre" />
+              <div className="flex flex-wrap gap-2">
+                {rails.genres.map((genre) => (
                   <Link
-                    href={filmHref(review.film)}
-                    className="mt-2.5 inline-block font-medium hover:text-ember"
+                    key={genre.providerId}
+                    href={`/films?genre=${genre.providerId}`}
+                    className="rounded-md border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
                   >
-                    {review.film.title}
-                    {review.film.year ? (
-                      <span className="ml-1.5 text-xs text-dim tabular">{review.film.year}</span>
-                    ) : null}
+                    {genre.name}
                   </Link>
-                  <Link href={reviewHref(review)} className="mt-2 block">
-                    <ReviewBody
-                      text={review.reviewText}
-                      containsSpoilers={review.containsSpoilers}
-                      clamp={3}
-                    />
-                  </Link>
-                  {review.likeCount > 0 ? (
-                    <p className="mt-2 text-xs text-dim">{pluralize(review.likeCount, 'like')}</p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : null}
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
 
-        {lists.length ? (
-          <section>
-            <SectionHeading title="Lists people are making" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {lists.map((list) => (
-                <ListCard
-                  key={list.id}
-                  list={{
-                    id: list.id,
-                    title: list.title,
-                    description: list.description,
-                    itemCount: list.itemCount,
-                    likeCount: list.likeCount,
-                    isRanked: list.isRanked,
-                    visibility: list.visibility,
-                    covers: list.covers,
-                  }}
-                  author={list.owner}
-                />
-              ))}
-            </div>
-          </section>
+        {reviews.length || lists.length ? (
+          <div className="space-y-8">
+            <p className="eyebrow">Worth reading</p>
+
+            {reviews.length ? (
+              <section>
+                <SectionHeading title="Reviews worth reading" />
+                <div className="grid gap-6 md:grid-cols-2">
+                  {reviews.map((review) => (
+                    <article key={review.id} className="rounded-lg border border-line p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <UserChip user={review.author} size="sm" />
+                        <div className="flex items-center gap-2">
+                          <Stars value={review.rating} size="sm" />
+                          {review.liked ? (
+                            <LikeMark className="text-sm text-rose" label="Liked this film" />
+                          ) : null}
+                        </div>
+                      </div>
+                      <Link
+                        href={filmHref(review.film)}
+                        className="mt-2.5 inline-block font-medium hover:text-ember"
+                      >
+                        {review.film.title}
+                        {review.film.year ? (
+                          <span className="ml-1.5 text-xs text-dim tabular">{review.film.year}</span>
+                        ) : null}
+                      </Link>
+                      <Link href={reviewHref(review)} className="mt-2 block">
+                        <ReviewBody
+                          text={review.reviewText}
+                          containsSpoilers={review.containsSpoilers}
+                          clamp={3}
+                        />
+                      </Link>
+                      {review.likeCount > 0 ? (
+                        <p className="mt-2 text-xs text-dim">{pluralize(review.likeCount, 'like')}</p>
+                      ) : null}
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {lists.length ? (
+              <section>
+                <SectionHeading title="Lists people are making" />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {lists.map((list) => (
+                    <ListCard
+                      key={list.id}
+                      list={{
+                        id: list.id,
+                        title: list.title,
+                        description: list.description,
+                        itemCount: list.itemCount,
+                        likeCount: list.likeCount,
+                        isRanked: list.isRanked,
+                        visibility: list.visibility,
+                        covers: list.covers,
+                      }}
+                      author={list.owner}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
         ) : null}
 
         {!user ? (
@@ -328,20 +349,7 @@ function Rail({
   return (
     <section>
       <SectionHeading title={title} subtitle={subtitle} href={href} linkLabel={linkLabel} />
-      <PosterGrid>
-        {films.slice(0, 16).map((film, index) => (
-          <PosterCard
-            key={film.id}
-            film={film}
-            priority={eager && index < 8}
-            footer={
-              film.caption ? (
-                <p className="mt-0.5 text-[0.6875rem] text-ember">{film.caption}</p>
-              ) : null
-            }
-          />
-        ))}
-      </PosterGrid>
+      <PosterRail label={title} films={films.slice(0, 12)} eager={eager} />
     </section>
   );
 }

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { BlindRatings } from '@/components/club/blind-ratings';
+import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { DiscussionThread } from '@/components/club/discussion-thread';
 import { PostScreeningPanel } from '@/components/club/post-screening-panel';
 import { RsvpControls } from '@/components/club/rsvp-controls';
@@ -28,6 +29,12 @@ import {
 import { getUserMovieState } from '@/server/services/films';
 
 export const dynamic = 'force-dynamic';
+
+const SCREENING_STATUS_LABELS: Record<'scheduled' | 'completed' | 'cancelled', string> = {
+  scheduled: 'Scheduled',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
 
 export default async function ScreeningPage({
   params,
@@ -77,6 +84,7 @@ export default async function ScreeningPage({
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <ClubPulseWatcher clubId={club.id} screeningId={screening.id} />
       <div className="min-w-0 space-y-9">
         <header className="flex gap-4 sm:gap-5">
           <div className="w-24 shrink-0 sm:w-32">
@@ -93,7 +101,7 @@ export default async function ScreeningPage({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={isCompleted ? 'jade' : screening.status === 'cancelled' ? 'rose' : 'iris'}>
-                {screening.status}
+                {SCREENING_STATUS_LABELS[screening.status]}
               </Badge>
               {provenance ? (
                 <Badge>
@@ -131,7 +139,7 @@ export default async function ScreeningPage({
               <p className="mt-3 text-sm text-muted">
                 {provenance.nominatedBy ? (
                   <>
-                    Put forward by{' '}
+                    Picked by{' '}
                     <Link href={userHref(provenance.nominatedBy)} className="text-text hover:text-iris">
                       {provenance.nominatedBy.displayName}
                     </Link>
@@ -140,10 +148,10 @@ export default async function ScreeningPage({
                   'Chosen'
                 )}
                 {provenance.mode === 'wheel'
-                  ? ` — the wheel picked it from ${pluralize(provenance.contenderCount, 'contender')}.`
+                  ? ` — the wheel picked it from ${pluralize(provenance.contenderCount, 'pick')}.`
                   : ` — won with ${pluralize(provenance.voteCount, 'vote')} from ${pluralize(
                       provenance.contenderCount,
-                      'contender',
+                      'pick',
                     )}.`}
               </p>
             ) : null}

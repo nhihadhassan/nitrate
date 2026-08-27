@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
-import { browseFilms, getEditorialRails } from '@/server/services/explore';
+import { browseFilms, getGenres } from '@/server/services/explore';
 
 export const metadata: Metadata = { title: 'Browse films' };
 export const dynamic = 'force-dynamic';
@@ -29,12 +29,12 @@ export default async function FilmsPage({
   const activeDecade = decade ? Number(decade) : undefined;
   const pageNumber = Math.max(1, Number(page) || 1);
 
-  const [result, rails] = await Promise.all([
+  const [result, genres] = await Promise.all([
     browseFilms({ genreId: genre, decade: activeDecade, sort: activeSort, page: pageNumber }),
-    getEditorialRails(),
+    getGenres(),
   ]);
 
-  const activeGenre = rails.genres.find((g) => g.providerId === genre);
+  const activeGenre = genres.find((g) => g.providerId === genre);
 
   const queryFor = (patch: Record<string, string | number | undefined>) => {
     const query: Record<string, string> = {};
@@ -99,7 +99,7 @@ export default async function FilmsPage({
           ))}
         </nav>
 
-        {rails.genres.length ? (
+        {genres.length ? (
           <nav aria-label="Genre" className="flex flex-wrap gap-1 text-xs">
             <Link
               href={{ pathname: '/films', query: queryFor({ genre: undefined, page: undefined }) }}
@@ -110,7 +110,7 @@ export default async function FilmsPage({
             >
               All genres
             </Link>
-            {rails.genres.map((g) => (
+            {genres.map((g) => (
               <Link
                 key={g.providerId}
                 href={{ pathname: '/films', query: queryFor({ genre: g.providerId, page: undefined }) }}

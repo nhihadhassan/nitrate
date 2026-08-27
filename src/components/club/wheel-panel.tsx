@@ -72,6 +72,9 @@ export function WheelPanel({
       const response = await spinWheelAction(roundId, clubId);
       if (!response.ok) {
         toast({ message: response.error, tone: 'error' });
+        // Someone else's spin landed first — show the real winner rather
+        // than leaving this member stuck on a stale "ready to spin" screen.
+        router.refresh();
         return;
       }
       setResult(response.data);

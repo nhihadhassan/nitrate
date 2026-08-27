@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ClubInvitePanel } from '@/components/club/invite-panel';
+import { ClubLoopPreview } from '@/components/club/club-loop-preview';
+import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { ClubShortlist } from '@/components/club/club-shortlist';
 import { LifecycleStrip } from '@/components/club/lifecycle-strip';
 import { NominatePanel } from '@/components/club/nominate-panel';
@@ -15,6 +17,7 @@ import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { AvatarStack } from '@/components/user/avatar';
 import { filmHref, screeningHref } from '@/lib/links';
 import { resolveClubState } from '@/lib/club';
+import { ROUND_STATUS_LABELS } from '@/lib/types';
 import { cn, formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getWatchlistPreview } from '@/server/services/profile';
@@ -80,6 +83,7 @@ export default async function ClubDashboard({
   const currentUserPickCount = nominations?.nominations.filter((nomination) => nomination.nominatedBy.id === user?.id).length ?? 0;
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
+  const myAttendance = attendance.find((a) => a.userId === user?.id);
 
   const state = resolveClubState({
     roundStatus: round?.status ?? null,
@@ -89,11 +93,32 @@ export default async function ClubDashboard({
       : null,
     awaitingViewerRating: isMember && completed.some((entry) => entry.ratingsHidden),
     hasCompletedScreening: completed.length > 0,
+    isAdmin,
+    pickingOpen: !picksExpired && !picksClosed,
+    picksReady: canAdvanceFromPicks,
+    hasPicked: Boolean(round && currentUserPickCount >= round.nominationLimitPerMember),
+    hasVoted: Boolean(nominations?.viewerVoted),
+    hasRsvpd: Boolean(myAttendance?.rsvp),
   });
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      {isMember ? <ClubPulseWatcher clubId={club.id} /> : null}
       <div className="min-w-0 space-y-10">
+        {/* Where the club is, and whose move it is — before anything else. */}
+        {isMember ? (
+          <LifecycleStrip stage={state.stage} headline={state.headline} youNeedTo={state.youNeedTo} />
+        ) : (
+          <section className="rounded-lg border border-line bg-surface/40 p-4">
+            <p className="eyebrow mb-1">How this club works</p>
+            <p className="mb-3 text-sm text-muted">
+              Members save ideas, everyone picks a movie for the round, the wheel or a vote settles it, and the
+              club watches, rates and remembers it together.
+            </p>
+            <ClubLoopPreview compact />
+          </section>
+        )}
+
         {/* Next up: the single most important thing on this page. */}
         {upcoming ? (
           <section className="overflow-hidden rounded-lg border border-iris/30 bg-iris/[0.05]">
@@ -149,7 +174,14 @@ export default async function ClubDashboard({
             <div className="mb-3 rounded-lg border border-iris/30 bg-iris/[0.045] p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="eyebrow text-iris">Round {round.roundNumber} · {round.status === 'nominations_open' ? picksExpired || picksClosed ? 'Picks closed' : 'Picks open' : round.status.replace(/_/g, ' ')}</p>
+                <p className="eyebrow text-iris">
+                  Round {round.roundNumber} ·{' '}
+                  {round.status === 'nominations_open'
+                    ? picksExpired || picksClosed
+                      ? 'Picks closed'
+                      : 'Picks open'
+                    : ROUND_STATUS_LABELS[round.status]}
+                </p>
                 <h2 className="mt-1 text-2xl">{round.title || 'Next movie night'}</h2>
                 <p className="mt-0.5 text-sm text-muted">
                   {round.status === 'nominations_open'
@@ -195,6 +227,8 @@ export default async function ClubDashboard({
                       ? 'The pick deadline has passed. Waiting for an admin to continue or extend it.'
                       : `${nominations.nominationCount} picks in · ${members.filter((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember).length} of ${members.length} members ready.`}
                 </p>
+              ) : round.status === 'voting_open' || round.status === 'winner_selected' ? (
+                <p className="mt-3 text-xs text-muted">{state.next}</p>
               ) : null}
             </div>
 
@@ -352,8 +386,6 @@ export default async function ClubDashboard({
             )}
           </section>
         ) : null}
-
-        {isMember ? <LifecycleStrip stage={state.stage} headline={state.headline} /> : null}
 
         {/* Recently watched */}
         {completed.length ? (

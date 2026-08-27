@@ -123,7 +123,7 @@ export function PosterGrid({
 }: {
   children: React.ReactNode;
   className?: string;
-  density?: 'default' | 'compact' | 'roomy';
+  density?: 'default' | 'compact' | 'roomy' | 'sidebar';
 }) {
   return (
     <div
@@ -132,6 +132,9 @@ export function PosterGrid({
         density === 'compact' && 'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10',
         density === 'default' && 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8',
         density === 'roomy' && 'grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5',
+        // Fixed 3 columns at every breakpoint — for narrow, fixed-width
+        // sidebars where the container query never changes.
+        density === 'sidebar' && 'grid-cols-3',
         className,
       )}
       data-reveal="grid"
