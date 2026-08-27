@@ -149,7 +149,7 @@ function SearchTrigger({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-9 w-56 items-center gap-2 rounded-md border border-line bg-canvas-raised px-2.5 text-sm text-dim transition-colors hover:border-line-strong lg:w-64"
+      className="flex h-9 w-48 items-center gap-2 rounded-md border border-line bg-canvas-raised px-2.5 text-sm text-dim transition-colors hover:border-line-strong lg:w-64"
     >
       <SearchIcon className="h-4 w-4" />
       <span className="flex-1 text-left">Films, people, clubs…</span>

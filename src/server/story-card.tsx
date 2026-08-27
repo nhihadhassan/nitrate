@@ -15,7 +15,7 @@ export function storyCard(input: {
   return new ImageResponse(
     (
       <div style={{ width: '100%', height: '100%', display: 'flex', position: 'relative', background: '#08090b', color: '#f4f4f5', padding: 64, fontFamily: 'Arial' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', width: 690, zIndex: 2 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', width: 650 }}>
           <div style={{ color: '#ff5b2e', fontSize: 18, letterSpacing: 4, textTransform: 'uppercase' }}>{input.eyebrow}</div>
           <div style={{ marginTop: 24, fontFamily: 'Georgia', fontSize: 68, lineHeight: 1.02 }}>{input.title}</div>
           <div style={{ marginTop: 20, color: '#a1a7b0', fontSize: 24, lineHeight: 1.35 }}>{input.subtitle}</div>
