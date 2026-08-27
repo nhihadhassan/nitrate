@@ -65,6 +65,7 @@ import { search } from '@/server/services/search';
 import { createPersonalRecapShare, getPublicShareSnapshot, revokeShareSnapshot } from '@/server/services/shares';
 import {
   getActiveRecommendationFeedback,
+  getMovieRecommendationContext,
   restoreRecommendationFeedback,
   setRecommendationFeedback,
   setTasteCircleMember,
@@ -810,6 +811,12 @@ suite('nitrate integration', () => {
     await restoreRecommendationFeedback(alex.id, item!.id);
     expect((await getActiveRecommendationFeedback(alex.id)).some((row) => row.id === item!.id)).toBe(false);
     await db.delete(recommendationFeedback).where(eq(recommendationFeedback.userId, alex.id));
+  });
+
+  it('uses the same structured friend context across recommendation surfaces', async () => {
+    const context = await getMovieRecommendationContext(maya.id, [heat.id, stalker.id]);
+    expect(context.get(heat.id)?.some((reason) => reason.kind === 'friend_loved')).toBe(true);
+    expect(context.get(heat.id)?.every((reason) => typeof reason.kind === 'string')).toBe(true);
   });
 
   /* ---------------------------------------------------------------------- */

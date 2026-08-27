@@ -187,6 +187,7 @@ function AccountMenu({ user }: { user: NavUser }) {
     { href: userSectionHref(user, 'films'), label: 'Films' },
     { href: userSectionHref(user, 'lists'), label: 'Lists' },
     { href: '/watchlist', label: 'Watchlist' },
+    { href: '/tonight', label: 'Tonight' },
     { href: '/taste-circle', label: 'Taste circle' },
     { href: '/settings', label: 'Settings' },
   ];

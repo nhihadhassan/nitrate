@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { SearchField } from '@/components/search/search-field';
 import { Container, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
@@ -11,6 +12,7 @@ import { clubHref, listHref, personHref } from '@/lib/links';
 import { cn, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { search } from '@/server/services/search';
+import { getMovieRecommendationContext } from '@/server/services/discovery';
 
 export const metadata: Metadata = { title: 'Search' };
 export const dynamic = 'force-dynamic';
@@ -39,6 +41,9 @@ export default async function SearchPage({
 
   // A scoped search can afford a longer list; "everything" needs to stay skimmable.
   const results = query.length >= 2 ? await search(query, viewer, { limit: scope === 'all' ? 8 : 24 }) : null;
+  const filmContext = user && results
+    ? await getMovieRecommendationContext(user.id, results.films.map((film) => film.id))
+    : new Map();
 
   const show = (section: Scope) => scope === 'all' || scope === section;
   const total = results
@@ -99,7 +104,11 @@ export default async function SearchPage({
               <SectionHeading title="Films" subtitle={pluralize(results.films.length, 'result')} />
               <PosterGrid>
                 {results.films.map((film) => (
-                  <PosterCard key={film.id} film={film} />
+                  <PosterCard
+                    key={film.id}
+                    film={film}
+                    footer={<RecommendationContext movieId={film.id} reasons={filmContext.get(film.id) ?? []} />}
+                  />
                 ))}
               </PosterGrid>
             </section>

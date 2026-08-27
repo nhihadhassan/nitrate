@@ -15,6 +15,8 @@ import { db } from '@/server/db';
 import {
   blocks,
   clubMembers,
+  clubQueueItems,
+  diaryEntries,
   favoriteFilms,
   follows,
   movies,
@@ -25,10 +27,12 @@ import {
   userMovieState,
   users,
   type User,
+  type Movie,
 } from '@/server/db/schema';
 import { NotFoundError, PermissionError, ValidationError } from '@/server/errors';
 import { ensureMoviesFromSummaries, toFilmRef } from '@/server/movies/catalog';
 import { primaryProvider, withProvider } from '@/server/movies/provider';
+import { getAvailabilityForMovies } from '@/server/movies/watch-providers';
 import { assertCanInteractWith } from '@/server/privacy';
 
 const PEOPLE_CANDIDATE_LIMIT = 100;
@@ -226,6 +230,131 @@ export async function getSuppressedRecommendationIds(
       or(isNull(recommendationFeedback.expiresAt), sql`${recommendationFeedback.expiresAt} > now()`),
     ));
   return new Set(rows.map((row) => row.targetId));
+}
+
+/**
+ * Compact social context shared by Search, Watchlist, Lists, Tonight and Film.
+ * This is one bounded batch per page, not one query per poster.
+ */
+export async function getMovieRecommendationContext(
+  userId: string,
+  movieIds: string[],
+): Promise<Map<string, RecommendationReason[]>> {
+  const ids = [...new Set(movieIds)].slice(0, 120);
+  if (!ids.length) return new Map();
+  const [loved, watched, clubInterest, ownWatchlist] = await Promise.all([
+    db
+      .select({
+        movieId: userMovieState.movieId,
+        names: sql<string[]>`array_agg(distinct ${users.displayName})`,
+      })
+      .from(userMovieState)
+      .innerJoin(follows, and(eq(follows.followingId, userMovieState.userId), eq(follows.followerId, userId)))
+      .innerJoin(users, eq(users.id, userMovieState.userId))
+      .where(and(
+        inArray(userMovieState.movieId, ids),
+        eq(userMovieState.liked, true),
+        sql`${users.profileVisibility} <> 'private'`,
+        isNull(users.deletedAt),
+      ))
+      .groupBy(userMovieState.movieId),
+    db
+      .select({
+        movieId: diaryEntries.movieId,
+        count: sql<number>`count(distinct ${diaryEntries.userId})::int`,
+      })
+      .from(diaryEntries)
+      .innerJoin(follows, and(eq(follows.followingId, diaryEntries.userId), eq(follows.followerId, userId)))
+      .innerJoin(users, eq(users.id, diaryEntries.userId))
+      .where(and(
+        inArray(diaryEntries.movieId, ids),
+        isNull(diaryEntries.deletedAt),
+        sql`${diaryEntries.visibility} <> 'private'`,
+        sql`${users.profileVisibility} <> 'private'`,
+        isNull(users.deletedAt),
+      ))
+      .groupBy(diaryEntries.movieId),
+    db
+      .select({ movieId: clubQueueItems.movieId, count: sql<number>`count(distinct ${clubQueueItems.clubId})::int` })
+      .from(clubQueueItems)
+      .innerJoin(clubMembers, and(
+        eq(clubMembers.clubId, clubQueueItems.clubId),
+        eq(clubMembers.userId, userId),
+        eq(clubMembers.status, 'active'),
+      ))
+      .where(and(inArray(clubQueueItems.movieId, ids), isNull(clubQueueItems.removedAt)))
+      .groupBy(clubQueueItems.movieId),
+    db
+      .select({ movieId: userMovieState.movieId })
+      .from(userMovieState)
+      .where(and(
+        eq(userMovieState.userId, userId),
+        inArray(userMovieState.movieId, ids),
+        eq(userMovieState.inWatchlist, true),
+      )),
+  ]);
+
+  const result = new Map<string, RecommendationReason[]>();
+  const add = (movieId: string, reason: RecommendationReason) => {
+    result.set(movieId, [...(result.get(movieId) ?? []), reason]);
+  };
+  loved.forEach((row) => add(row.movieId, { kind: 'friend_loved', names: row.names.slice(0, 3) }));
+  watched.forEach((row) => add(row.movieId, { kind: 'friend_watched', count: row.count }));
+  clubInterest.forEach((row) => add(row.movieId, { kind: 'club_interest', count: row.count }));
+  ownWatchlist.forEach((row) => add(row.movieId, { kind: 'on_watchlist' }));
+  return result;
+}
+
+export type TonightRecommendation = {
+  movie: Movie;
+  reasons: RecommendationReason[];
+  availability: Awaited<ReturnType<typeof getAvailabilityForMovies>> extends Map<string, infer A> ? A : never;
+};
+
+export async function getTonightRecommendations(
+  userId: string,
+  region: string,
+  limit = 18,
+): Promise<TonightRecommendation[]> {
+  const [watchlistRows, clubRows, suppressed] = await Promise.all([
+    db
+      .select({ movie: movies })
+      .from(userMovieState)
+      .innerJoin(movies, eq(movies.id, userMovieState.movieId))
+      .where(and(eq(userMovieState.userId, userId), eq(userMovieState.inWatchlist, true)))
+      .orderBy(desc(userMovieState.watchlistedAt))
+      .limit(30),
+    db
+      .select({ movie: movies })
+      .from(clubQueueItems)
+      .innerJoin(movies, eq(movies.id, clubQueueItems.movieId))
+      .innerJoin(clubMembers, and(
+        eq(clubMembers.clubId, clubQueueItems.clubId),
+        eq(clubMembers.userId, userId),
+        eq(clubMembers.status, 'active'),
+      ))
+      .where(isNull(clubQueueItems.removedAt))
+      .orderBy(desc(clubQueueItems.createdAt))
+      .limit(30),
+    getSuppressedRecommendationIds(userId, 'movie'),
+  ]);
+  const byId = new Map<string, Movie>();
+  [...watchlistRows, ...clubRows].forEach(({ movie }) => {
+    if (!suppressed.has(movie.id) && !byId.has(movie.id)) byId.set(movie.id, movie);
+  });
+  const candidates = [...byId.values()].slice(0, 24);
+  const [context, availability] = await Promise.all([
+    getMovieRecommendationContext(userId, candidates.map((movie) => movie.id)),
+    getAvailabilityForMovies(candidates, region, { limit: 24, concurrency: 4 }),
+  ]);
+  const hasAtHome = (movieId: string) => {
+    const item = availability.get(movieId);
+    return Boolean(item && (item.stream.length || item.free.length));
+  };
+  return candidates
+    .map((movie) => ({ movie, reasons: context.get(movie.id) ?? [], availability: availability.get(movie.id) ?? null }))
+    .sort((a, b) => Number(hasAtHome(b.movie.id)) - Number(hasAtHome(a.movie.id)) || b.reasons.length - a.reasons.length || (a.movie.runtime ?? 999) - (b.movie.runtime ?? 999))
+    .slice(0, Math.min(Math.max(limit, 1), 24));
 }
 
 export async function restoreRecommendationFeedback(userId: string, feedbackId: string): Promise<void> {

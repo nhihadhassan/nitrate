@@ -4,11 +4,13 @@ import { redirect } from 'next/navigation';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { WatchlistNote } from '@/components/film/watchlist-note';
+import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { countWatchlist, getWatchlist, type WatchlistSort } from '@/server/services/profile';
+import { getMovieRecommendationContext } from '@/server/services/discovery';
 
 export const metadata: Metadata = { title: 'Watchlist' };
 export const dynamic = 'force-dynamic';
@@ -39,6 +41,7 @@ export default async function WatchlistPage({
     getWatchlist(user.id, { sort: activeSort, decade: activeDecade, limit: 120 }),
     countWatchlist(user.id),
   ]);
+  const filmContext = await getMovieRecommendationContext(user.id, films.map(({ movie }) => movie.id));
 
   const totalRuntime = films.reduce((sum, f) => sum + (f.movie.runtime ?? 0), 0);
 
@@ -124,6 +127,7 @@ export default async function WatchlistPage({
                     </p>
                   ) : null}
                   <WatchlistNote movieId={movie.id} initialNote={note} />
+                  <RecommendationContext movieId={movie.id} reasons={(filmContext.get(movie.id) ?? []).filter((reason) => reason.kind !== 'on_watchlist')} />
                 </>
               }
             />

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { Poster } from '@/components/film/poster';
+import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { ListActions } from '@/components/list/list-actions';
 import { Comments } from '@/components/social/comments';
 import { Badge, Container, Divider, EmptyState } from '@/components/ui/primitives';
@@ -12,6 +13,7 @@ import { pluralize, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { AppError } from '@/server/errors';
 import { getComments, getListDetail } from '@/server/services/lists';
+import { getMovieRecommendationContext } from '@/server/services/discovery';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,7 +46,10 @@ export default async function ListPage({ params }: Params) {
   }
 
   const { list, owner, items, likedByViewer, canEdit } = detail;
-  const commentRows = await getComments('list', list.id);
+  const [commentRows, movieContext] = await Promise.all([
+    getComments('list', list.id),
+    viewerUser ? getMovieRecommendationContext(viewerUser.id, items.map((item) => item.movie.id)) : Promise.resolve(new Map()),
+  ]);
 
   return (
     <Container size="wide" className="py-8">
@@ -115,6 +120,7 @@ export default async function ListPage({ params }: Params) {
                   {item.note ? (
                     <p className="mt-0.5 text-xs leading-relaxed text-muted">{item.note}</p>
                   ) : null}
+                  <RecommendationContext movieId={item.movie.id} reasons={movieContext.get(item.movie.id) ?? []} />
                 </div>
               </li>
             ) : (
@@ -130,6 +136,7 @@ export default async function ListPage({ params }: Params) {
                 {item.note ? (
                   <p className="mt-1.5 text-[0.6875rem] leading-snug text-dim">{item.note}</p>
                 ) : null}
+                <RecommendationContext movieId={item.movie.id} reasons={movieContext.get(item.movie.id) ?? []} />
               </li>
             ),
           )}

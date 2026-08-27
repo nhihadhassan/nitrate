@@ -92,7 +92,10 @@ export default async function ExplorePage() {
   return (
     <Container size="wide" className="py-8 pb-20">
       <header className="mb-10 max-w-2xl">
-        <h1 className="text-4xl sm:text-5xl">Explore</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-4xl sm:text-5xl">Explore</h1>
+          {user ? <Link href="/tonight" className="flex min-h-11 items-center rounded-md border border-line px-4 text-sm font-medium hover:border-ember/40">Choose for tonight</Link> : null}
+        </div>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
           {user
             ? 'What your circle is watching, what the wider film world is turning over, and a few decades worth digging through.'
