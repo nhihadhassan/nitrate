@@ -9,6 +9,7 @@ import { LifecycleStrip } from '@/components/club/lifecycle-strip';
 import { NominatePanel } from '@/components/club/nominate-panel';
 import { RoundControls } from '@/components/club/round-controls';
 import { ScheduleScreeningForm } from '@/components/club/schedule-screening-form';
+import { ScreeningPoll } from '@/components/club/screening-poll';
 import { VotingPanel } from '@/components/club/voting-panel';
 import { WheelPanel } from '@/components/club/wheel-panel';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
@@ -33,6 +34,7 @@ import {
   getRecentlyCompleted,
   getRoundNominations,
   getScreeningAttendance,
+  getScreeningPoll,
   getUpcomingScreening,
 } from '@/server/services/clubs';
 
@@ -68,6 +70,7 @@ export default async function ClubDashboard({
   ]);
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
+  const poll = round && isMember && user ? await getScreeningPoll(round.id, user.id) : null;
   const pickCounts = new Map<string, number>();
   Object.entries(nominations?.memberPickCounts ?? {}).forEach(([memberId, count]) => pickCounts.set(memberId, count));
   const allMembersPicked = Boolean(
@@ -344,24 +347,54 @@ export default async function ClubDashboard({
             ) : null}
 
             {round.status === 'winner_selected' && isAdmin && nominations.nominations.length ? (
-              <div className="mt-6 rounded-lg border border-line p-4">
-                <p className="eyebrow mb-3">Schedule the night</p>
-                <ScheduleScreeningForm
+              <div className="mt-6 space-y-4">
+                <ScreeningPoll
                   clubId={club.id}
                   clubSlug={club.slug}
                   roundId={round.id}
                   timezone={club.timezone}
-                  movie={(() => {
-                    const winner =
-                      nominations.nominations.find((n) => n.id === round.winnerNominationId) ??
-                      nominations.nominations[0];
-                    return {
-                      movieId: winner.movie.id,
-                      title: winner.movie.title,
-                      year: winner.movie.year,
-                      posterPath: winner.movie.posterPath,
-                    };
-                  })()}
+                  isAdmin={isAdmin}
+                  poll={poll ? {
+                    ...poll,
+                    options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
+                  } : null}
+                />
+                {!poll ? (
+                  <div className="rounded-lg border border-line p-4">
+                    <p className="eyebrow mb-3">Schedule directly</p>
+                    <ScheduleScreeningForm
+                      clubId={club.id}
+                      clubSlug={club.slug}
+                      roundId={round.id}
+                      timezone={club.timezone}
+                      movie={(() => {
+                        const winner =
+                          nominations.nominations.find((n) => n.id === round.winnerNominationId) ??
+                          nominations.nominations[0];
+                        return {
+                          movieId: winner.movie.id,
+                          title: winner.movie.title,
+                          year: winner.movie.year,
+                          posterPath: winner.movie.posterPath,
+                        };
+                      })()}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {round.status === 'winner_selected' && isMember && !isAdmin && poll ? (
+              <div className="mt-6">
+                <ScreeningPoll
+                  clubId={club.id}
+                  clubSlug={club.slug}
+                  roundId={round.id}
+                  timezone={club.timezone}
+                  isAdmin={false}
+                  poll={{
+                    ...poll,
+                    options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
+                  }}
                 />
               </div>
             ) : null}

@@ -231,7 +231,7 @@ export async function getWatchlist(
             : [desc(userMovieState.watchlistedAt)];
 
   const base = db
-    .select({ movie: movies, addedAt: userMovieState.watchlistedAt })
+    .select({ movie: movies, addedAt: userMovieState.watchlistedAt, note: userMovieState.note })
     .from(userMovieState)
     .innerJoin(movies, eq(movies.id, userMovieState.movieId));
 

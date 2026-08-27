@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { WatchlistNote } from '@/components/film/watchlist-note';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
@@ -106,7 +107,7 @@ export default async function WatchlistPage({
 
       {films.length ? (
         <PosterGrid>
-          {films.map(({ movie }) => (
+          {films.map(({ movie, note }) => (
             <PosterCard
               key={movie.id}
               film={{
@@ -116,11 +117,14 @@ export default async function WatchlistPage({
                 posterPath: movie.posterPath,
               }}
               footer={
-                movie.runtime ? (
-                  <p className="mt-0.5 text-[0.6875rem] text-dim tabular">
-                    {formatRuntime(movie.runtime)}
-                  </p>
-                ) : null
+                <>
+                  {movie.runtime ? (
+                    <p className="mt-0.5 text-[0.6875rem] text-dim tabular">
+                      {formatRuntime(movie.runtime)}
+                    </p>
+                  ) : null}
+                  <WatchlistNote movieId={movie.id} initialNote={note} />
+                </>
               }
             />
           ))}

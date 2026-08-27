@@ -991,6 +991,7 @@ export const screeningPolls = nitrate.table(
   (t) => [
     index('polls_club_idx').on(t.clubId),
     index('polls_round_idx').on(t.roundId),
+    uniqueIndex('polls_one_open_per_round').on(t.roundId).where(sql`${t.status} = 'open'`),
   ],
 );
 
@@ -1005,7 +1006,10 @@ export const screeningPollOptions = nitrate.table(
     sortOrder: smallint('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index('poll_options_poll_idx').on(t.pollId, t.sortOrder)],
+  (t) => [
+    index('poll_options_poll_idx').on(t.pollId, t.sortOrder),
+    uniqueIndex('poll_options_time_key').on(t.pollId, t.startsAt),
+  ],
 );
 
 export const screeningPollResponses = nitrate.table(

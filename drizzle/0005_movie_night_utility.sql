@@ -89,6 +89,8 @@ END $$;--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS "polls_club_idx" ON "nitrate"."screening_polls" USING btree ("club_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "polls_round_idx" ON "nitrate"."screening_polls" USING btree ("round_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "polls_one_open_per_round" ON "nitrate"."screening_polls" USING btree ("round_id") WHERE "status" = 'open';--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "poll_options_poll_idx" ON "nitrate"."screening_poll_options" USING btree ("poll_id","sort_order");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "poll_options_time_key" ON "nitrate"."screening_poll_options" USING btree ("poll_id","starts_at");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "poll_response_key" ON "nitrate"."screening_poll_responses" USING btree ("option_id","user_id");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "poll_responses_user_idx" ON "nitrate"."screening_poll_responses" USING btree ("user_id");

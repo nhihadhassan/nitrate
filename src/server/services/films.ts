@@ -101,6 +101,25 @@ export async function getUserMovieState(
   return row ?? null;
 }
 
+export async function updateWatchlistNote(
+  userId: string,
+  movieId: string,
+  note: string | null,
+): Promise<void> {
+  const [updated] = await db
+    .update(userMovieState)
+    .set({ note })
+    .where(
+      and(
+        eq(userMovieState.userId, userId),
+        eq(userMovieState.movieId, movieId),
+        eq(userMovieState.inWatchlist, true),
+      ),
+    )
+    .returning({ movieId: userMovieState.movieId });
+  if (!updated) throw new NotFoundError('That film is not on your watchlist.');
+}
+
 async function ensureState(tx: DbOrTx, userId: string, movieId: string): Promise<UserMovieState> {
   const [row] = await tx
     .insert(userMovieState)

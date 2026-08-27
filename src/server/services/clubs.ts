@@ -21,6 +21,9 @@ import {
   movieGenres,
   movies,
   nominations,
+  screeningPollOptions,
+  screeningPollResponses,
+  screeningPolls,
   screenings,
   selectionRounds,
   userMovieState,
@@ -33,6 +36,7 @@ import {
   type SelectionRound,
 } from '@/server/db/schema';
 import { queueClubEmail } from '@/server/email/queue';
+import { notifyClub } from '@/server/services/notifications';
 import {
   ConflictError,
   NotFoundError,
@@ -1103,7 +1107,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
         recipientName: member.displayName,
       }),
       // One winner email per member per round, however many times this is called.
-      { dedupePrefix: `wheel:${roundId}` },
+      { dedupePrefix: `wheel:${roundId}`, preference: 'winnerSelected' },
       tx,
     );
 
@@ -1240,7 +1244,159 @@ export async function getRoundNominations(
 /* Screenings                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export async function scheduleScreening(input: {
+export type ScreeningPollView = {
+  id: string;
+  status: 'open' | 'closed' | 'cancelled';
+  timezone: string;
+  roundId: string;
+  movieId: string;
+  options: {
+    id: string;
+    startsAt: Date;
+    yes: number;
+    maybe: number;
+    no: number;
+    viewerResponse: 'yes' | 'maybe' | 'no' | null;
+  }[];
+};
+
+export async function getScreeningPoll(
+  roundId: string,
+  viewerId: string,
+): Promise<ScreeningPollView | null> {
+  const round = await loadRound(roundId);
+  await requireMembership(round.clubId, viewerId);
+
+  const [poll] = await db
+    .select()
+    .from(screeningPolls)
+    .where(eq(screeningPolls.roundId, roundId))
+    .orderBy(desc(screeningPolls.createdAt))
+    .limit(1);
+  if (!poll) return null;
+
+  const rows = await db
+    .select({
+      option: screeningPollOptions,
+      responseUserId: screeningPollResponses.userId,
+      availability: screeningPollResponses.availability,
+    })
+    .from(screeningPollOptions)
+    .leftJoin(screeningPollResponses, eq(screeningPollResponses.optionId, screeningPollOptions.id))
+    .where(eq(screeningPollOptions.pollId, poll.id))
+    .orderBy(asc(screeningPollOptions.sortOrder), asc(screeningPollOptions.startsAt));
+
+  const options = new Map<string, ScreeningPollView['options'][number]>();
+  for (const row of rows) {
+    const option = options.get(row.option.id) ?? {
+      id: row.option.id,
+      startsAt: row.option.startsAt,
+      yes: 0,
+      maybe: 0,
+      no: 0,
+      viewerResponse: null,
+    };
+    if (row.availability) option[row.availability] += 1;
+    if (row.responseUserId === viewerId) option.viewerResponse = row.availability;
+    options.set(row.option.id, option);
+  }
+
+  return {
+    id: poll.id,
+    status: poll.status,
+    timezone: poll.timezone,
+    roundId: poll.roundId,
+    movieId: poll.movieId,
+    options: [...options.values()],
+  };
+}
+
+export async function createScreeningPoll(input: {
+  clubId: string;
+  roundId: string;
+  userId: string;
+  timezone: string;
+  startsAt: Date[];
+}): Promise<string> {
+  await requireMembership(input.clubId, input.userId, 'admin');
+  const round = await loadRound(input.roundId);
+  if (round.clubId !== input.clubId || round.status !== 'winner_selected' || !round.winnerNominationId) {
+    throw new ConflictError('Choose a winning film before asking for availability.');
+  }
+  const uniqueTimes = [...new Map(input.startsAt.map((date) => [date.toISOString(), date])).values()];
+  if (uniqueTimes.length < 2 || uniqueTimes.length > 8) {
+    throw new ValidationError('Offer between two and eight different times.');
+  }
+  if (uniqueTimes.some((date) => date.getTime() <= Date.now())) {
+    throw new ValidationError('Poll times must be in the future.');
+  }
+
+  const [winner] = await db
+    .select({ movieId: nominations.movieId })
+    .from(nominations)
+    .where(and(eq(nominations.id, round.winnerNominationId), eq(nominations.roundId, round.id)))
+    .limit(1);
+  if (!winner) throw new ConflictError('The winning film is no longer available.');
+
+  return db.transaction(async (tx) => {
+    const [poll] = await tx
+      .insert(screeningPolls)
+      .values({
+        clubId: input.clubId,
+        roundId: input.roundId,
+        movieId: winner.movieId,
+        timezone: input.timezone,
+        createdByUserId: input.userId,
+      })
+      .returning({ id: screeningPolls.id });
+    await tx.insert(screeningPollOptions).values(
+      uniqueTimes.map((startsAt, sortOrder) => ({ pollId: poll.id, startsAt, sortOrder })),
+    );
+    return poll.id;
+  });
+}
+
+export async function respondToScreeningPoll(input: {
+  pollId: string;
+  optionId: string;
+  userId: string;
+  availability: 'yes' | 'maybe' | 'no';
+}): Promise<void> {
+  const [row] = await db
+    .select({ poll: screeningPolls, optionId: screeningPollOptions.id })
+    .from(screeningPolls)
+    .innerJoin(screeningPollOptions, eq(screeningPollOptions.pollId, screeningPolls.id))
+    .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPollOptions.id, input.optionId)))
+    .limit(1);
+  if (!row) throw new NotFoundError('That time is no longer available.');
+  await requireMembership(row.poll.clubId, input.userId);
+  if (row.poll.status !== 'open') throw new ConflictError('This availability poll is closed.');
+
+  await db
+    .insert(screeningPollResponses)
+    .values({
+      optionId: input.optionId,
+      userId: input.userId,
+      availability: input.availability,
+      respondedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [screeningPollResponses.optionId, screeningPollResponses.userId],
+      set: { availability: input.availability, respondedAt: new Date() },
+    });
+}
+
+export async function cancelScreeningPoll(pollId: string, userId: string): Promise<void> {
+  const [poll] = await db.select().from(screeningPolls).where(eq(screeningPolls.id, pollId)).limit(1);
+  if (!poll) throw new NotFoundError('That availability poll no longer exists.');
+  await requireMembership(poll.clubId, userId, 'admin');
+  await db
+    .update(screeningPolls)
+    .set({ status: 'cancelled', closedAt: new Date() })
+    .where(and(eq(screeningPolls.id, pollId), eq(screeningPolls.status, 'open')));
+}
+
+type ScheduleScreeningInput = {
   clubId: string;
   userId: string;
   movieId: string;
@@ -1250,50 +1406,91 @@ export async function scheduleScreening(input: {
   location: string | null;
   watchLink: string | null;
   notes: string | null;
+};
+
+async function scheduleScreeningRecord(
+  input: ScheduleScreeningInput,
+  tx: DbOrTx,
+): Promise<Screening> {
+  await requireMembership(input.clubId, input.userId, 'admin', tx);
+  if (input.roundId) {
+    const round = await loadRound(input.roundId, tx);
+    assertTransition(round.status, 'screening_scheduled');
+    await tx
+      .update(selectionRounds)
+      .set({ status: 'screening_scheduled', updatedAt: new Date() })
+      .where(eq(selectionRounds.id, input.roundId));
+  }
+
+  const [screening] = await tx
+    .insert(screenings)
+    .values({
+      clubId: input.clubId,
+      roundId: input.roundId,
+      movieId: input.movieId,
+      scheduledAt: input.scheduledAt,
+      timezone: input.timezone,
+      location: input.location,
+      watchLink: input.watchLink,
+      notes: input.notes,
+      createdByUserId: input.userId,
+    })
+    .returning();
+
+  await tx
+    .update(clubQueueItems)
+    .set({ removedAt: new Date() })
+    .where(and(eq(clubQueueItems.clubId, input.clubId), eq(clubQueueItems.movieId, input.movieId)));
+  await tx.insert(activityEvents).values({
+    actorId: input.userId,
+    type: 'club_screening_scheduled',
+    clubId: input.clubId,
+    movieId: input.movieId,
+    screeningId: screening.id,
+    visibility: 'private',
+  });
+  return screening;
+}
+
+export async function scheduleScreening(input: ScheduleScreeningInput): Promise<Screening> {
+  return db.transaction((tx) => scheduleScreeningRecord(input, tx));
+}
+
+export async function confirmScreeningPollOption(input: {
+  pollId: string;
+  optionId: string;
+  userId: string;
 }): Promise<Screening> {
-  await requireMembership(input.clubId, input.userId, 'admin');
+  const [candidate] = await db
+    .select({ poll: screeningPolls, startsAt: screeningPollOptions.startsAt })
+    .from(screeningPolls)
+    .innerJoin(screeningPollOptions, eq(screeningPollOptions.pollId, screeningPolls.id))
+    .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPollOptions.id, input.optionId)))
+    .limit(1);
+  if (!candidate) throw new NotFoundError('That time is no longer available.');
+  await requireMembership(candidate.poll.clubId, input.userId, 'admin');
 
   return db.transaction(async (tx) => {
-    if (input.roundId) {
-      const round = await loadRound(input.roundId, tx);
-      assertTransition(round.status, 'screening_scheduled');
-      await tx
-        .update(selectionRounds)
-        .set({ status: 'screening_scheduled', updatedAt: new Date() })
-        .where(eq(selectionRounds.id, input.roundId));
-    }
-
-    const [screening] = await tx
-      .insert(screenings)
-      .values({
-        clubId: input.clubId,
-        roundId: input.roundId,
-        movieId: input.movieId,
-        scheduledAt: input.scheduledAt,
-        timezone: input.timezone,
-        location: input.location,
-        watchLink: input.watchLink,
-        notes: input.notes,
-        createdByUserId: input.userId,
-      })
-      .returning();
-
-    // A scheduled film leaves the queue; it is no longer a suggestion.
-    await tx
-      .update(clubQueueItems)
-      .set({ removedAt: new Date() })
-      .where(and(eq(clubQueueItems.clubId, input.clubId), eq(clubQueueItems.movieId, input.movieId)));
-
-    await tx.insert(activityEvents).values({
-      actorId: input.userId,
-      type: 'club_screening_scheduled',
-      clubId: input.clubId,
-      movieId: input.movieId,
-      screeningId: screening.id,
-      visibility: 'private',
-    });
-
-    return screening;
+    const [claimed] = await tx
+      .update(screeningPolls)
+      .set({ status: 'closed', closedAt: new Date() })
+      .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPolls.status, 'open')))
+      .returning({ id: screeningPolls.id });
+    if (!claimed) throw new ConflictError('This poll has already been closed.');
+    return scheduleScreeningRecord(
+      {
+        clubId: candidate.poll.clubId,
+        userId: input.userId,
+        movieId: candidate.poll.movieId,
+        roundId: candidate.poll.roundId,
+        scheduledAt: candidate.startsAt,
+        timezone: candidate.poll.timezone,
+        location: null,
+        watchLink: null,
+        notes: null,
+      },
+      tx,
+    );
   });
 }
 
@@ -2772,7 +2969,7 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
           closesAt: null,
           recipientName: member.displayName,
         }),
-        { dedupePrefix: `submissions:${round.id}` },
+        { dedupePrefix: `submissions:${round.id}`, preference: 'picksAndVoting' },
       );
 
       opened.push({ clubId: club.id, clubName: club.name, roundId: round.id });
@@ -2816,4 +3013,64 @@ export async function getScreeningsNeedingReminder(withinHours = 24) {
         lt(screenings.scheduledAt, horizon),
       ),
     );
+}
+
+export async function dispatchScreeningReminders(
+  withinHours = 24,
+): Promise<{ queued: number; screenings: number }> {
+  const due = await getScreeningsNeedingReminder(withinHours);
+  let queued = 0;
+  let sentFor = 0;
+
+  for (const row of due) {
+    const result = await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(screenings)
+        .set({ reminderSentAt: new Date() })
+        .where(and(eq(screenings.id, row.screening.id), isNull(screenings.reminderSentAt)))
+        .returning({ id: screenings.id });
+      if (!claimed) return 0;
+
+      const [club] = await tx.select().from(clubs).where(eq(clubs.id, row.screening.clubId)).limit(1);
+      if (!club) return 0;
+      const when = new Intl.DateTimeFormat('en-CA', {
+        timeZone: row.screening.timezone,
+        dateStyle: 'full',
+        timeStyle: 'short',
+      }).format(row.screening.scheduledAt);
+
+      await notifyClub(
+        club.id,
+        {
+          type: 'club_screening_reminder',
+          url: `/club/${club.slug}/screening/${row.screening.id}`,
+          body: `${row.movie.title} is coming up`,
+          dedupeKey: `screening-reminder:${row.screening.id}`,
+        },
+        tx,
+      );
+      return queueClubEmail(
+        club.id,
+        'screening_reminder',
+        `${row.movie.title} is coming up`,
+        (member) => ({
+          clubName: club.name,
+          clubSlug: club.slug,
+          screeningId: row.screening.id,
+          movieTitle: row.movie.title,
+          when,
+          location: row.screening.location,
+          recipientName: member.displayName,
+        }),
+        {
+          dedupePrefix: `screening-reminder:${row.screening.id}`,
+          preference: 'movieNightReminders',
+        },
+        tx,
+      );
+    });
+    queued += result;
+    sentFor += 1;
+  }
+  return { queued, screenings: sentFor };
 }

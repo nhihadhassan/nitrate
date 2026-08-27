@@ -27,6 +27,8 @@ import {
   closeVoting,
   closePicks,
   completeScreening,
+  confirmScreeningPollOption,
+  createScreeningPoll,
   confirmAttendance,
   createClub,
   getClubIntelligence,
@@ -35,13 +37,14 @@ import {
   getClubQueue,
   getClubRatings,
   getRoundNominations,
+  getScreeningPoll,
   joinClubByCode,
   nominate,
   openVoting,
   postDiscussion,
   replaceNomination,
+  respondToScreeningPoll,
   requireMembership,
-  scheduleScreening,
   setRsvp,
   spinWheel,
   startRound,
@@ -385,18 +388,35 @@ suite('nitrate integration', () => {
     expect(revealed.totalsVisible).toBe(true);
     expect(revealed.nominations[0].voteCount).toBe(2);
 
-    // Schedule, RSVP, complete.
-    const screening = await scheduleScreening({
+    // Ask for availability, let members revise answers, then atomically turn
+    // the chosen option into the one screening for this round.
+    const firstTime = new Date(Date.now() + 86_400_000);
+    const secondTime = new Date(Date.now() + 2 * 86_400_000);
+    const pollId = await createScreeningPoll({
       clubId: club.id,
-      userId: alex.id,
-      movieId: heat.id,
       roundId: round.id,
-      scheduledAt: new Date(Date.now() + 86_400_000),
+      userId: alex.id,
       timezone: 'Europe/London',
-      location: "Alex's flat",
-      watchLink: null,
-      notes: null,
+      startsAt: [firstTime, secondTime],
     });
+    const emptyPoll = await getScreeningPoll(round.id, maya.id);
+    expect(emptyPoll?.options).toHaveLength(2);
+    await respondToScreeningPoll({ pollId, optionId: emptyPoll!.options[0].id, userId: maya.id, availability: 'maybe' });
+    await respondToScreeningPoll({ pollId, optionId: emptyPoll!.options[0].id, userId: maya.id, availability: 'yes' });
+    await respondToScreeningPoll({ pollId, optionId: emptyPoll!.options[1].id, userId: noor.id, availability: 'no' });
+    const answeredPoll = await getScreeningPoll(round.id, maya.id);
+    expect(answeredPoll?.options[0].yes).toBe(1);
+    expect(answeredPoll?.options[0].viewerResponse).toBe('yes');
+
+    const screening = await confirmScreeningPollOption({
+      pollId,
+      optionId: emptyPoll!.options[0].id,
+      userId: alex.id,
+    });
+    expect(screening.scheduledAt.toISOString()).toBe(firstTime.toISOString());
+    await expect(
+      confirmScreeningPollOption({ pollId, optionId: emptyPoll!.options[1].id, userId: alex.id }),
+    ).rejects.toThrow(/closed/i);
 
     await setRsvp(screening.id, maya.id, 'going');
     await setRsvp(screening.id, noor.id, 'cant');

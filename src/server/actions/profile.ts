@@ -77,6 +77,24 @@ export async function updatePrivacyAction(
   });
 }
 
+const emailPreferencesSchema = z.object({
+  emailMovieNightReminders: z.boolean(),
+  emailPicksAndVoting: z.boolean(),
+  emailWinnerSelected: z.boolean(),
+});
+
+export async function updateEmailPreferencesAction(
+  input: z.infer<typeof emailPreferencesSchema>,
+): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = emailPreferencesSchema.parse(input);
+    await db.update(users).set({ ...parsed, updatedAt: new Date() }).where(eq(users.id, user.id));
+    revalidatePath('/settings/notifications');
+    return null;
+  });
+}
+
 const usernameSchema = z
   .string()
   .trim()

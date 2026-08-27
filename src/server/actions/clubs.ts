@@ -17,6 +17,8 @@ import {
   closeVoting,
   closePicks,
   completeScreening,
+  confirmScreeningPollOption,
+  createScreeningPoll,
   extendPickDeadline,
   confirmAttendance,
   createClub,
@@ -32,6 +34,7 @@ import {
   replaceNomination,
   removeFromQueue,
   removeMember,
+  respondToScreeningPoll,
   requireMembership,
   scheduleScreening,
   setMemberRole,
@@ -44,6 +47,7 @@ import {
   updateClub,
   updateScreening,
   withdrawNomination,
+  cancelScreeningPoll,
 } from '@/server/services/clubs';
 import { notify, notifyClub } from '@/server/services/notifications';
 
@@ -546,6 +550,88 @@ export async function cancelRoundAction(
 /* -------------------------------------------------------------------------- */
 /* Screenings                                                                 */
 /* -------------------------------------------------------------------------- */
+
+const pollSchema = z.object({
+  clubId: z.string().uuid(),
+  clubSlug: z.string().min(1),
+  roundId: z.string().uuid(),
+  timezone: z.string().min(1).max(64),
+  startsAt: z.array(z.string().datetime()).min(2).max(8),
+});
+
+export async function createScreeningPollAction(
+  input: z.infer<typeof pollSchema>,
+): Promise<ActionResult<{ pollId: string }>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = pollSchema.parse(input);
+    const pollId = await createScreeningPoll({
+      ...parsed,
+      userId: user.id,
+      startsAt: parsed.startsAt.map((value) => new Date(value)),
+    });
+    revalidatePath(`/club/${parsed.clubSlug}`);
+    return { pollId };
+  });
+}
+
+const pollResponseSchema = z.object({
+  pollId: z.string().uuid(),
+  optionId: z.string().uuid(),
+  clubSlug: z.string().min(1),
+  availability: z.enum(['yes', 'maybe', 'no']),
+});
+
+export async function respondToScreeningPollAction(
+  input: z.infer<typeof pollResponseSchema>,
+): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = pollResponseSchema.parse(input);
+    await respondToScreeningPoll({ ...parsed, userId: user.id });
+    revalidatePath(`/club/${parsed.clubSlug}`);
+    return null;
+  });
+}
+
+export async function cancelScreeningPollAction(input: {
+  pollId: string;
+  clubSlug: string;
+}): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z.object({ pollId: z.string().uuid(), clubSlug: z.string().min(1) }).parse(input);
+    await cancelScreeningPoll(parsed.pollId, user.id);
+    revalidatePath(`/club/${parsed.clubSlug}`);
+    return null;
+  });
+}
+
+export async function confirmScreeningPollOptionAction(input: {
+  pollId: string;
+  optionId: string;
+  clubSlug: string;
+}): Promise<ActionResult<{ screeningId: string }>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z
+      .object({ pollId: z.string().uuid(), optionId: z.string().uuid(), clubSlug: z.string().min(1) })
+      .parse(input);
+    const screening = await confirmScreeningPollOption({ ...parsed, userId: user.id });
+    const club = await getClubById(screening.clubId);
+    const movie = await getMovieById(screening.movieId);
+    await track('screening_scheduled', user.id, { clubId: club.id, screeningId: screening.id, fromPoll: true });
+    await notifyClub(club.id, {
+      actorId: user.id,
+      type: 'club_screening_scheduled',
+      url: `/club/${club.slug}/screening/${screening.id}`,
+      body: `${club.name} is watching ${movie.title}`,
+      dedupeKey: `screening:${screening.id}`,
+    });
+    revalidatePath(`/club/${parsed.clubSlug}`);
+    return { screeningId: screening.id };
+  });
+}
 
 const scheduleSchema = z.object({
   clubId: z.string().uuid(),

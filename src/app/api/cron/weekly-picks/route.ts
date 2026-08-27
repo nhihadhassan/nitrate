@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { env } from '@/env';
 import { flushEmailQueue } from '@/server/email/queue';
-import { openDueWeeklyRounds } from '@/server/services/clubs';
+import { dispatchScreeningReminders, openDueWeeklyRounds } from '@/server/services/clubs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,12 +31,14 @@ export async function GET(request: Request) {
   const started = Date.now();
   try {
     const opened = await openDueWeeklyRounds();
+    const reminders = await dispatchScreeningReminders();
     const mail = await flushEmailQueue(60);
 
     return NextResponse.json({
       ok: true,
       openedRounds: opened.length,
       clubs: opened.map((o) => o.clubName),
+      reminders,
       email: mail,
       ms: Date.now() - started,
     });

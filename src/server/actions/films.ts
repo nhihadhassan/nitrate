@@ -13,6 +13,7 @@ import {
   logFilm,
   updateDiaryEntry,
   updateFilmState,
+  updateWatchlistNote,
 } from '@/server/services/films';
 
 const filmRef = z
@@ -137,6 +138,21 @@ export async function updateFilmStateAction(
 
     revalidatePath(`/film/${movie.slug}`);
     return { movieSlug: movie.slug };
+  });
+}
+
+export async function updateWatchlistNoteAction(input: {
+  movieId: string;
+  note: string | null;
+}): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z
+      .object({ movieId: z.string().uuid(), note: z.string().trim().max(500).nullable() })
+      .parse(input);
+    await updateWatchlistNote(user.id, parsed.movieId, parsed.note?.trim() || null);
+    revalidatePath('/watchlist');
+    return null;
   });
 }
 
