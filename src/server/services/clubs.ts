@@ -4,6 +4,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
+import { clubHref, screeningHref } from '@/lib/links';
 import { formatRuntime, slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
 import {
@@ -1073,7 +1074,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
       .returning();
 
     if (!updated) {
-      throw new ConflictError('Someone just spun the wheel. Refresh to see the result.');
+      throw new ConflictError('Someone just spun the wheel — here is the result.');
     }
 
     await tx.insert(activityEvents).values({
@@ -1908,6 +1909,92 @@ export async function getScreeningAttendance(screeningId: string) {
     .where(eq(attendances.screeningId, screeningId));
 }
 
+export type ClubPulse = {
+  round: {
+    id: string;
+    status: SelectionRound['status'];
+    pickCount: number;
+    voteCount: number;
+    picksClosedAt: string | null;
+    winnerNominationId: string | null;
+  } | null;
+  screening: {
+    id: string;
+    status: Screening['status'];
+    scheduledAt: string;
+    goingCount: number;
+    ratingCount: number;
+  } | null;
+  discussionPostCount: number;
+};
+
+/**
+ * A small fingerprint of everything that changes during a live club round —
+ * picks landing, voting opening, votes coming in, the wheel spinning, a
+ * winner landing, a screening getting scheduled, RSVPs and the discussion.
+ * Cheap enough to poll: a handful of indexed lookups, no joins across the
+ * whole club. Callers diff this against their last-seen value rather than
+ * this function computing a hash itself.
+ *
+ * `screeningId` scopes the screening fields to one specific screening (the
+ * screening detail page already knows which one) — omit it to fall back to
+ * whatever is next scheduled (what the club dashboard cares about).
+ */
+export async function getClubPulse(clubId: string, screeningId?: string | null): Promise<ClubPulse> {
+  const [round, screening] = await Promise.all([
+    getActiveRound(clubId),
+    screeningId ? getScreeningById(screeningId).catch(() => null) : getUpcomingScreening(clubId).then((row) => row?.screening ?? null),
+  ]);
+
+  const [pickCountRow, voteCountRow] = round
+    ? await Promise.all([
+        db
+          .select({ value: count() })
+          .from(nominations)
+          .where(and(eq(nominations.roundId, round.id), isNull(nominations.withdrawnAt))),
+        db.select({ value: count() }).from(votes).where(eq(votes.roundId, round.id)),
+      ])
+    : [null, null];
+
+  const [goingCountRow, discussionCountRow] = screening
+    ? await Promise.all([
+        db
+          .select({ value: count() })
+          .from(attendances)
+          .where(and(eq(attendances.screeningId, screening.id), eq(attendances.rsvp, 'going'))),
+        db
+          .select({ value: count() })
+          .from(clubDiscussionPosts)
+          .where(
+            and(eq(clubDiscussionPosts.screeningId, screening.id), isNull(clubDiscussionPosts.deletedAt)),
+          ),
+      ])
+    : [null, null];
+
+  return {
+    round: round
+      ? {
+          id: round.id,
+          status: round.status,
+          pickCount: Number(pickCountRow?.[0]?.value ?? 0),
+          voteCount: Number(voteCountRow?.[0]?.value ?? 0),
+          picksClosedAt: round.picksClosedAt?.toISOString() ?? null,
+          winnerNominationId: round.winnerNominationId,
+        }
+      : null,
+    screening: screening
+      ? {
+          id: screening.id,
+          status: screening.status,
+          scheduledAt: screening.scheduledAt.toISOString(),
+          goingCount: Number(goingCountRow?.[0]?.value ?? 0),
+          ratingCount: screening.groupRatingCount,
+        }
+      : null,
+    discussionPostCount: Number(discussionCountRow?.[0]?.value ?? 0),
+  };
+}
+
 export async function getUserClubs(userId: string) {
   return db
     .select({
@@ -1930,6 +2017,168 @@ export async function getUserClubs(userId: string) {
       and(eq(clubMembers.userId, userId), eq(clubMembers.status, 'active'), isNull(clubs.deletedAt)),
     )
     .orderBy(desc(clubs.updatedAt));
+}
+
+export type ClubAttentionKind = 'tonight' | 'rate' | 'vote' | 'spin' | 'pick' | 'schedule' | 'rsvp';
+
+export type ClubAttentionItem = {
+  kind: ClubAttentionKind;
+  clubId: string;
+  clubSlug: string;
+  clubName: string;
+  /** One line naming the action. */
+  title: string;
+  subtitle?: string;
+  href: string;
+  movie?: { slug: string; title: string; year: number | null; posterPath: string | null } | null;
+};
+
+const ATTENTION_PRIORITY: ClubAttentionKind[] = [
+  'tonight',
+  'rate',
+  'vote',
+  'spin',
+  'pick',
+  'schedule',
+  'rsvp',
+];
+
+/** Screening night counts as "tonight" from four hours before it starts. */
+const ATTENTION_WATCH_WINDOW_MS = 1000 * 60 * 60 * 4;
+/** How far ahead a scheduled screening starts asking for an RSVP. */
+const ATTENTION_RSVP_WINDOW_MS = 1000 * 60 * 60 * 24 * 30;
+
+/**
+ * What a member personally needs to do, right now, across every club they
+ * belong to. This is the "things I need to do" list, as opposed to the
+ * "things I can browse" that the rest of the club page offers — it feeds the
+ * Home "Right now" band. Returns an empty array when nothing is due; callers
+ * should render nothing rather than an empty dashboard.
+ */
+export async function getClubAttention(userId: string): Promise<ClubAttentionItem[]> {
+  const memberships = await getUserClubs(userId);
+  if (!memberships.length) return [];
+
+  const perClub = await Promise.all(
+    memberships.map(async ({ club, role }): Promise<ClubAttentionItem[]> => {
+      const isAdmin = role !== 'member';
+      const found: ClubAttentionItem[] = [];
+      const base = { clubId: club.id, clubSlug: club.slug, clubName: club.name };
+
+      const [round, upcoming, completed] = await Promise.all([
+        getActiveRound(club.id),
+        getUpcomingScreening(club.id),
+        getRecentlyCompleted(club.id, 1, userId),
+      ]);
+
+      if (round) {
+        if (round.status === 'nominations_open') {
+          const picks = await getRoundNominations(round.id, userId);
+          const myPickCount = picks.nominations.filter((n) => n.nominatedBy.id === userId).length;
+          const pickingOpen = !round.picksClosedAt && !(round.nominationsCloseAt && round.nominationsCloseAt.getTime() <= Date.now());
+          if (pickingOpen && myPickCount < round.nominationLimitPerMember) {
+            found.push({
+              ...base,
+              kind: 'pick',
+              title: `Pick your movie for ${club.name}`,
+              subtitle: 'Choose the next movie',
+              href: clubHref(club),
+            });
+          } else if (round.mode === 'wheel') {
+            const members = await getClubMembers(club.id);
+            const allPicked =
+              members.length > 0 &&
+              members.every((member) => (picks.memberPickCounts[member.id] ?? 0) >= round.nominationLimitPerMember);
+            if (allPicked || round.picksClosedAt) {
+              found.push({
+                ...base,
+                kind: 'spin',
+                title: `Spin the wheel for ${club.name}`,
+                subtitle: 'Everyone has picked — any member can spin.',
+                href: clubHref(club),
+              });
+            }
+          }
+        } else if (round.status === 'voting_open') {
+          const picks = await getRoundNominations(round.id, userId);
+          if (!picks.viewerVoted) {
+            found.push({
+              ...base,
+              kind: 'vote',
+              title: `Vote in ${club.name}`,
+              subtitle: 'The picks are in.',
+              href: clubHref(club),
+            });
+          }
+        } else if (round.status === 'winner_selected' && isAdmin) {
+          found.push({
+            ...base,
+            kind: 'schedule',
+            title: `Schedule movie night for ${club.name}`,
+            subtitle: 'A winner has been chosen.',
+            href: clubHref(club),
+          });
+        }
+      }
+
+      if (upcoming) {
+        const msUntil = upcoming.screening.scheduledAt.getTime() - Date.now();
+        const href = screeningHref(club, upcoming.screening);
+        const movie = {
+          slug: upcoming.movie.slug,
+          title: upcoming.movie.title,
+          year: upcoming.movie.year,
+          posterPath: upcoming.movie.posterPath,
+        };
+        if (msUntil <= ATTENTION_WATCH_WINDOW_MS) {
+          found.push({
+            ...base,
+            kind: 'tonight',
+            title: `${upcoming.movie.title} is on tonight`,
+            subtitle: club.name,
+            href,
+            movie,
+          });
+        } else if (msUntil <= ATTENTION_RSVP_WINDOW_MS) {
+          const attendance = await getScreeningAttendance(upcoming.screening.id);
+          const mine = attendance.find((row) => row.userId === userId);
+          if (!mine?.rsvp) {
+            found.push({
+              ...base,
+              kind: 'rsvp',
+              title: `RSVP for ${club.name}`,
+              subtitle: `${upcoming.movie.title} is coming up.`,
+              href,
+              movie,
+            });
+          }
+        }
+      }
+
+      const dueRating = completed.find((entry) => entry.ratingsHidden);
+      if (dueRating) {
+        found.push({
+          ...base,
+          kind: 'rate',
+          title: `Rate ${dueRating.movie.title}`,
+          subtitle: `${club.name} is waiting to see the spread.`,
+          href: screeningHref(club, dueRating.screening),
+          movie: {
+            slug: dueRating.movie.slug,
+            title: dueRating.movie.title,
+            year: dueRating.movie.year,
+            posterPath: dueRating.movie.posterPath,
+          },
+        });
+      }
+
+      return found;
+    }),
+  );
+
+  return perClub
+    .flat()
+    .sort((a, b) => ATTENTION_PRIORITY.indexOf(a.kind) - ATTENTION_PRIORITY.indexOf(b.kind));
 }
 
 export type HistoryEntry = CompletedScreening & { round: SelectionRound | null };

@@ -117,6 +117,19 @@ name has now changed twice, which paid for the abstraction twice over — the
 procedure, including the handful of files that cannot import TypeScript, is in
 `docs/RENAMING.md`.
 
+**Live club updates are visibility-aware polling, not a stream.** A club page
+mounts `ClubPulseWatcher`, which polls a small `/api/club/[clubId]/pulse`
+fingerprint (round status, pick/vote counts, screening status, RSVP and
+discussion counts) every 5s while the tab is visible, backs off to 20s after two
+idle minutes, and stops after ten — resuming on focus. On a changed fingerprint
+it calls `router.refresh()` and raises one quiet toast for the transitions worth
+noticing (voting opens, a winner lands, movie night is scheduled). No new
+infrastructure: it is membership-gated reads against tables that already exist,
+same as every other club page load. SSE was considered and rejected — Vercel
+serverless function duration limits make a long-lived stream unreliable here,
+and a handful of indexed counts every few seconds is cheap enough not to need
+one.
+
 ---
 
 ## Database isolation
@@ -218,13 +231,15 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
 | 11 Aug 2026 | Deployment protection turned off — the site is public |
 | 11 Aug 2026 | Resend configured on a verified sending domain; live send confirmed |
 | 11 Aug 2026 | `NEXT_PUBLIC_SITE_URL` set in production — the first test email carried `localhost` links |
+| 27 Aug 2026 | Product polish pass: cinematic landing page, curated Explore rails, Home "Right now" band, club lifecycle clarity, live club updates via polling, CI added |
 
 ---
 
 ## Things deliberately not done
 
-- **Real-time push.** No websockets or SSE. Pages are fresh on load and on your
-  own actions; someone else's spin does not move your screen until you refresh.
+- **A push-based real-time transport (websockets/SSE).** Club pages poll a
+  small fingerprint endpoint instead — see "Live club updates" above. Everyday
+  pages are still fresh on load and on your own actions only.
 - **Renaming internal identifiers** after the rebrand — schema, role, cookie,
   localStorage keys, CSS animation names. Costs a migration and signs everyone
   out, for nothing a user can see.

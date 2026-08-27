@@ -90,6 +90,16 @@ export async function getEditorialRails(): Promise<EditorialRails> {
   };
 }
 
+/**
+ * Just the genre list, for pages that only need the chip filter and would
+ * otherwise pay for the full editorial-rails ingest (five provider calls
+ * plus a local write) just to read one of its five fields.
+ */
+export async function getGenres(): Promise<ProviderGenre[]> {
+  const result = await withProvider((p) => p.genres());
+  return result.data;
+}
+
 /** Watchlists are personal, so this only uses friends who made theirs public. */
 export async function getFriendsWantToWatch(userId: string, limit = 12): Promise<RailFilm[]> {
   const rows = await db

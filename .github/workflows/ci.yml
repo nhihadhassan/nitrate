@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    # Dummy values only — the whole app is force-dynamic and every DB access
+    # is lazy, so typecheck/lint/test/build never need a live database.
+    # test:integration (opt-in, requires its own TEST_DATABASE_URL) is
+    # deliberately not run here.
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci_dummy
+      SESSION_SECRET: ci-dummy-secret-at-least-32-bytes-long-000000
+      MOVIE_PROVIDER: offline
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify (typecheck, lint, unit tests, build)
+        run: npm run verify

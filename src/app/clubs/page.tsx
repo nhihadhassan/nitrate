@@ -146,6 +146,16 @@ export default async function ClubsPage() {
             ))}
           </ul>
         </section>
+      ) : !user ? (
+        <EmptyState
+          title="Most clubs run privately"
+          description="Public clubs are the exception — most groups keep theirs invisible to outsiders by design. Create an account and start one with your own friends instead."
+          action={
+            <Button asChild variant="iris">
+              <Link href="/signup">Join to start one</Link>
+            </Button>
+          }
+        />
       ) : null}
     </Container>
   );

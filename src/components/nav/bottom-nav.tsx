@@ -43,8 +43,7 @@ export function BottomNav({ user, unreadCount }: { user: NavUser | null; unreadC
               <button
                 type="button"
                 onClick={() => (user ? open({}) : (window.location.href = '/login'))}
-                className="-mt-5 flex h-13 w-13 touch-manipulation items-center justify-center rounded-full bg-ember text-white shadow-pop transition-transform active:scale-95"
-                style={{ height: '3.25rem', width: '3.25rem' }}
+                className="-mt-5 flex h-[3.25rem] w-[3.25rem] touch-manipulation items-center justify-center rounded-full bg-ember text-white shadow-pop transition-transform active:scale-95"
                 aria-label="Log a film"
               >
                 <PlusIcon className="h-6 w-6" strokeWidth={2} />

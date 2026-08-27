@@ -85,14 +85,14 @@ export function WinnerReveal({
             </p>
             <p className="animate-rise mt-4 text-sm text-muted">
               {pluralize(votes, 'vote')}
-              {tied ? ' · tie broken by earliest nomination' : ''}
+              {tied ? ' · tie broken by earliest pick' : ''}
             </p>
             <div className="animate-rise mt-8 flex flex-wrap justify-center gap-2">
               <Button asChild variant="iris">
                 <Link href={filmHref({ slug })}>See the film</Link>
               </Button>
               <Button variant="outline" onClick={onClose}>
-                Schedule Movie Night
+                Continue to scheduling
               </Button>
             </div>
           </>

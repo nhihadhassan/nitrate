@@ -52,15 +52,18 @@ export default async function WatchlistPage({
         </p>
       </header>
 
-      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <nav aria-label="Sort watchlist" className="flex flex-wrap gap-1 text-xs">
+      <div className="mb-5 space-y-2.5">
+        <nav
+          aria-label="Sort watchlist"
+          className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        >
           {SORTS.map((option) => (
             <Link
               key={option.key}
               href={{ pathname: '/watchlist', query: { sort: option.key, decade } }}
               aria-current={activeSort === option.key ? 'true' : undefined}
               className={cn(
-                'rounded-md border px-2.5 py-1 transition-colors',
+                'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
                 activeSort === option.key
                   ? 'border-ember/40 bg-ember/10 text-ember'
                   : 'border-line text-muted hover:text-text',
@@ -71,11 +74,14 @@ export default async function WatchlistPage({
           ))}
         </nav>
 
-        <nav aria-label="Filter by decade" className="flex flex-wrap gap-1 text-xs">
+        <nav
+          aria-label="Filter by decade"
+          className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        >
           <Link
             href={{ pathname: '/watchlist', query: { sort: activeSort } }}
             className={cn(
-              'rounded-md border px-2.5 py-1 transition-colors',
+              'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
               !activeDecade ? 'border-line-strong text-text' : 'border-line text-muted hover:text-text',
             )}
           >
@@ -86,7 +92,7 @@ export default async function WatchlistPage({
               key={d}
               href={{ pathname: '/watchlist', query: { sort: activeSort, decade: d } }}
               className={cn(
-                'rounded-md border px-2.5 py-1 transition-colors tabular',
+                'flex min-h-10 shrink-0 items-center rounded-md border px-3 tabular transition-colors',
                 activeDecade === d
                   ? 'border-line-strong text-text'
                   : 'border-line text-muted hover:text-text',

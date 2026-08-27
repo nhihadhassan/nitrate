@@ -282,7 +282,7 @@ export default async function FilmPage({ params }: Params) {
           <div>
             <SectionHeading
               title="Reviews"
-              linkLabel={movie.logCount ? `${formatCount(movie.logCount)} logged` : undefined}
+              meta={movie.logCount ? `${formatCount(movie.logCount)} logged` : undefined}
             />
             {reviews.length ? (
               <ul className="space-y-5">

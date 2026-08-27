@@ -57,14 +57,17 @@ export default async function SearchPage({
       </div>
 
       {query.length >= 2 ? (
-        <nav aria-label="Filter results" className="mt-4 flex flex-wrap gap-1 text-xs">
+        <nav
+          aria-label="Filter results"
+          className="mobile-tabs -mx-4 mt-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        >
           {SCOPES.map((option) => (
             <Link
               key={option.key}
               href={{ pathname: '/search', query: { q: query, ...(option.key === 'all' ? {} : { type: option.key }) } }}
               aria-current={scope === option.key ? 'true' : undefined}
               className={cn(
-                'rounded-md border px-2.5 py-1 transition-colors',
+                'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
                 scope === option.key
                   ? 'border-ember/40 bg-ember/10 text-ember'
                   : 'border-line text-muted hover:text-text',

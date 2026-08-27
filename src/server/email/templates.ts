@@ -96,7 +96,7 @@ export function wheelWinnerEmail(payload: WheelWinnerPayload): OutboundEmail {
         payload.runtime ? ` — ${escapeHtml(payload.runtime)}` : ''
       }.
     </p>
-    <p style="margin:0;">Submitted by ${escapeHtml(payload.nominatedBy)}. Nobody chose it — the wheel did.</p>`;
+    <p style="margin:0;">Picked by ${escapeHtml(payload.nominatedBy)}. Nobody chose it — the wheel did.</p>`;
 
   const text = [
     `The wheel has spoken in ${payload.clubName}.`,

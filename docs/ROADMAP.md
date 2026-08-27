@@ -13,19 +13,15 @@ was left in place by choice.
 
 What is still worth doing soon:
 
-- **Connect the GitHub repo to Vercel** for push-to-deploy. Deploys are
-  currently manual CLI runs.
 - **Clear the test data** — one account (`ninaverity`) with an undeliverable
   `@nitrate.test` address, and one club. Say the word and it can be wiped.
 - **Make yourself an admin** so `/admin` is reachable (SQL in `docs/HANDOFF.md` §7).
 
-## Next — the obvious gaps
+The GitHub repo is connected to Vercel for push-to-deploy (the "manual CLI
+runs" note here was stale — every push to `main` deploys on its own). CI now
+runs `npm run verify` on every pull request and on `main` (`.github/workflows/ci.yml`).
 
-**Live updates during a spin.** The single biggest gap against expectations. If
-two people are on the club page and one spins, the other should see it happen.
-Simplest honest version: poll the round endpoint every few seconds while a round
-is open. Better: an SSE endpoint per club. This is the difference between
-"synced" and "real time" and it is a real piece of work, not a flag.
+## Next — the obvious gaps
 
 **Installable on phones.** A web app manifest, icons and a service worker would
 let the club add it to their home screen and have it feel like an app. Small
@@ -80,11 +76,12 @@ and reviews. The visibility enum would need a fourth value and an audience table
 
 - **Error monitoring.** Vercel's runtime errors caught two production bugs, but
   something like Sentry would give stack traces against source maps and alerting.
-- **CI.** `npm run verify` passes locally and is never enforced. A GitHub Action
-  on pull requests would stop a regression reaching production.
-- **Integration tests write to the live database.** They clean up after
-  themselves, but pointing them at a Supabase branch or scratch project would be
-  safer.
+- **Integration tests, when run, still write to a real database.** They now
+  require their own `TEST_DATABASE_URL` (distinct from `DATABASE_URL`; see
+  `test/setup-db.ts`) and are opt-in via `npm run test:integration`, so
+  `npm run verify` and CI never touch a database — but pointing
+  `TEST_DATABASE_URL` at a proper Supabase branch rather than a hand-run
+  scratch database would still be safer than what's there today.
 - **Session cleanup.** `pruneExpiredSessions` and `pruneRateLimits` exist but are
   never called. Add them to the daily cron.
 - **A benign warning in production logs.** `TimeoutNegativeWarning` from
