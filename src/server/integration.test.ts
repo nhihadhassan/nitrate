@@ -13,10 +13,12 @@ import {
   importBatches,
   importRows,
   movies,
+  recommendationFeedback,
   shareSnapshots,
   selectionRounds,
   userMovieState,
   users,
+  tasteCircleMembers,
   type Club,
   type Movie,
   type User,
@@ -61,6 +63,12 @@ import { logFilm, updateFilmState } from '@/server/services/films';
 import { getDiary, getProfileStats } from '@/server/services/profile';
 import { search } from '@/server/services/search';
 import { createPersonalRecapShare, getPublicShareSnapshot, revokeShareSnapshot } from '@/server/services/shares';
+import {
+  getActiveRecommendationFeedback,
+  restoreRecommendationFeedback,
+  setRecommendationFeedback,
+  setTasteCircleMember,
+} from '@/server/services/discovery';
 
 /**
  * End-to-end checks against the real database.
@@ -764,6 +772,45 @@ suite('nitrate integration', () => {
     }
     await expect(consumeRateLimit('login', subject)).rejects.toThrow(/too quickly/i);
   }, 30_000);
+
+  /* ---------------------------------------------------------------------- */
+  /* Smarter social discovery                                               */
+  /* ---------------------------------------------------------------------- */
+
+  it('keeps Taste circle membership private, follow-bound and reversible', async () => {
+    await db.insert(follows).values({ followerId: alex.id, followingId: maya.id }).onConflictDoNothing();
+    await setTasteCircleMember(alex.id, maya.id, true);
+    const [membership] = await db
+      .select()
+      .from(tasteCircleMembers)
+      .where(and(eq(tasteCircleMembers.userId, alex.id), eq(tasteCircleMembers.memberUserId, maya.id)));
+    expect(membership).toBeTruthy();
+
+    await setTasteCircleMember(alex.id, maya.id, false);
+    const removed = await db
+      .select()
+      .from(tasteCircleMembers)
+      .where(and(eq(tasteCircleMembers.userId, alex.id), eq(tasteCircleMembers.memberUserId, maya.id)));
+    expect(removed).toHaveLength(0);
+  });
+
+  it('stores expiring recommendation feedback and allows manual restoration', async () => {
+    await setRecommendationFeedback({
+      userId: alex.id,
+      targetType: 'movie',
+      targetId: heat.id,
+      kind: 'hide',
+      reasonKind: 'friend_loved',
+    });
+    const active = await getActiveRecommendationFeedback(alex.id);
+    const item = active.find((row) => row.targetId === heat.id);
+    expect(item?.expiresAt).toBeInstanceOf(Date);
+    expect(item!.expiresAt!.getTime()).toBeGreaterThan(Date.now() + 89 * 24 * 60 * 60 * 1000);
+
+    await restoreRecommendationFeedback(alex.id, item!.id);
+    expect((await getActiveRecommendationFeedback(alex.id)).some((row) => row.id === item!.id)).toBe(false);
+    await db.delete(recommendationFeedback).where(eq(recommendationFeedback.userId, alex.id));
+  });
 
   /* ---------------------------------------------------------------------- */
   /* Import idempotency                                                     */
