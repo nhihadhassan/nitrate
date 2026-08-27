@@ -8,7 +8,7 @@ import { syntheticHistorySnapshot } from '@/test-fixtures/history';
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Synthetic history fixtures', robots: { index: false, follow: false } };
 
-const STATES = ['recap-normal', 'recap-sparse', 'yearbook', 'taste-limited', 'taste-established', 'private', 'blocked', 'failure'];
+const STATES = ['recap-normal', 'recap-sparse', 'recap-imported', 'recap-high-volume', 'yearbook', 'taste-limited', 'taste-established', 'private', 'blocked', 'failure'];
 
 export default async function HistoryFixturePage({ searchParams }: { searchParams: Promise<{ state?: string }> }) {
   if (process.env.ALLOW_SYNTHETIC_FIXTURES !== 'true') notFound();

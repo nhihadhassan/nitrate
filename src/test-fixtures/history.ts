@@ -84,6 +84,13 @@ function taste(overlap: number): TasteComparison {
 export function syntheticHistorySnapshot(state: string): ShareSnapshot | null {
   const createdAt = '2026-08-27T12:00:00.000Z';
   if (state === 'recap-sparse') return { version: 1, kind: 'personal_recap', createdAt, payload: recap(3) };
+  if (state === 'recap-high-volume') return { version: 1, kind: 'personal_recap', createdAt, payload: recap(5000) };
+  if (state === 'recap-imported') {
+    const imported = recap(24);
+    imported.title = 'An imported history, made yours';
+    imported.closingLine = 'Imported dates and ratings use the same recap rules as entries logged in Nitrate.';
+    return { version: 1, kind: 'personal_recap', createdAt, payload: imported };
+  }
   if (state === 'yearbook') return { version: 1, kind: 'club_yearbook', createdAt, payload: yearbook };
   if (state === 'taste-limited') return { version: 1, kind: 'taste_comparison', createdAt, payload: taste(6) };
   if (state === 'taste-established') return { version: 1, kind: 'taste_comparison', createdAt, payload: taste(42) };
