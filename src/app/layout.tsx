@@ -31,6 +31,7 @@ export const metadata: Metadata = {
   },
   description: BRAND.description,
   applicationName: BRAND.name,
+  manifest: '/manifest.webmanifest',
   openGraph: {
     title: BRAND.name,
     description: BRAND.tagline,
@@ -39,6 +40,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/api/pwa-icon/192', sizes: '192x192', type: 'image/png' }],
   },
 };
 

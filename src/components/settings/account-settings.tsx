@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { InstallNitrate } from '@/components/pwa/install-nitrate';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { formatDateOnly } from '@/lib/utils';
@@ -44,6 +45,14 @@ export function AccountSettings({
             <dd>{formatDateOnly(createdAt.slice(0, 10))}</dd>
           </div>
         </dl>
+      </section>
+
+      <section>
+        <h2 className="text-xl">Install Nitrate</h2>
+        <p className="mt-1.5 text-sm text-muted">
+          Add Nitrate to your home screen for a full-screen app experience. Personal data still requires a connection.
+        </p>
+        <InstallNitrate />
       </section>
 
       <section>
