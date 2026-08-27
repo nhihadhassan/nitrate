@@ -12,6 +12,7 @@ import {
   emailDeliveries,
   importBatches,
   importRows,
+  listActivity,
   movies,
   recommendationFeedback,
   shareSnapshots,
@@ -70,6 +71,18 @@ import {
   setRecommendationFeedback,
   setTasteCircleMember,
 } from '@/server/services/discovery';
+import {
+  addListItem,
+  cloneList,
+  createList,
+  getListDetail,
+  inviteListCollaborator,
+  removeListCollaborator,
+  reorderList,
+  respondToListInvitation,
+  toggleSavedList,
+  updateListItemNote,
+} from '@/server/services/lists';
 
 /**
  * End-to-end checks against the real database.
@@ -818,6 +831,54 @@ suite('nitrate integration', () => {
     expect(context.get(heat.id)?.some((reason) => reason.kind === 'friend_loved')).toBe(true);
     expect(context.get(heat.id)?.every((reason) => typeof reason.kind === 'string')).toBe(true);
   });
+
+  /* ---------------------------------------------------------------------- */
+  /* Shared list curation                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  it('enforces owner/editor roles, activity attribution and stale reorder protection', async () => {
+    const list = await createList({
+      userId: alex.id,
+      title: `Shared curation ${tag}`,
+      description: 'Synthetic collaboration test',
+      visibility: 'public',
+      isRanked: true,
+      movieIds: [heat.id],
+    });
+    const { invitation } = await inviteListCollaborator(list.id, alex.id, maya.username);
+    await respondToListInvitation(invitation.id, maya.id, 'accept');
+
+    const initial = await getListDetail(list.id, { id: maya.id, role: 'member' });
+    expect(initial.canEdit).toBe(true);
+    expect(initial.isOwner).toBe(false);
+    const note = await updateListItemNote(list.id, maya.id, initial.items[0].id, 'Editor note');
+    const added = await addListItem(list.id, maya.id, stalker.id, null);
+    expect(added.added).toBe(true);
+    expect(added.version).toBe(note.version + 1);
+
+    const current = await getListDetail(list.id, { id: maya.id, role: 'member' });
+    const reordered = await reorderList(
+      list.id,
+      maya.id,
+      [...current.items].reverse().map((item) => item.id),
+      current.list.version,
+    );
+    expect(reordered.version).toBe(current.list.version + 1);
+    await expect(reorderList(list.id, maya.id, current.items.map((item) => item.id), current.list.version)).rejects.toThrow(/changed in another tab/i);
+
+    const activity = await db.select().from(listActivity).where(eq(listActivity.listId, list.id));
+    expect(activity.some((entry) => entry.actorUserId === maya.id && entry.action === 'item_added')).toBe(true);
+    expect(activity.some((entry) => entry.action === 'note_updated')).toBe(true);
+    expect(activity.some((entry) => entry.action === 'reordered')).toBe(true);
+
+    expect(await toggleSavedList(list.id, maya.id)).toBe(true);
+    const clone = await cloneList(list.id, maya.id);
+    expect(clone.visibility).toBe('private');
+    expect(clone.clonedFromListId).toBe(list.id);
+
+    await removeListCollaborator(list.id, alex.id, maya.id);
+    await expect(addListItem(list.id, maya.id, heat.id, null)).rejects.toThrow(/cannot edit/i);
+  }, 30_000);
 
   /* ---------------------------------------------------------------------- */
   /* Import idempotency                                                     */
