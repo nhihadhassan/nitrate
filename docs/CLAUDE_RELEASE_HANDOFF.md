@@ -11,7 +11,7 @@ The code on each completed release branch is intended to be reviewed and promote
 ```text
 885ae7e main checkpoint
 └── feat/movie-night-utility              1.3 payload deaaa3a
-    └── codex/nitrate-1-4-history         pending
+    └── codex/nitrate-1-4-history         1.4 payload 3d94239
         └── codex/nitrate-1-5-discovery   pending
             └── codex/nitrate-1-6-curation pending
                 └── codex/nitrate-1-7-library pending
@@ -24,7 +24,7 @@ All listed release branches are local and unpushed. Exact hashes for later relea
 ## Release dossiers
 
 - [1.3 Movie Night Utility](./releases/NITRATE_1_3_CLAUDE_DOSSIER.md)
-- 1.4 Your Taste & Our History — pending
+- [1.4 Your Taste & Our History](./releases/NITRATE_1_4_CLAUDE_DOSSIER.md)
 - 1.5 Smarter Social Discovery — pending
 - 1.6 Shared Curation — pending
 - 1.7 Your Permanent Film Library — pending
@@ -33,6 +33,7 @@ All listed release branches are local and unpushed. Exact hashes for later relea
 ## Migration order
 
 1. `drizzle/0005_movie_night_utility.sql` — Nitrate 1.3
+2. `drizzle/0006_taste_history_shares.sql` — Nitrate 1.4
 
 Later additive migrations will be appended here in strict branch order. Never use a broad migration push against an unverified target.
 
