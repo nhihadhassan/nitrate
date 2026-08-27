@@ -13,6 +13,7 @@ import {
   importBatches,
   importRows,
   movies,
+  shareSnapshots,
   selectionRounds,
   userMovieState,
   users,
@@ -59,6 +60,7 @@ import { getHomeFeed } from '@/server/services/feed';
 import { logFilm, updateFilmState } from '@/server/services/films';
 import { getDiary, getProfileStats } from '@/server/services/profile';
 import { search } from '@/server/services/search';
+import { createPersonalRecapShare, getPublicShareSnapshot, revokeShareSnapshot } from '@/server/services/shares';
 
 /**
  * End-to-end checks against the real database.
@@ -217,6 +219,21 @@ suite('nitrate integration', () => {
     expect(stats.diaryCount).toBe(2);
     expect(stats.rewatchCount).toBe(1);
     expect(stats.averageRating).toBe(10);
+  });
+
+  it('stores only a hashed recap token and revokes the public snapshot', async () => {
+    const createdShare = await createPersonalRecapShare(alex.id, 2025);
+    const [stored] = await db
+      .select({ tokenHash: shareSnapshots.tokenHash })
+      .from(shareSnapshots)
+      .where(eq(shareSnapshots.id, createdShare.id));
+    expect(stored.tokenHash).toHaveLength(32);
+    expect(stored.tokenHash.equals(Buffer.from(createdShare.token, 'base64url'))).toBe(false);
+
+    const snapshot = await getPublicShareSnapshot(createdShare.token);
+    expect(snapshot.kind).toBe('personal_recap');
+    await revokeShareSnapshot(createdShare.id, alex.id);
+    await expect(getPublicShareSnapshot(createdShare.token)).rejects.toThrow(/unavailable/i);
   });
 
   /* ---------------------------------------------------------------------- */

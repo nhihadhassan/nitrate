@@ -1187,6 +1187,36 @@ export const emailDeliveries = nitrate.table(
 );
 
 /* -------------------------------------------------------------------------- */
+/* Revocable public snapshots                                                 */
+/* -------------------------------------------------------------------------- */
+
+export const shareSnapshots = nitrate.table(
+  'share_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'personal_recap' | 'club_yearbook' | 'taste_comparison'>().notNull(),
+    schemaVersion: smallint('schema_version').notNull().default(1),
+    tokenHash: bytea('token_hash').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    sourceUserId: uuid('source_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    comparedUserId: uuid('compared_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    sourceClubId: uuid('source_club_id').references(() => clubs.id, { onDelete: 'cascade' }),
+    sourceYear: smallint('source_year'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('share_snapshots_token_hash_key').on(t.tokenHash),
+    index('share_snapshots_owner_idx').on(t.ownerUserId, t.createdAt),
+    index('share_snapshots_source_idx').on(t.sourceUserId, t.sourceClubId, t.revokedAt),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
 /* Trust & safety                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -1444,3 +1474,4 @@ export type Report = typeof reports.$inferSelect;
 export type ImportBatch = typeof importBatches.$inferSelect;
 export type ImportRow = typeof importRows.$inferSelect;
 export type EmailDelivery = typeof emailDeliveries.$inferSelect;
+export type ShareSnapshotRow = typeof shareSnapshots.$inferSelect;

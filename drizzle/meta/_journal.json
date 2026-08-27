@@ -43,6 +43,13 @@
       "when": 1787900000000,
       "tag": "0005_movie_night_utility",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787950000000,
+      "tag": "0006_taste_history_shares",
+      "breakpoints": true
     }
   ]
 }
