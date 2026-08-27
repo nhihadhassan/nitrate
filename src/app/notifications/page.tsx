@@ -19,6 +19,7 @@ const LABELS: Record<string, string> = {
   list_comment: 'commented on your list',
   comment_reply: 'replied to your comment',
   club_invitation: 'invited you to a club',
+  list_collaboration_invite: 'invited you to edit a list',
   club_member_joined: 'joined the club',
   club_nominations_opened: 'started choosing the next movie',
   club_voting_opened: 'opened voting',
