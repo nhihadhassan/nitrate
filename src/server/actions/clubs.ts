@@ -803,6 +803,9 @@ export async function postDiscussionAction(input: {
   return actionGuard(async () => {
     const user = await requireUser();
     await consumeRateLimit('club_post', user.id);
+    if (/(?:^|\s)@[a-zA-Z0-9_]{3,24}\b/.test(input.body)) {
+      await consumeRateLimit('mention', user.id);
+    }
     await requireMembership(input.clubId, user.id);
 
     const post = await postDiscussion({

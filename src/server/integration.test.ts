@@ -7,6 +7,7 @@ import { db } from '@/server/db';
 import {
   blocks,
   clubs,
+  discussionMentions,
   diaryEntries,
   follows,
   emailDeliveries,
@@ -15,8 +16,11 @@ import {
   listActivity,
   movies,
   ownershipCopies,
+  notifications,
+  profilePins,
   recommendationFeedback,
   shareSnapshots,
+  screenings,
   selectionRounds,
   userMovieState,
   users,
@@ -85,6 +89,9 @@ import {
   toggleSavedList,
   updateListItemNote,
 } from '@/server/services/lists';
+import { setNetworkFlagMode } from '@/server/services/network';
+import { decideClubJoinRequest, requestPublicClubJoin } from '@/server/services/network-clubs';
+import { getProfilePins, setProfilePin } from '@/server/services/profile-pins';
 
 /**
  * End-to-end checks against the real database.
@@ -893,6 +900,36 @@ suite('nitrate integration', () => {
 
     await removeListCollaborator(list.id, alex.id, maya.id);
     await expect(addListItem(list.id, maya.id, heat.id, null)).rejects.toThrow(/cannot edit/i);
+  }, 30_000);
+
+  /* ---------------------------------------------------------------------- */
+  /* Network                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  it('gates public club joining, groups mentions, and exposes only valid profile pins', async () => {
+    const networkMember = await makeUser('network');
+    await setNetworkFlagMode('public_clubs', 'forced_on', alex.id);
+    await db.update(clubs).set({ visibility: 'public', joinPolicy: 'request' }).where(eq(clubs.id, club.id));
+
+    const request = await requestPublicClubJoin(club.id, networkMember.id, 'I enjoy the club fixtures.');
+    await decideClubJoinRequest(request.id, alex.id, 'approved');
+    await expect(requireMembership(club.id, networkMember.id)).resolves.toBeTruthy();
+
+    const [screening] = await db.select({ id: screenings.id }).from(screenings).where(eq(screenings.clubId, club.id)).limit(1);
+    await postDiscussion({ clubId: club.id, screeningId: screening.id, parentId: null, userId: alex.id, body: `Welcome @${networkMember.username}`, containsSpoilers: false });
+    await postDiscussion({ clubId: club.id, screeningId: screening.id, parentId: null, userId: alex.id, body: `A second note for @${networkMember.username}`, containsSpoilers: false });
+    const mentions = await db.select().from(discussionMentions).where(eq(discussionMentions.mentionedUserId, networkMember.id));
+    expect(mentions).toHaveLength(2);
+    const [grouped] = await db.select().from(notifications).where(and(eq(notifications.userId, networkMember.id), eq(notifications.groupKey, `mention:${club.id}:${screening.id}`)));
+    expect(grouped.groupCount).toBe(2);
+
+    const [review] = await db.select({ id: diaryEntries.id }).from(diaryEntries).where(and(eq(diaryEntries.userId, alex.id), eq(diaryEntries.visibility, 'public'), sql`${diaryEntries.reviewText} is not null`)).limit(1);
+    await setProfilePin(alex.id, 'review', review.id, true);
+    const pins = await getProfilePins(alex.id, { id: alex.id, role: 'member' });
+    expect(pins.some((pin) => pin.type === 'review' && pin.href === `/review/${review.id}`)).toBe(true);
+    await db.delete(profilePins).where(eq(profilePins.userId, alex.id));
+    await setNetworkFlagMode('public_clubs', 'auto', alex.id);
+    await db.update(clubs).set({ visibility: 'private', joinPolicy: 'invite_only' }).where(eq(clubs.id, club.id));
   }, 30_000);
 
   /* ---------------------------------------------------------------------- */

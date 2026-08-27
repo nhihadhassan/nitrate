@@ -47,6 +47,7 @@ export type PeopleRecommendation = {
 export async function getPeopleRecommendations(
   viewerId: string,
   limit = 24,
+  options: { includeTaste?: boolean } = {},
 ): Promise<PeopleRecommendation[]> {
   const candidates = await db
     .select({
@@ -141,7 +142,7 @@ export async function getPeopleRecommendations(
       const sharedClubs = (clubsByUser.get(candidate.id) ?? [])
         .filter((row) => viewerClubs.has(row.clubId)).length;
       const mutualFollows = mutualByCandidate.get(candidate.id) ?? 0;
-      const signal = { sharedRatings, sharedFavourites, sharedClubs, mutualFollows };
+      const signal = { sharedRatings: options.includeTaste ? sharedRatings : 0, sharedFavourites: options.includeTaste ? sharedFavourites : [], sharedClubs, mutualFollows };
       return {
         user: candidate,
         reasons: peopleRecommendationReasons(signal),

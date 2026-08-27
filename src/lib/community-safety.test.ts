@@ -1,0 +1,2 @@
+import {describe,expect,it} from 'vitest';import {escapeLikeTerm,safeUsername} from './community-safety';
+describe('community abuse boundaries',()=>{it('reserves staff impersonation variants',()=>{expect(safeUsername('official_nitrate')).toBe(false);expect(safeUsername('NitrateAdmin')).toBe(false);expect(safeUsername('real_person')).toBe(true)});it('escapes wildcard enumeration and bounds input',()=>{expect(escapeLikeTerm('%_\\')).toBe('\\%\\_\\\\');expect(escapeLikeTerm('a'.repeat(100))).toHaveLength(80)})});

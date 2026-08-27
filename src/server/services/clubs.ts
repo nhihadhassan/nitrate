@@ -12,6 +12,7 @@ import {
   activityEvents,
   attendances,
   clubDiscussionPosts,
+  discussionMentions,
   clubInvites,
   clubMembers,
   clubQueueItems,
@@ -37,7 +38,7 @@ import {
   type SelectionRound,
 } from '@/server/db/schema';
 import { queueClubEmail } from '@/server/email/queue';
-import { notifyClub } from '@/server/services/notifications';
+import { notify, notifyClub } from '@/server/services/notifications';
 import {
   ConflictError,
   NotFoundError,
@@ -1824,6 +1825,23 @@ export async function postDiscussion(input: {
         containsSpoilers: input.containsSpoilers,
       })
       .returning({ id: clubDiscussionPosts.id });
+
+    const usernames = Array.from(new Set(Array.from(body.matchAll(/(?:^|\s)@([a-zA-Z0-9_]{3,24})\b/g), (match) => match[1].toLowerCase()))).slice(0, 10);
+    if (usernames.length) {
+      const mentioned = await tx.select({ id: users.id, username: users.username }).from(users)
+        .innerJoin(clubMembers, and(eq(clubMembers.userId, users.id), eq(clubMembers.clubId, input.clubId), eq(clubMembers.status, 'active')))
+        .where(and(inArray(sql`lower(${users.username})`, usernames), sql`${users.id} <> ${input.userId}`, isNull(users.deletedAt), isNull(users.suspendedAt)));
+      if (mentioned.length) {
+        const [club] = await tx
+          .select({ slug: clubs.slug })
+          .from(clubs)
+          .where(eq(clubs.id, input.clubId))
+          .limit(1);
+        if (!club) throw new NotFoundError('That club no longer exists.');
+        await tx.insert(discussionMentions).values(mentioned.map((member) => ({ postId: post.id, mentionedUserId: member.id }))).onConflictDoNothing();
+        for (const member of mentioned) await notify({ userId: member.id, actorId: input.userId, type: 'mention', clubId: input.clubId, subjectType: 'club_post', subjectId: post.id, url: input.screeningId ? screeningHref(club, { id: input.screeningId }) : clubHref(club), body: `You were mentioned in a Movie Club discussion`, groupKey: `mention:${input.clubId}:${input.screeningId ?? post.id}` }, tx);
+      }
+    }
 
     if (input.screeningId) {
       await tx

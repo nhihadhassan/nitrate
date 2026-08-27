@@ -11,6 +11,8 @@ import {
   activityEvents,
   blocks,
   comments,
+  clubDiscussionPosts,
+  clubs,
   diaryEntries,
   follows,
   listLikes,
@@ -37,7 +39,7 @@ import { notify } from '@/server/services/notifications';
 
 export async function toggleFollowAction(
   targetUserId: string,
-  source?: 'recommendation',
+  source?: 'recommendation' | 'network',
 ): Promise<ActionResult<{ following: boolean }>> {
   return actionGuard(async () => {
     const user = await requireUser();
@@ -111,6 +113,9 @@ export async function toggleFollowAction(
       });
       if (source === 'recommendation') {
         await track('recommended_follow', user.id, { targetUserId });
+      }
+      if (source === 'network') {
+        await track('network_recommended_follow', user.id, { targetUserId });
       }
     }
 
@@ -444,6 +449,8 @@ export async function reportAction(
     const parsed = reportSchema.parse(input);
 
     const snapshot = await snapshotSubject(parsed.subjectType, parsed.subjectId);
+    if (!snapshot.exists) throw new NotFoundError('That content is no longer available to report.');
+    if (snapshot.ownerId === user.id) throw new ValidationError('You cannot report your own content.');
 
     await db
       .insert(reports)
@@ -469,26 +476,32 @@ export async function reportAction(
 async function snapshotSubject(
   subjectType: z.infer<typeof reportSchema>['subjectType'],
   subjectId: string,
-): Promise<{ ownerId: string | null; data: Record<string, unknown> }> {
+): Promise<{ ownerId: string | null; data: Record<string, unknown>; exists: boolean }> {
   switch (subjectType) {
     case 'review': {
       const [row] = await db.select().from(diaryEntries).where(eq(diaryEntries.id, subjectId)).limit(1);
-      return { ownerId: row?.userId ?? null, data: { reviewText: row?.reviewText, rating: row?.rating } };
+      return { ownerId: row?.userId ?? null, data: { reviewText: row?.reviewText, rating: row?.rating }, exists: Boolean(row) };
     }
     case 'comment': {
       const [row] = await db.select().from(comments).where(eq(comments.id, subjectId)).limit(1);
-      return { ownerId: row?.userId ?? null, data: { body: row?.body } };
+      return { ownerId: row?.userId ?? null, data: { body: row?.body }, exists: Boolean(row) };
     }
     case 'list': {
       const [row] = await db.select().from(lists).where(eq(lists.id, subjectId)).limit(1);
-      return { ownerId: row?.userId ?? null, data: { title: row?.title, description: row?.description } };
+      return { ownerId: row?.userId ?? null, data: { title: row?.title, description: row?.description }, exists: Boolean(row) };
     }
     case 'user': {
       const [row] = await db.select().from(users).where(eq(users.id, subjectId)).limit(1);
-      return { ownerId: row?.id ?? null, data: { username: row?.username, bio: row?.bio } };
+      return { ownerId: row?.id ?? null, data: { username: row?.username, bio: row?.bio }, exists: Boolean(row) };
     }
-    default:
-      return { ownerId: null, data: {} };
+    case 'club': {
+      const [row]=await db.select().from(clubs).where(eq(clubs.id,subjectId)).limit(1);
+      return {ownerId:row?.ownerId??null,data:{name:row?.name,description:row?.description,visibility:row?.visibility,joinPolicy:row?.joinPolicy},exists:Boolean(row)};
+    }
+    case 'club_post': {
+      const [row]=await db.select().from(clubDiscussionPosts).where(eq(clubDiscussionPosts.id,subjectId)).limit(1);
+      return {ownerId:row?.userId??null,data:{body:row?.body,clubId:row?.clubId,screeningId:row?.screeningId},exists:Boolean(row)};
+    }
   }
 }
 

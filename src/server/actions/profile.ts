@@ -3,6 +3,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import { safeUsername } from '@/lib/community-safety';
 
 import { track } from '@/server/analytics';
 import { requireUser } from '@/server/auth/session';
@@ -12,6 +13,7 @@ import { actionGuard, ValidationError, type ActionResult } from '@/server/errors
 import { ensureMovieByProviderId, getMovieById } from '@/server/movies/catalog';
 import { setFavoriteFilms } from '@/server/services/profile';
 import { updateFilmState } from '@/server/services/films';
+import { setProfilePin } from '@/server/services/profile-pins';
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1, 'Tell us what to call you.').max(50),
@@ -27,6 +29,7 @@ const profileSchema = z.object({
   avatarAssetId: z.string().uuid().nullable(),
   timezone: z.string().trim().max(64).optional(),
   watchRegion: z.string().trim().length(2).nullable().optional(),
+  tasteHighlights: z.array(z.string().trim().min(1).max(40)).max(6).optional(),
 });
 
 export async function updateProfileAction(
@@ -49,9 +52,34 @@ export async function updateProfileAction(
         watchRegion:
           parsed.watchRegion === undefined ? user.watchRegion : parsed.watchRegion?.toUpperCase() || null,
         updatedAt: new Date(),
+        tasteHighlights: parsed.tasteHighlights ?? user.tasteHighlights,
       })
       .where(eq(users.id, user.id));
 
+    revalidatePath(`/@${user.username}`);
+    return null;
+  });
+}
+
+export async function setProfilePinAction(input: {
+  targetType: 'review' | 'list';
+  targetId: string;
+  pinned: boolean;
+}): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z
+      .object({
+        targetType: z.enum(['review', 'list']),
+        targetId: z.string().uuid(),
+        pinned: z.boolean(),
+      })
+      .parse(input);
+    await setProfilePin(user.id, parsed.targetType, parsed.targetId, parsed.pinned);
+    await track('profile_pin_changed', user.id, {
+      targetType: parsed.targetType,
+      pinned: parsed.pinned,
+    });
     revalidatePath(`/@${user.username}`);
     return null;
   });
@@ -100,7 +128,8 @@ const usernameSchema = z
   .trim()
   .min(3)
   .max(20)
-  .regex(/^[a-zA-Z0-9_]+$/, 'Letters, numbers and underscores only.');
+  .regex(/^[a-zA-Z0-9_]+$/, 'Letters, numbers and underscores only.')
+  .refine(safeUsername, 'That username is reserved.');
 
 export async function changeUsernameAction(username: string): Promise<ActionResult<null>> {
   return actionGuard(async () => {

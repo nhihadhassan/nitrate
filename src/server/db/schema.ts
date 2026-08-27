@@ -111,6 +111,10 @@ export const notificationType = nitrate.enum('notification_type', [
   'club_screening_completed',
   'club_discussion_reply',
   'moderation_action',
+  'mention',
+  'club_join_request',
+  'club_join_approved',
+  'club_join_declined',
 ]);
 export const subjectType = nitrate.enum('subject_type', [
   'user',
@@ -221,6 +225,7 @@ export const users = nitrate.table(
     emailPicksAndVoting: boolean('email_picks_and_voting').notNull().default(true),
     emailWinnerSelected: boolean('email_winner_selected').notNull().default(true),
     tasteCircleFeedEnabled: boolean('taste_circle_feed_enabled').notNull().default(false),
+    tasteHighlights: text('taste_highlights').array().notNull().default(sql`ARRAY[]::text[]`),
 
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
@@ -856,6 +861,8 @@ export const notifications = nitrate.table(
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     /** Collapses duplicates (e.g. "voting is closing" fired by two triggers). */
     dedupeKey: text('dedupe_key'),
+    groupKey: text('group_key'),
+    groupCount: integer('group_count').notNull().default(1),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -863,6 +870,8 @@ export const notifications = nitrate.table(
     index('notifications_user_idx').on(t.userId, t.createdAt),
     index('notifications_unread_idx').on(t.userId, t.readAt),
     uniqueIndex('notifications_dedupe_key').on(t.userId, t.dedupeKey),
+    index('notifications_group_idx').on(t.userId, t.groupKey, t.createdAt),
+    uniqueIndex('notifications_active_group_key').on(t.userId, t.groupKey).where(sql`${t.groupKey} is not null`),
   ],
 );
 
@@ -902,6 +911,7 @@ export const clubs = nitrate.table(
      * visible immediately, for clubs that would rather just talk.
      */
     blindRatingsEnabled: boolean('blind_ratings_enabled').notNull().default(true),
+    joinPolicy: text('join_policy').$type<'invite_only' | 'request' | 'open'>().notNull().default('invite_only'),
 
     memberCount: integer('member_count').notNull().default(1),
     screeningCount: integer('screening_count').notNull().default(0),
@@ -914,6 +924,25 @@ export const clubs = nitrate.table(
     uniqueIndex('clubs_slug_key').on(t.slug),
     uniqueIndex('clubs_invite_code_key').on(t.inviteCode),
     index('clubs_visibility_idx').on(t.visibility, t.memberCount),
+  ],
+);
+
+export const clubJoinRequests = nitrate.table(
+  'club_join_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clubId: uuid('club_id').notNull().references(() => clubs.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    status: text('status').$type<'pending' | 'approved' | 'declined' | 'withdrawn'>().notNull().default('pending'),
+    message: text('message'),
+    decidedByUserId: uuid('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('club_join_requests_pending_key').on(t.clubId, t.userId).where(sql`${t.status} = 'pending'`),
+    index('club_join_requests_club_idx').on(t.clubId, t.status, t.createdAt),
+    index('club_join_requests_user_idx').on(t.userId, t.status, t.createdAt),
   ],
 );
 
@@ -1267,6 +1296,35 @@ export const clubDiscussionReactions = nitrate.table(
   (t) => [primaryKey({ columns: [t.postId, t.userId, t.emoji] })],
 );
 
+export const discussionMentions = nitrate.table(
+  'discussion_mentions',
+  {
+    postId: uuid('post_id').notNull().references(() => clubDiscussionPosts.id, { onDelete: 'cascade' }),
+    mentionedUserId: uuid('mentioned_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.postId, t.mentionedUserId] }),
+    index('discussion_mentions_user_idx').on(t.mentionedUserId, t.createdAt),
+  ],
+);
+
+export const profilePins = nitrate.table(
+  'profile_pins',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').$type<'review' | 'list'>().notNull(),
+    targetId: uuid('target_id').notNull(),
+    position: smallint('position').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('profile_pins_user_position_key').on(t.userId, t.position),
+    uniqueIndex('profile_pins_user_target_key').on(t.userId, t.targetType, t.targetId),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Outbound email                                                             */
 /* -------------------------------------------------------------------------- */
@@ -1458,6 +1516,32 @@ export const analyticsEvents = nitrate.table(
   ],
 );
 
+export const productFlags = nitrate.table(
+  'product_flags',
+  {
+    key: text('key').$type<'people' | 'community_lists' | 'public_clubs' | 'community_trends'>().primaryKey(),
+    mode: text('mode').$type<'auto' | 'forced_on' | 'forced_off'>().notNull().default('auto'),
+    unlockedAt: timestamp('unlocked_at', { withTimezone: true }),
+    eligibleSince: date('eligible_since'),
+    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }),
+    metrics: jsonb('metrics').$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+    updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const networkEligibilityDaily = nitrate.table(
+  'network_eligibility_daily',
+  {
+    surface: text('surface').$type<'people' | 'community_lists' | 'public_clubs' | 'community_trends'>().notNull(),
+    day: date('day').notNull(),
+    eligible: boolean('eligible').notNull(),
+    metrics: jsonb('metrics').$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.surface, t.day] })],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Relations                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -1593,3 +1677,6 @@ export type ImportBatch = typeof importBatches.$inferSelect;
 export type ImportRow = typeof importRows.$inferSelect;
 export type EmailDelivery = typeof emailDeliveries.$inferSelect;
 export type ShareSnapshotRow = typeof shareSnapshots.$inferSelect;
+export type ProductFlag = typeof productFlags.$inferSelect;
+export type ClubJoinRequest = typeof clubJoinRequests.$inferSelect;
+export type ProfilePin = typeof profilePins.$inferSelect;
