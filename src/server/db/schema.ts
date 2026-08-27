@@ -219,6 +219,7 @@ export const users = nitrate.table(
     emailMovieNightReminders: boolean('email_movie_night_reminders').notNull().default(true),
     emailPicksAndVoting: boolean('email_picks_and_voting').notNull().default(true),
     emailWinnerSelected: boolean('email_winner_selected').notNull().default(true),
+    tasteCircleFeedEnabled: boolean('taste_circle_feed_enabled').notNull().default(false),
 
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
@@ -452,6 +453,45 @@ export const favoriteFilms = nitrate.table(
     primaryKey({ columns: [t.userId, t.position] }),
     uniqueIndex('favorites_user_movie_key').on(t.userId, t.movieId),
   ],
+);
+
+export const tasteCircleMembers = nitrate.table(
+  'taste_circle_members',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    memberUserId: uuid('member_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.memberUserId] }), index('taste_circle_member_idx').on(t.memberUserId)],
+);
+
+export const recommendationFeedback = nitrate.table(
+  'recommendation_feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').$type<'user' | 'movie' | 'person'>().notNull(),
+    targetId: text('target_id').notNull(),
+    kind: text('kind').$type<'hide' | 'already_know' | 'less_like_this'>().notNull(),
+    reasonKind: text('reason_kind'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    restoredAt: timestamp('restored_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('recommendation_feedback_active_key').on(t.userId, t.targetType, t.targetId, t.kind).where(sql`${t.restoredAt} is null`),
+    index('recommendation_feedback_expiry_idx').on(t.userId, t.expiresAt),
+  ],
+);
+
+export const personFollows = nitrate.table(
+  'person_follows',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    personId: uuid('person_id').notNull().references(() => people.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.personId] }), index('person_follows_person_idx').on(t.personId)],
 );
 
 export const tags = nitrate.table(
@@ -1452,6 +1492,7 @@ export type NewMovie = typeof movies.$inferInsert;
 export type Person = typeof people.$inferSelect;
 export type Credit = typeof credits.$inferSelect;
 export type UserMovieState = typeof userMovieState.$inferSelect;
+export type RecommendationFeedback = typeof recommendationFeedback.$inferSelect;
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type List = typeof lists.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;

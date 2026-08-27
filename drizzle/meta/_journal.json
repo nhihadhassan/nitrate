@@ -50,6 +50,13 @@
       "when": 1787950000000,
       "tag": "0006_taste_history_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788000000000,
+      "tag": "0007_smarter_social_discovery",
+      "breakpoints": true
     }
   ]
 }
