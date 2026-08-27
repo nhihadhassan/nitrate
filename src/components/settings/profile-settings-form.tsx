@@ -12,6 +12,8 @@ import { changeUsernameAction, updateProfileAction } from '@/server/actions/prof
 
 export function ProfileSettingsForm({
   user,
+  regions,
+  resolvedRegion,
 }: {
   user: {
     username: string;
@@ -22,7 +24,12 @@ export function ProfileSettingsForm({
     pronouns: string | null;
     avatarAssetId: string | null;
     timezone: string;
+    watchRegion: string | null;
   };
+  /** Full picker list from TMDB; empty when the provider is unreachable. */
+  regions: { code: string; name: string }[];
+  /** What "Automatic" currently resolves to, so the honest source is visible even when nothing is chosen. */
+  resolvedRegion: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -32,6 +39,7 @@ export function ProfileSettingsForm({
   const [websiteUrl, setWebsiteUrl] = useState(user.websiteUrl ?? '');
   const [pronouns, setPronouns] = useState(user.pronouns ?? '');
   const [timezone, setTimezone] = useState(user.timezone);
+  const [watchRegion, setWatchRegion] = useState(user.watchRegion ?? '');
   const [avatarAssetId, setAvatarAssetId] = useState(user.avatarAssetId);
   const [username, setUsername] = useState(user.username);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +62,7 @@ export function ProfileSettingsForm({
               pronouns: pronouns.trim() || null,
               avatarAssetId,
               timezone,
+              watchRegion: watchRegion || null,
             });
             if (!result.ok) {
               setError(result.error);
@@ -138,6 +147,30 @@ export function ProfileSettingsForm({
             onChange={(event) => setTimezone(event.target.value)}
             className={inputClass}
           />
+        </Field>
+
+        <Field
+          label="Streaming region"
+          htmlFor="settings-watch-region"
+          hint={
+            watchRegion
+              ? 'Decides which providers show up under "Where to watch".'
+              : `Automatic — currently ${resolvedRegion}, based on your location. Decides which providers show up under "Where to watch".`
+          }
+        >
+          <select
+            id="settings-watch-region"
+            value={watchRegion}
+            onChange={(event) => setWatchRegion(event.target.value)}
+            className={inputClass}
+          >
+            <option value="">Automatic ({resolvedRegion})</option>
+            {regions.map((region) => (
+              <option key={region.code} value={region.code}>
+                {region.name}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <div className="flex justify-end">

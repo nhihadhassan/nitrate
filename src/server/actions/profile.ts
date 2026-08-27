@@ -26,6 +26,7 @@ const profileSchema = z.object({
   pronouns: z.string().trim().max(30).nullable(),
   avatarAssetId: z.string().uuid().nullable(),
   timezone: z.string().trim().max(64).optional(),
+  watchRegion: z.string().trim().length(2).nullable().optional(),
 });
 
 export async function updateProfileAction(
@@ -45,6 +46,8 @@ export async function updateProfileAction(
         pronouns: parsed.pronouns || null,
         avatarAssetId: parsed.avatarAssetId,
         timezone: parsed.timezone ?? user.timezone,
+        watchRegion:
+          parsed.watchRegion === undefined ? user.watchRegion : parsed.watchRegion?.toUpperCase() || null,
         updatedAt: new Date(),
       })
       .where(eq(users.id, user.id));

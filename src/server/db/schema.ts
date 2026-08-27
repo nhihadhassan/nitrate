@@ -65,6 +65,9 @@ export const screeningStatus = nitrate.enum('screening_status', [
   'cancelled',
 ]);
 export const rsvpStatus = nitrate.enum('rsvp_status', ['going', 'maybe', 'cant']);
+/** A movie-night availability poll: several proposed times, before one is confirmed into a screening. */
+export const pollStatus = nitrate.enum('poll_status', ['open', 'closed', 'cancelled']);
+export const pollAvailability = nitrate.enum('poll_availability', ['yes', 'maybe', 'no']);
 /** How a round decides its winner: members vote, or the wheel picks at random. */
 export const selectionMode = nitrate.enum('selection_mode', ['vote', 'wheel']);
 export const emailStatus = nitrate.enum('email_status', ['queued', 'sent', 'failed', 'skipped']);
@@ -204,12 +207,18 @@ export const users = nitrate.table(
     }),
     role: userRole('role').notNull().default('member'),
     timezone: text('timezone').notNull().default('UTC'),
+    /** ISO-3166-1 alpha-2. Null until resolved once (self-chosen or inferred) — see src/server/services/region.ts. */
+    watchRegion: text('watch_region'),
 
     profileVisibility: visibility('profile_visibility').notNull().default('public'),
     defaultEntryVisibility: visibility('default_entry_visibility').notNull().default('public'),
     showWatchlistPublicly: boolean('show_watchlist_publicly').notNull().default(true),
     allowFollows: boolean('allow_follows').notNull().default(true),
     adultContent: boolean('adult_content').notNull().default(false),
+
+    emailMovieNightReminders: boolean('email_movie_night_reminders').notNull().default(true),
+    emailPicksAndVoting: boolean('email_picks_and_voting').notNull().default(true),
+    emailWinnerSelected: boolean('email_winner_selected').notNull().default(true),
 
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
@@ -412,6 +421,8 @@ export const userMovieState = nitrate.table(
     ratedAt: timestamp('rated_at', { withTimezone: true }),
     inWatchlist: boolean('in_watchlist').notNull().default(false),
     watchlistedAt: timestamp('watchlisted_at', { withTimezone: true }),
+    /** Private context for a watchlist save, e.g. "Rachel recommended this". Never shown to anyone else. */
+    note: text('note'),
 
     logCount: integer('log_count').notNull().default(0),
     lastWatchedDate: date('last_watched_date'),
@@ -949,6 +960,73 @@ export const votes = nitrate.table(
   ],
 );
 
+/**
+ * An optional step between a winner being chosen and a screening being
+ * scheduled: an admin proposes several times, members mark availability, and
+ * the strongest slot is confirmed. The round stays in `winner_selected` for
+ * the whole lifetime of a poll — a poll never creates a screening itself,
+ * only `scheduleScreening` does (see services/clubs.ts).
+ */
+export const screeningPolls = nitrate.table(
+  'screening_polls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clubId: uuid('club_id')
+      .notNull()
+      .references(() => clubs.id, { onDelete: 'cascade' }),
+    roundId: uuid('round_id')
+      .notNull()
+      .references(() => selectionRounds.id, { onDelete: 'cascade' }),
+    movieId: uuid('movie_id')
+      .notNull()
+      .references(() => movies.id, { onDelete: 'cascade' }),
+    timezone: text('timezone').notNull().default('UTC'),
+    status: pollStatus('status').notNull().default('open'),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('polls_club_idx').on(t.clubId),
+    index('polls_round_idx').on(t.roundId),
+  ],
+);
+
+export const screeningPollOptions = nitrate.table(
+  'screening_poll_options',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pollId: uuid('poll_id')
+      .notNull()
+      .references(() => screeningPolls.id, { onDelete: 'cascade' }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    sortOrder: smallint('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('poll_options_poll_idx').on(t.pollId, t.sortOrder)],
+);
+
+export const screeningPollResponses = nitrate.table(
+  'screening_poll_responses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    optionId: uuid('option_id')
+      .notNull()
+      .references(() => screeningPollOptions.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    availability: pollAvailability('availability').notNull(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('poll_response_key').on(t.optionId, t.userId),
+    index('poll_responses_user_idx').on(t.userId),
+  ],
+);
+
 export const screenings = nitrate.table(
   'screenings',
   {
@@ -1302,6 +1380,26 @@ export const nominationsRelations = relations(nominations, ({ one, many }) => ({
   votes: many(votes),
 }));
 
+export const screeningPollsRelations = relations(screeningPolls, ({ one, many }) => ({
+  club: one(clubs, { fields: [screeningPolls.clubId], references: [clubs.id] }),
+  round: one(selectionRounds, { fields: [screeningPolls.roundId], references: [selectionRounds.id] }),
+  movie: one(movies, { fields: [screeningPolls.movieId], references: [movies.id] }),
+  options: many(screeningPollOptions),
+}));
+
+export const screeningPollOptionsRelations = relations(screeningPollOptions, ({ one, many }) => ({
+  poll: one(screeningPolls, { fields: [screeningPollOptions.pollId], references: [screeningPolls.id] }),
+  responses: many(screeningPollResponses),
+}));
+
+export const screeningPollResponsesRelations = relations(screeningPollResponses, ({ one }) => ({
+  option: one(screeningPollOptions, {
+    fields: [screeningPollResponses.optionId],
+    references: [screeningPollOptions.id],
+  }),
+  user: one(users, { fields: [screeningPollResponses.userId], references: [users.id] }),
+}));
+
 export const screeningsRelations = relations(screenings, ({ one, many }) => ({
   club: one(clubs, { fields: [screenings.clubId], references: [clubs.id] }),
   movie: one(movies, { fields: [screenings.movieId], references: [movies.id] }),
@@ -1329,6 +1427,9 @@ export type ClubQueueItem = typeof clubQueueItems.$inferSelect;
 export type SelectionRound = typeof selectionRounds.$inferSelect;
 export type Nomination = typeof nominations.$inferSelect;
 export type Vote = typeof votes.$inferSelect;
+export type ScreeningPoll = typeof screeningPolls.$inferSelect;
+export type ScreeningPollOption = typeof screeningPollOptions.$inferSelect;
+export type ScreeningPollResponse = typeof screeningPollResponses.$inferSelect;
 export type Screening = typeof screenings.$inferSelect;
 export type Attendance = typeof attendances.$inferSelect;
 export type ClubRating = typeof clubRatings.$inferSelect;

@@ -7,6 +7,7 @@ import { notFound, redirect } from 'next/navigation';
 import { FilmActions } from '@/components/film/film-actions';
 import { ClubFilmAction } from '@/components/club/club-film-action';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
+import { WhereToWatch } from '@/components/film/where-to-watch';
 import { AverageRating, LikeMark, RatingHistogram, RatingNumber, Stars } from '@/components/film/stars';
 import { ReviewBody } from '@/components/review/review-body';
 import { Badge, Container, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
@@ -28,6 +29,8 @@ import {
   getViewerClubInterest,
 } from '@/server/services/film-page';
 import { getUserMovieState } from '@/server/services/films';
+import { resolveWatchRegion } from '@/server/services/region';
+import { getWatchAvailability } from '@/server/movies/watch-providers';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,19 +79,31 @@ export default async function FilmPage({ params }: Params) {
 
   const viewer = await getCurrentUser();
   const viewerRef = viewer ? { id: viewer.id, role: viewer.role } : null;
+  const region = await resolveWatchRegion(viewer?.watchRegion);
 
-  const [credits, genres, friendContext, clubRatings, clubInterest, reviews, containingLists, related, viewerState] =
-    await Promise.all([
-      getFilmCredits(movie.id),
-      getFilmGenres(movie.id),
-      getFriendContext(viewer?.id ?? null, movie.id),
-      getViewerClubRatings(viewer?.id ?? null, movie.id),
-      getViewerClubInterest(viewer?.id ?? null, movie.id),
-      getFilmReviews(movie.id, viewerRef, { limit: 5 }),
-      getListsContaining(movie.id, viewerRef, 4),
-      getRelatedFilms(movie, 12),
-      viewer ? getUserMovieState(viewer.id, movie.id) : Promise.resolve(null),
-    ]);
+  const [
+    credits,
+    genres,
+    friendContext,
+    clubRatings,
+    clubInterest,
+    reviews,
+    containingLists,
+    related,
+    viewerState,
+    availability,
+  ] = await Promise.all([
+    getFilmCredits(movie.id),
+    getFilmGenres(movie.id),
+    getFriendContext(viewer?.id ?? null, movie.id),
+    getViewerClubRatings(viewer?.id ?? null, movie.id),
+    getViewerClubInterest(viewer?.id ?? null, movie.id),
+    getFilmReviews(movie.id, viewerRef, { limit: 5 }),
+    getListsContaining(movie.id, viewerRef, 4),
+    getRelatedFilms(movie, 12),
+    viewer ? getUserMovieState(viewer.id, movie.id) : Promise.resolve(null),
+    getWatchAvailability(movie.providerId, region).then((r) => r.data),
+  ]);
 
   const average = movie.ratingCount ? movie.ratingSum / movie.ratingCount : null;
   const histogram = buildHistogram(movie.ratingHistogram, movie.ratingCount);
@@ -226,6 +241,7 @@ export default async function FilmPage({ params }: Params) {
                 />
 
                 <div className="space-y-6">
+                  <WhereToWatch availability={availability} />
                   {clubRatings.length ? <ClubRatings ratings={clubRatings} /> : null}
                   {clubInterest.length ? <ClubInterest interest={clubInterest} movieId={movie.id} /> : null}
                   <FriendsPanel context={friendContext} signedIn={Boolean(viewer)} />

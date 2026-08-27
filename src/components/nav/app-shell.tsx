@@ -97,7 +97,17 @@ function SiteFooter() {
           >
             TMDB
           </a>
-          . This product uses the TMDB API but is not endorsed or certified by TMDB.
+          . This product uses the TMDB API but is not endorsed or certified by TMDB. Streaming
+          availability data from{' '}
+          <a
+            href="https://www.justwatch.com/"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="underline underline-offset-2 hover:text-muted"
+          >
+            JustWatch
+          </a>
+          .
         </p>
       </div>
     </footer>

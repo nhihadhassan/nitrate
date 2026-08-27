@@ -36,6 +36,12 @@ export function profileUrl(path: string | null | undefined, size: 'sm' | 'md' = 
   return `${TMDB_IMAGE_BASE}/${size === 'sm' ? 'w185' : 'h632'}${path}`;
 }
 
+/** Watch-provider logos (Netflix, etc.) — small, square-ish artwork. */
+export function logoUrl(path: string | null | undefined, size: 'sm' | 'md' = 'sm'): string | null {
+  if (!path) return null;
+  return `${TMDB_IMAGE_BASE}/${size === 'sm' ? 'w45' : 'w92'}${path}`;
+}
+
 export function avatarUrl(assetId: string | null | undefined): string | null {
   return assetId ? `/media/${assetId}` : null;
 }

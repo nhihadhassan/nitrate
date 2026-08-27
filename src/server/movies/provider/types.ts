@@ -58,6 +58,27 @@ export type ProviderPerson = {
   knownFor?: ProviderMovieSummary[];
 };
 
+export type WatchOption = {
+  providerId: string;
+  name: string;
+  logoPath: string | null;
+  displayPriority: number;
+};
+
+/**
+ * One region's watch-provider slice for one film. `link` is TMDB's own watch
+ * page for that title/region — never a fabricated deep link to a specific
+ * service, because TMDB does not provide those.
+ */
+export type WatchAvailability = {
+  region: string;
+  link: string | null;
+  stream: WatchOption[];
+  rent: WatchOption[];
+  buy: WatchOption[];
+  free: WatchOption[];
+};
+
 export type ProviderPage<T> = {
   results: T[];
   page: number;
@@ -88,6 +109,9 @@ export interface MovieProvider {
   upcoming(page?: number): Promise<ProviderPage<ProviderMovieSummary>>;
   discover(params: DiscoverParams): Promise<ProviderPage<ProviderMovieSummary>>;
   genres(): Promise<ProviderGenre[]>;
+  /** Null when the film has no listed availability in that region, or the region is unrecognised. */
+  watchProviders(providerId: string, region: string): Promise<WatchAvailability | null>;
+  watchRegions(): Promise<{ code: string; name: string }[]>;
 }
 
 export const emptyPage = <T>(): ProviderPage<T> => ({
