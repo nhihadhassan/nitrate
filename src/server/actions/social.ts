@@ -230,6 +230,7 @@ export async function toggleListLikeAction(
     const user = await requireUser();
     const [list] = await db.select().from(lists).where(eq(lists.id, listId)).limit(1);
     if (!list || list.deletedAt) throw new NotFoundError('That list no longer exists.');
+    if (list.visibility !== 'public') throw new PermissionError('Only public lists can receive likes.');
     await assertCanInteractWith(user.id, list.userId);
 
     const result = await db.transaction(async (tx) => {
