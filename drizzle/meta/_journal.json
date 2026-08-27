@@ -64,6 +64,13 @@
       "when": 1788050000000,
       "tag": "0008_shared_curation",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788100000000,
+      "tag": "0009_permanent_film_library",
+      "breakpoints": true
     }
   ]
 }

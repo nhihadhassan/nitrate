@@ -527,6 +527,7 @@ export const diaryEntries = nitrate.table(
     rating: smallint('rating'),
     liked: boolean('liked').notNull().default(false),
     reviewText: text('review_text'),
+    viewingContext: text('viewing_context').$type<ViewingContext>(),
     containsSpoilers: boolean('contains_spoilers').notNull().default(false),
     isRewatch: boolean('is_rewatch').notNull().default(false),
     visibility: visibility('visibility').notNull().default('public'),
@@ -550,6 +551,25 @@ export const diaryEntries = nitrate.table(
     index('diary_review_idx').on(t.movieId, t.likeCount),
     uniqueIndex('diary_external_key').on(t.userId, t.externalKey),
     uniqueIndex('diary_screening_key').on(t.userId, t.screeningId),
+  ],
+);
+
+export const ownershipCopies = nitrate.table(
+  'ownership_copies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    movieId: uuid('movie_id').notNull().references(() => movies.id, { onDelete: 'cascade' }),
+    format: text('format').$type<OwnershipFormat>().notNull(),
+    edition: text('edition'),
+    notes: text('notes'),
+    purchasedOn: date('purchased_on'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('ownership_user_movie_idx').on(t.userId, t.movieId),
+    index('ownership_user_format_idx').on(t.userId, t.format),
   ],
 );
 
@@ -1546,6 +1566,9 @@ export type NewMovie = typeof movies.$inferInsert;
 export type Person = typeof people.$inferSelect;
 export type Credit = typeof credits.$inferSelect;
 export type UserMovieState = typeof userMovieState.$inferSelect;
+export type ViewingContext = 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other';
+export type OwnershipFormat = '4k_uhd' | 'blu_ray' | 'dvd' | 'digital' | 'other';
+export type OwnershipCopy = typeof ownershipCopies.$inferSelect;
 export type RecommendationFeedback = typeof recommendationFeedback.$inferSelect;
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type List = typeof lists.$inferSelect;

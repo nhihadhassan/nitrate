@@ -33,6 +33,7 @@ async function resolveFilm(ref: { movieId?: string; providerId?: string }) {
 }
 
 const visibilityEnum = z.enum(['public', 'followers', 'private']);
+const viewingContextEnum = z.enum(['cinema', 'home', 'friend_home', 'club', 'festival', 'travel', 'other']);
 
 const logSchema = filmRef.and(
   z.object({
@@ -45,6 +46,7 @@ const logSchema = filmRef.and(
     tags: z.array(z.string().max(40)).max(12),
     isRewatch: z.boolean().optional(),
     screeningId: z.string().uuid().nullable().optional(),
+    viewingContext: viewingContextEnum.nullable().optional(),
   }),
 );
 
@@ -73,6 +75,7 @@ export async function logFilmAction(
       screeningId: parsed.screeningId ?? null,
       upsertOnScreening: Boolean(parsed.screeningId),
       source: parsed.screeningId ? 'club' : 'manual',
+      viewingContext: parsed.viewingContext ?? null,
     });
 
     await trackFirst('film_logged', 'first_film_logged', user.id, result.isFirstLog, {
@@ -165,6 +168,7 @@ export async function updateEntryAction(input: {
   containsSpoilers?: boolean;
   visibility?: 'public' | 'followers' | 'private';
   tags?: string[];
+  viewingContext?: z.infer<typeof viewingContextEnum> | null;
 }): Promise<ActionResult<{ entryId: string }>> {
   return actionGuard(async () => {
     const user = await requireUser();
@@ -177,6 +181,7 @@ export async function updateEntryAction(input: {
       containsSpoilers: z.boolean().optional(),
       visibility: visibilityEnum.optional(),
       tags: z.array(z.string().max(40)).max(12).optional(),
+      viewingContext: viewingContextEnum.nullable().optional(),
     });
     const parsed = schema.parse(input);
     const entry = await updateDiaryEntry(user.id, parsed.entryId, parsed);

@@ -13,6 +13,7 @@ import {
   userMovieState,
   users,
   type DiaryEntry,
+  type ViewingContext,
   type UserMovieState,
 } from '@/server/db/schema';
 import { NotFoundError, PermissionError, ValidationError } from '@/server/errors';
@@ -241,6 +242,7 @@ export type LogFilmInput = {
   externalKey?: string | null;
   /** When true an existing entry for the same screening is updated, not duplicated. */
   upsertOnScreening?: boolean;
+  viewingContext?: ViewingContext | null;
 };
 
 export type LogFilmResult = {
@@ -304,6 +306,7 @@ export async function logFilm(input: LogFilmInput): Promise<LogFilmResult> {
           liked: input.liked,
           reviewText: input.reviewText,
           containsSpoilers: input.containsSpoilers,
+          viewingContext: input.viewingContext ?? null,
           visibility: input.visibility,
           updatedAt: new Date(),
           deletedAt: null,
@@ -322,6 +325,7 @@ export async function logFilm(input: LogFilmInput): Promise<LogFilmResult> {
           liked: input.liked,
           reviewText: input.reviewText,
           containsSpoilers: input.containsSpoilers,
+          viewingContext: input.viewingContext ?? null,
           visibility: input.visibility,
           isRewatch,
           source: input.source ?? 'manual',
@@ -441,6 +445,7 @@ export async function updateDiaryEntry(
     containsSpoilers?: boolean;
     visibility?: 'public' | 'followers' | 'private';
     tags?: string[];
+    viewingContext?: ViewingContext | null;
   },
 ): Promise<DiaryEntry> {
   return db.transaction(async (tx) => {
@@ -456,6 +461,7 @@ export async function updateDiaryEntry(
         liked: patch.liked ?? entry.liked,
         reviewText: patch.reviewText === undefined ? entry.reviewText : patch.reviewText,
         containsSpoilers: patch.containsSpoilers ?? entry.containsSpoilers,
+        viewingContext: patch.viewingContext === undefined ? entry.viewingContext : patch.viewingContext,
         visibility: patch.visibility ?? entry.visibility,
         updatedAt: new Date(),
       })
