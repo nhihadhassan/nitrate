@@ -107,6 +107,7 @@ export const notificationType = nitrate.enum('notification_type', [
   'club_winner_selected',
   'club_screening_scheduled',
   'club_screening_reminder',
+  'list_collaboration_invite',
   'club_screening_completed',
   'club_discussion_reply',
   'moderation_action',
@@ -600,6 +601,9 @@ export const lists = nitrate.table(
     isRanked: boolean('is_ranked').notNull().default(false),
     /** Reserved for collaborative lists; the join table already exists. */
     allowCollaborators: boolean('allow_collaborators').notNull().default(false),
+    version: integer('version').notNull().default(1),
+    isPinned: boolean('is_pinned').notNull().default(false),
+    clonedFromListId: uuid('cloned_from_list_id'),
 
     itemCount: integer('item_count').notNull().default(0),
     likeCount: integer('like_count').notNull().default(0),
@@ -613,6 +617,7 @@ export const lists = nitrate.table(
     uniqueIndex('lists_user_slug_key').on(t.userId, t.slug),
     index('lists_popular_idx').on(t.visibility, t.likeCount),
     index('lists_user_idx').on(t.userId, t.updatedAt),
+    index('lists_pinned_idx').on(t.userId, t.isPinned, t.updatedAt),
   ],
 );
 
@@ -651,6 +656,55 @@ export const listCollaborators = nitrate.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.listId, t.userId] })],
+);
+
+export const listCollaborationInvitations = nitrate.table(
+  'list_collaboration_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+    inviterUserId: uuid('inviter_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    inviteeUserId: uuid('invitee_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'editor'>().notNull().default('editor'),
+    status: text('status').$type<'pending' | 'accepted' | 'declined' | 'revoked' | 'expired'>().notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('list_collab_invite_pending_key').on(t.listId, t.inviteeUserId).where(sql`${t.status} = 'pending'`),
+    index('list_collab_invite_inbox_idx').on(t.inviteeUserId, t.status, t.expiresAt),
+  ],
+);
+
+export const listActivity = nitrate.table(
+  'list_activity',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+    actorUserId: uuid('actor_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    action: text('action').$type<'list_updated' | 'item_added' | 'item_removed' | 'note_updated' | 'reordered' | 'collaborator_added' | 'collaborator_removed' | 'cloned' | 'bulk_transferred'>().notNull(),
+    listItemId: uuid('list_item_id').references(() => listItems.id, { onDelete: 'set null' }),
+    movieId: uuid('movie_id').references(() => movies.id, { onDelete: 'set null' }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('list_activity_list_time_idx').on(t.listId, t.createdAt)],
+);
+
+export const savedLists = nitrate.table(
+  'saved_lists',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+    isPinned: boolean('is_pinned').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.listId] }),
+    index('saved_lists_user_sort_idx').on(t.userId, t.isPinned, t.createdAt),
+  ],
 );
 
 export const listLikes = nitrate.table(
