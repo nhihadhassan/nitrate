@@ -5,6 +5,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import { clubHref, screeningHref } from '@/lib/links';
+import type { RecommendationReason } from '@/lib/recommendations';
 import { formatRuntime, slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
 import {
@@ -2538,14 +2539,14 @@ export async function getClubStats(
 
 export type ClubSuggestion = {
   movie: Movie;
-  reason: string;
+  reason: RecommendationReason;
   metric: number;
 };
 
 export type ClubShortlistItem = {
   movie: Movie;
   score: number;
-  reasons: string[];
+  reasons: RecommendationReason[];
 };
 
 /**
@@ -2728,15 +2729,15 @@ export async function getClubIntelligence(clubId: string): Promise<{
       const matchesTaste = movieTopGenres.has(candidate.movie.id);
       const score = 3 * watchlistCount + unseenCount + (candidate.inIdeas ? 2 : 0) + (matchesTaste ? 1 : 0);
       const reasons = [
-        watchlistCount ? { weight: 3 * watchlistCount, text: `${watchlistCount} ${watchlistCount === 1 ? 'member wants' : 'members want'} to watch` } : null,
-        unseenCount === memberCount ? { weight: unseenCount, text: 'Nobody in the club has seen it' } : null,
-        candidate.inIdeas ? { weight: 2, text: 'Already in Movie Ideas' } : null,
-        matchesTaste ? { weight: 1, text: 'Matches a genre your club rates highly' } : null,
+        watchlistCount ? { weight: 3 * watchlistCount, reason: { kind: 'community_signal', label: `${watchlistCount} ${watchlistCount === 1 ? 'member wants' : 'members want'} to watch` } as RecommendationReason } : null,
+        unseenCount === memberCount ? { weight: unseenCount, reason: { kind: 'community_signal', label: 'Nobody in the club has seen it' } as RecommendationReason } : null,
+        candidate.inIdeas ? { weight: 2, reason: { kind: 'club_interest', count: 1 } as RecommendationReason } : null,
+        matchesTaste ? { weight: 1, reason: { kind: 'community_signal', label: 'Matches a genre your club rates highly' } as RecommendationReason } : null,
       ]
-        .filter((reason): reason is { weight: number; text: string } => Boolean(reason))
+        .filter((reason): reason is { weight: number; reason: RecommendationReason } => Boolean(reason))
         .sort((a, b) => b.weight - a.weight)
         .slice(0, 2)
-        .map((reason) => reason.text);
+        .map((item) => item.reason);
       return {
         movie: candidate.movie,
         score,
@@ -2752,17 +2753,20 @@ export async function getClubIntelligence(clubId: string): Promise<{
     onEveryonesRadar: radar.map((r) => ({
       movie: r.movie,
       metric: r.metric,
-      reason: `On ${r.metric} members' watchlists`,
+      reason: { kind: 'community_signal', label: `On ${r.metric} members' watchlists` },
     })),
     nobodyHasSeen: unseen.map((r) => ({
       movie: r.movie,
       metric: 0,
-      reason: 'Nobody in the club has seen it',
+      reason: { kind: 'community_signal', label: 'Nobody in the club has seen it' },
     })),
     fromTheQueue: queue.map((r) => ({
       movie: r.movie,
       metric: r.metric,
-      reason: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
+      reason: {
+        kind: 'community_signal',
+        label: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
+      },
     })),
     shortlist,
   };

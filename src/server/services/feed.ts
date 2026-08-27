@@ -133,13 +133,16 @@ export function aggregateFeedItems(items: FeedItem[]): FeedItem[] {
  */
 export async function getHomeFeed(
   viewer: Viewer,
-  options: { before?: Date; limit?: number; scope?: 'following' | 'everyone' } = {},
+  options: { before?: Date; limit?: number; scope?: 'following' | 'everyone'; actorIds?: string[] } = {},
 ): Promise<FeedItem[]> {
   const limit = options.limit ?? 25;
   const scope = options.scope ?? (viewer ? 'following' : 'everyone');
 
-  const audience =
-    scope === 'following' && viewer
+  const audience = options.actorIds
+    ? options.actorIds.length
+      ? inArray(activityEvents.actorId, options.actorIds)
+      : sql`false`
+    : scope === 'following' && viewer
       ? or(
           eq(activityEvents.actorId, viewer.id),
           sql`exists (select 1 from ${follows} f where f.follower_id = ${viewer.id} and f.following_id = ${activityEvents.actorId})`,

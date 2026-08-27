@@ -17,6 +17,7 @@ import {
   lists,
   reports,
   reviewLikes,
+  tasteCircleMembers,
   users,
 } from '@/server/db/schema';
 import {
@@ -36,6 +37,7 @@ import { notify } from '@/server/services/notifications';
 
 export async function toggleFollowAction(
   targetUserId: string,
+  source?: 'recommendation',
 ): Promise<ActionResult<{ following: boolean }>> {
   return actionGuard(async () => {
     const user = await requireUser();
@@ -58,6 +60,12 @@ export async function toggleFollowAction(
         await tx
           .delete(follows)
           .where(and(eq(follows.followerId, user.id), eq(follows.followingId, targetUserId)));
+        await tx
+          .delete(tasteCircleMembers)
+          .where(and(
+            eq(tasteCircleMembers.userId, user.id),
+            eq(tasteCircleMembers.memberUserId, targetUserId),
+          ));
         await tx
           .update(users)
           .set({ followingCount: sql`greatest(${users.followingCount} - 1, 0)` })
@@ -101,6 +109,9 @@ export async function toggleFollowAction(
       await trackFirst('user_followed', 'first_follow', user.id, user.followingCount === 0, {
         targetUserId,
       });
+      if (source === 'recommendation') {
+        await track('recommended_follow', user.id, { targetUserId });
+      }
     }
 
     revalidatePath(`/@${target.username}`);
