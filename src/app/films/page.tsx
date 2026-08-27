@@ -55,14 +55,17 @@ export default async function FilmsPage({
       </header>
 
       <div className="mb-6 space-y-3">
-        <nav aria-label="Sort" className="flex flex-wrap gap-1 text-xs">
+        <nav
+          aria-label="Sort"
+          className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        >
           {SORTS.map((option) => (
             <Link
               key={option.key}
               href={{ pathname: '/films', query: queryFor({ sort: option.key, page: undefined }) }}
               aria-current={activeSort === option.key ? 'true' : undefined}
               className={cn(
-                'rounded-md border px-2.5 py-1 transition-colors',
+                'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
                 activeSort === option.key
                   ? 'border-ember/40 bg-ember/10 text-ember'
                   : 'border-line text-muted hover:text-text',
@@ -73,11 +76,14 @@ export default async function FilmsPage({
           ))}
         </nav>
 
-        <nav aria-label="Decade" className="flex flex-wrap gap-1 text-xs">
+        <nav
+          aria-label="Decade"
+          className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        >
           <Link
             href={{ pathname: '/films', query: queryFor({ decade: undefined, page: undefined }) }}
             className={cn(
-              'rounded-md border px-2.5 py-1 transition-colors',
+              'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
               !activeDecade ? 'border-line-strong text-text' : 'border-line text-muted hover:text-text',
             )}
           >
@@ -88,7 +94,7 @@ export default async function FilmsPage({
               key={d}
               href={{ pathname: '/films', query: queryFor({ decade: d, page: undefined }) }}
               className={cn(
-                'rounded-md border px-2.5 py-1 tabular transition-colors',
+                'flex min-h-10 shrink-0 items-center rounded-md border px-3 tabular transition-colors',
                 activeDecade === d
                   ? 'border-line-strong text-text'
                   : 'border-line text-muted hover:text-text',
@@ -100,11 +106,14 @@ export default async function FilmsPage({
         </nav>
 
         {genres.length ? (
-          <nav aria-label="Genre" className="flex flex-wrap gap-1 text-xs">
+          <nav
+            aria-label="Genre"
+            className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+          >
             <Link
               href={{ pathname: '/films', query: queryFor({ genre: undefined, page: undefined }) }}
               className={cn(
-                'rounded-md border px-2.5 py-1 transition-colors',
+                'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
                 !genre ? 'border-line-strong text-text' : 'border-line text-muted hover:text-text',
               )}
             >
@@ -115,7 +124,7 @@ export default async function FilmsPage({
                 key={g.providerId}
                 href={{ pathname: '/films', query: queryFor({ genre: g.providerId, page: undefined }) }}
                 className={cn(
-                  'rounded-md border px-2.5 py-1 transition-colors',
+                  'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
                   genre === g.providerId
                     ? 'border-line-strong text-text'
                     : 'border-line text-muted hover:text-text',

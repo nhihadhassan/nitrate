@@ -66,7 +66,10 @@ import { search } from '@/server/services/search';
  * Everything is namespaced and torn down at the end.
  */
 
-const RUN = Boolean(process.env.DATABASE_URL);
+// Gated on TEST_DATABASE_URL, not DATABASE_URL — see test/setup-db.ts. Without
+// it, this whole suite is skipped rather than falling back to whatever
+// DATABASE_URL happens to be set to.
+const RUN = Boolean(process.env.TEST_DATABASE_URL);
 const suite = RUN ? describe : describe.skip;
 
 const tag = randomUUID().slice(0, 8);

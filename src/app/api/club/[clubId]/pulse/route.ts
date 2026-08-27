@@ -15,11 +15,17 @@ export const dynamic = 'force-dynamic';
  * reload. Membership-gated like every other club surface; no rate limit
  * beyond the client's own backoff since a poll is a handful of indexed reads.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clubId: string }> },
 ) {
   const { clubId } = await params;
+  if (!UUID_RE.test(clubId)) {
+    return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  }
+
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Sign in required.' }, { status: 401 });
 

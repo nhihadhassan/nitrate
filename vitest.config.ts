@@ -1,7 +1,14 @@
 import { fileURLToPath } from 'node:url';
 
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 
+/**
+ * The default config — plain unit tests only, no database. `npm run verify`
+ * and CI both run this. `src/server/integration.test.ts` writes to a real
+ * database and is deliberately excluded here; run it with
+ * `npm run test:integration` (see vitest.integration.config.ts), which
+ * requires its own TEST_DATABASE_URL and refuses to run against production.
+ */
 export default defineConfig({
   resolve: {
     alias: {
@@ -12,10 +19,10 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    setupFiles: ['./test/setup-db.ts'],
     testTimeout: 60_000,
     hookTimeout: 60_000,
     fileParallelism: false,
     include: ['src/**/*.test.ts'],
+    exclude: [...configDefaults.exclude, 'src/server/integration.test.ts'],
   },
 });

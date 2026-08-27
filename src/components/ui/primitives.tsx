@@ -35,6 +35,7 @@ export function SectionHeading({
   subtitle,
   href,
   linkLabel = 'See all',
+  meta,
   className,
   as: Tag = 'h2',
 }: {
@@ -42,6 +43,8 @@ export function SectionHeading({
   subtitle?: React.ReactNode;
   href?: string;
   linkLabel?: string;
+  /** Plain (non-link) text on the trailing edge, e.g. a count — shown alongside or instead of the "see all" link. */
+  meta?: React.ReactNode;
   className?: string;
   as?: 'h1' | 'h2' | 'h3';
 }) {
@@ -58,6 +61,8 @@ export function SectionHeading({
         >
           {linkLabel}
         </Link>
+      ) : meta ? (
+        <span className="shrink-0 text-[0.8125rem] text-dim">{meta}</span>
       ) : null}
     </div>
   );

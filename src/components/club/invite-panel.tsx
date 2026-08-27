@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -30,7 +30,13 @@ export function ClubInvitePanel({
   const [link, setLink] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const standingUrl = typeof window === 'undefined' ? '' : `${window.location.origin}/join/${inviteCode}`;
+  // `window.location.origin` is only known client-side, and reading it during
+  // render would mismatch the server's markup on hydration. Start with the
+  // relative path (identical on server and first client render) and fill in
+  // the absolute origin only after mount.
+  const [origin, setOrigin] = useState('');
+  useEffect(() => setOrigin(window.location.origin), []);
+  const standingUrl = origin ? `${origin}/join/${inviteCode}` : `/join/${inviteCode}`;
 
   async function copy(value: string) {
     try {
@@ -59,7 +65,7 @@ export function ClubInvitePanel({
 
       <div className="flex flex-wrap items-center gap-2">
         <code className="min-w-0 flex-1 truncate rounded-md border border-line bg-canvas px-2.5 py-1.5 text-xs text-muted">
-          {link ?? (standingUrl || `/join/${inviteCode}`)}
+          {link ?? standingUrl}
         </code>
         <Button variant="iris" size="sm" onClick={() => share(link ?? standingUrl)}>
           Share
