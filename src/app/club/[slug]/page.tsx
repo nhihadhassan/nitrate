@@ -424,6 +424,11 @@ export default async function ClubDashboard({
         {completed.length ? (
           <section>
             <SectionHeading title="Recently watched together" href={`/club/${club.slug}/history`} />
+            <p className="-mt-3 mb-4 text-xs text-dim">
+              <Link href={`/club/${club.slug}/yearbook?year=${new Date().getFullYear()}`} className="underline underline-offset-2 hover:text-iris">
+                Open this year&apos;s Club Yearbook
+              </Link>
+            </p>
             <ul className="space-y-3">
               {completed.map(({ screening, movie, average, ratingsHidden }) => (
                 <li key={screening.id}>

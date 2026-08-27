@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { FeedCard } from '@/components/feed/feed-card';
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { PosterRail } from '@/components/film/poster-rail';
 import { LandingPage } from '@/components/marketing/landing';
 import { RightNow } from '@/components/club/right-now';
 import { Button } from '@/components/ui/button';
@@ -11,6 +12,7 @@ import { getHomeFeed } from '@/server/services/feed';
 import { getClubAttention, getUserClubs } from '@/server/services/clubs';
 import { getWatchlistPreview } from '@/server/services/profile';
 import { BRAND } from '@/lib/brand';
+import { getDiaryAnniversaries } from '@/server/services/stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,16 +28,28 @@ export default async function HomePage({
   const feedScope = scope === 'everyone' ? 'everyone' : 'following';
   const viewer = { id: user.id, role: user.role };
 
-  const [feed, clubs, watchlist, attention] = await Promise.all([
+  const [feed, clubs, watchlist, attention, anniversaries] = await Promise.all([
     getHomeFeed(viewer, { scope: feedScope, limit: 30 }),
     getUserClubs(user.id),
     getWatchlistPreview(user.id, 6),
     getClubAttention(user.id),
+    getDiaryAnniversaries(user.id),
   ]);
 
   return (
     <Container className="py-6 sm:py-8" size="wide">
       <RightNow items={attention} />
+
+      {anniversaries.length ? (
+        <section className="mb-9 border-b border-line pb-8">
+          <SectionHeading title="On this day" subtitle="A quiet look back from your diary. Only you see this." />
+          <PosterRail
+            label="Diary anniversaries"
+            films={anniversaries.map((film) => ({ ...film, caption: `${film.yearsAgo} ${film.yearsAgo === 1 ? 'year' : 'years'} ago` }))}
+            size="sm"
+          />
+        </section>
+      ) : null}
 
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="min-w-0">
