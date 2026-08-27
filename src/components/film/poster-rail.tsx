@@ -17,7 +17,7 @@ export function PosterRail({
   itemClassName,
   className,
 }: {
-  films: (PosterFilm & { id?: string; caption?: string; reason?: RecommendationReason })[];
+  films: (PosterFilm & { id?: string; caption?: string; reason?: RecommendationReason; owned?: boolean })[];
   /** Accessible name for the rail's implicit list landmark. */
   label: string;
   size?: 'sm' | 'md' | 'lg';
@@ -50,6 +50,7 @@ export function PosterRail({
               <span className="ml-1 text-ember">{film.caption ?? recommendationReasonLabel(film.reason!)}</span>
             ) : null}
           </p>
+          {film.owned ? <p className="mt-0.5 text-[0.6875rem] font-medium text-iris">Owned</p> : null}
           {film.reason && film.id ? (
             <RecommendationFeedback targetType="movie" targetId={film.id} reasonKind={film.reason.kind} compact />
           ) : null}

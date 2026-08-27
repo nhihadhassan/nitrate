@@ -9,6 +9,7 @@ import { ClubFilmAction } from '@/components/club/club-film-action';
 import { RecommendationFeedback } from '@/components/discovery/recommendation-feedback';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { WhereToWatch } from '@/components/film/where-to-watch';
+import { OwnershipLibrary } from '@/components/film/ownership-library';
 import { AverageRating, LikeMark, RatingHistogram, RatingNumber, Stars } from '@/components/film/stars';
 import { ReviewBody } from '@/components/review/review-body';
 import { Badge, Container, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
@@ -33,6 +34,7 @@ import { getUserMovieState } from '@/server/services/films';
 import { resolveWatchRegion } from '@/server/services/region';
 import { getWatchAvailability } from '@/server/movies/watch-providers';
 import { getSuppressedRecommendationIds } from '@/server/services/discovery';
+import { getOwnershipForMovie } from '@/server/services/ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +97,7 @@ export default async function FilmPage({ params }: Params) {
     viewerState,
     availability,
     suppressedMovieIds,
+    ownedCopies,
   ] = await Promise.all([
     getFilmCredits(movie.id),
     getFilmGenres(movie.id),
@@ -107,6 +110,7 @@ export default async function FilmPage({ params }: Params) {
     viewer ? getUserMovieState(viewer.id, movie.id) : Promise.resolve(null),
     getWatchAvailability(movie.providerId, region).then((r) => r.data),
     viewer ? getSuppressedRecommendationIds(viewer.id, 'movie') : Promise.resolve(new Set<string>()),
+    viewer ? getOwnershipForMovie(viewer.id, movie.id) : Promise.resolve([]),
   ]);
   const visibleRelated = related.filter((item) => !suppressedMovieIds.has(item.id));
 
@@ -207,6 +211,8 @@ export default async function FilmPage({ params }: Params) {
                   logCount={viewerState.logCount}
                 />
               ) : null}
+
+              {viewer ? <OwnershipLibrary movieId={movie.id} copies={ownedCopies} /> : null}
 
               <div className="mt-6 md:hidden">{actions}</div>
 

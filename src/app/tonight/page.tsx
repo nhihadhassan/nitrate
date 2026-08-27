@@ -9,6 +9,8 @@ import { formatRuntime } from '@/lib/utils';
 import { requireUser } from '@/server/auth/session';
 import { getTonightRecommendations } from '@/server/services/discovery';
 import { resolveWatchRegion } from '@/server/services/region';
+import { getOwnershipMap } from '@/server/services/ownership';
+import { Badge } from '@/components/ui/primitives';
 
 export const metadata: Metadata = { title: 'Tonight' };
 export const dynamic = 'force-dynamic';
@@ -17,6 +19,7 @@ export default async function TonightPage() {
   const user = await requireUser();
   const region = await resolveWatchRegion(user.watchRegion);
   const suggestions = await getTonightRecommendations(user.id, region);
+  const ownership = await getOwnershipMap(user.id, suggestions.map(({ movie }) => movie.id));
   return (
     <Container size="wide" className="py-8 pb-20">
       <header className="mb-8 max-w-2xl">
@@ -41,6 +44,7 @@ export default async function TonightPage() {
                       {movie.runtime ? formatRuntime(movie.runtime) : 'Runtime unknown'}
                       {atHome.length ? ` · ${atHome.slice(0, 2).map((provider) => provider.name).join(', ')}` : ''}
                     </p>
+                    {ownership.has(movie.id) ? <Badge tone="iris">Owned · ready tonight</Badge> : null}
                     <RecommendationContext movieId={movie.id} reasons={reasons} controls />
                   </>
                 )}

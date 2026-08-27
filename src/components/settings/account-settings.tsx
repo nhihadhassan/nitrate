@@ -90,6 +90,16 @@ export function AccountSettings({
           </Link>
           .
         </p>
+        <a
+          href="/api/account/export"
+          download
+          className="mt-4 inline-flex min-h-11 items-center justify-center rounded-md bg-ember px-4 text-sm font-semibold text-canvas transition-opacity hover:opacity-90"
+        >
+          Download my Nitrate archive
+        </a>
+        <p className="mt-2 text-xs leading-relaxed text-dim">
+          A private ZIP with versioned Nitrate JSON, readable CSVs, Letterboxd-compatible files, your club contributions, and a manifest.
+        </p>
       </section>
 
       <section className="rounded-lg border border-rose/25 p-4">
@@ -98,6 +108,9 @@ export function AccountSettings({
           This removes your profile, name, photo and bio, and signs you out everywhere. Diary
           entries, reviews and club messages are detached from you rather than erased, so shared
           club history and moderation records stay intact. This cannot be undone.
+        </p>
+        <p className="mt-3 rounded-md bg-surface px-3 py-2 text-sm text-muted">
+          Before deleting, <a href="/api/account/export" download className="font-medium text-text underline underline-offset-2 hover:text-ember">download your archive</a>. Exporting does not change your account.
         </p>
 
         {showDelete ? (

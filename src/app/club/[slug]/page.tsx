@@ -37,6 +37,7 @@ import {
   getScreeningPoll,
   getUpcomingScreening,
 } from '@/server/services/clubs';
+import { getOwnershipMap } from '@/server/services/ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -87,6 +88,9 @@ export default async function ClubDashboard({
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
   const myAttendance = attendance.find((a) => a.userId === user?.id);
+  const shortlistOwnership = user && intelligence
+    ? await getOwnershipMap(user.id, intelligence.shortlist.map((item) => item.movie.id))
+    : new Map();
 
   const state = resolveClubState({
     roundStatus: round?.status ?? null,
@@ -617,7 +621,10 @@ export default async function ClubDashboard({
 
         {intelligence ? (
           <ClubShortlist
-            items={intelligence.shortlist}
+            items={intelligence.shortlist.map((item) => ({
+              ...item,
+              ownedFormats: (shortlistOwnership.get(item.movie.id) ?? []).map((copy: { format: string }) => copy.format.replaceAll('_', ' ')),
+            }))}
             clubId={club.id}
             roundId={round?.status === 'nominations_open' ? round.id : null}
             canPick={Boolean(

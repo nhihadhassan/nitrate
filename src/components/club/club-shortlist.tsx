@@ -13,6 +13,7 @@ import { nominateAction } from '@/server/actions/clubs';
 type ShortlistItem = {
   movie: { id: string; slug: string; title: string; year: number | null };
   reasons: RecommendationReason[];
+  ownedFormats?: string[];
 };
 
 /** A short, explainable answer to the question every club asks. */
@@ -46,6 +47,7 @@ export function ClubShortlist({
                   {item.movie.title}
                 </Link>
                 {item.movie.year ? <p className="text-xs text-dim tabular">{item.movie.year}</p> : null}
+                {item.ownedFormats?.length ? <p className="mt-0.5 text-[0.6875rem] font-medium text-iris">Owned · {item.ownedFormats.join(', ')}</p> : null}
               </div>
               {canPick && roundId ? (
                 <Button

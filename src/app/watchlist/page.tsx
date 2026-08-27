@@ -7,10 +7,12 @@ import { WatchlistNote } from '@/components/film/watchlist-note';
 import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
+import { Badge } from '@/components/ui/primitives';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { countWatchlist, getWatchlist, type WatchlistSort } from '@/server/services/profile';
 import { getMovieRecommendationContext } from '@/server/services/discovery';
+import { getOwnershipMap } from '@/server/services/ownership';
 
 export const metadata: Metadata = { title: 'Watchlist' };
 export const dynamic = 'force-dynamic';
@@ -42,6 +44,7 @@ export default async function WatchlistPage({
     countWatchlist(user.id),
   ]);
   const filmContext = await getMovieRecommendationContext(user.id, films.map(({ movie }) => movie.id));
+  const ownership = await getOwnershipMap(user.id, films.map(({ movie }) => movie.id));
 
   const totalRuntime = films.reduce((sum, f) => sum + (f.movie.runtime ?? 0), 0);
 
@@ -127,6 +130,7 @@ export default async function WatchlistPage({
                     </p>
                   ) : null}
                   <WatchlistNote movieId={movie.id} initialNote={note} />
+                  {ownership.has(movie.id) ? <Badge tone="iris">Owned · {ownership.get(movie.id)!.map((copy) => copy.format.replaceAll('_', ' ')).join(', ')}</Badge> : null}
                   <RecommendationContext movieId={movie.id} reasons={(filmContext.get(movie.id) ?? []).filter((reason) => reason.kind !== 'on_watchlist')} />
                 </>
               }

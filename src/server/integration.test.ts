@@ -14,6 +14,7 @@ import {
   importRows,
   listActivity,
   movies,
+  ownershipCopies,
   recommendationFeedback,
   shareSnapshots,
   selectionRounds,
@@ -61,6 +62,7 @@ import { wheelWinnerEmail } from '@/server/email/templates';
 import { consumeRateLimit } from '@/server/rate-limit';
 import { getHomeFeed } from '@/server/services/feed';
 import { logFilm, updateFilmState } from '@/server/services/films';
+import { addOwnershipCopy, getOwnershipForMovie, removeOwnershipCopy } from '@/server/services/ownership';
 import { getDiary, getProfileStats } from '@/server/services/profile';
 import { search } from '@/server/services/search';
 import { createPersonalRecapShare, getPublicShareSnapshot, revokeShareSnapshot } from '@/server/services/shares';
@@ -195,6 +197,19 @@ suite('nitrate integration', () => {
     expect(film.watchCount).toBe(1);
     expect(film.likeCount).toBe(1);
     expect(film.ratingHistogram['8']).toBe(1);
+  });
+
+  it('stores private multi-copy ownership and optional viewing context', async () => {
+    const first = await addOwnershipCopy(alex.id, stalker.id, { format: '4k_uhd', edition: 'Synthetic edition' });
+    await addOwnershipCopy(alex.id, stalker.id, { format: 'digital', notes: 'Offline fixture' });
+    const copies = await getOwnershipForMovie(alex.id, stalker.id);
+    expect(copies.map((copy) => copy.format)).toEqual(['4k_uhd', 'digital']);
+
+    const logged = await logFilm({ userId: alex.id, movieId: stalker.id, watchedDate: '2024-04-01', rating: 9, liked: true, reviewText: null, containsSpoilers: false, visibility: 'private', tags: [], viewingContext: 'cinema' });
+    expect(logged.entry.viewingContext).toBe('cinema');
+    await removeOwnershipCopy(alex.id, first.id);
+    expect((await getOwnershipForMovie(alex.id, stalker.id)).map((copy) => copy.format)).toEqual(['digital']);
+    await db.delete(ownershipCopies).where(eq(ownershipCopies.userId, alex.id));
   });
 
   it('keeps historical ratings when a rewatch is rated differently', async () => {

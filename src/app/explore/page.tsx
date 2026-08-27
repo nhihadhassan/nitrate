@@ -12,6 +12,7 @@ import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getPopularLists } from '@/server/services/lists';
 import { getSuppressedRecommendationIds } from '@/server/services/discovery';
+import { getOwnershipMap } from '@/server/services/ownership';
 import {
   getBecauseYouLoved,
   getCommunityTopFilms,
@@ -66,6 +67,14 @@ export default async function ExplorePage() {
     getPopularLists(viewer, 6),
     user ? getSuppressedRecommendationIds(user.id, 'movie') : Promise.resolve(new Set<string>()),
   ]);
+
+  const allRailFilms = [
+    ...rails.trending, ...rails.nowPlaying, ...rails.canon, ...rails.upcoming,
+    ...friendsWatching, ...friendsLoved, ...clubPopular, ...friendsWant, ...watchlist,
+    ...communityTop, ...(becauseYouLoved?.films ?? []), ...(favouriteGenre?.films ?? []),
+  ];
+  const ownership = user ? await getOwnershipMap(user.id, Array.from(new Set(allRailFilms.map((film) => film.id)))) : new Map();
+  for (const film of allRailFilms) if (ownership.has(film.id)) (film as RailFilm & { owned?: boolean }).owned = true;
 
   const visible = (films: RailFilm[]) => films.filter((film) => !suppressedMovieIds.has(film.id));
   const visibleBecause = becauseYouLoved
