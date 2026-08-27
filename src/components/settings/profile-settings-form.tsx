@@ -25,6 +25,7 @@ export function ProfileSettingsForm({
     avatarAssetId: string | null;
     timezone: string;
     watchRegion: string | null;
+    tasteHighlights: string[];
   };
   /** Full picker list from TMDB; empty when the provider is unreachable. */
   regions: { code: string; name: string }[];
@@ -42,6 +43,7 @@ export function ProfileSettingsForm({
   const [watchRegion, setWatchRegion] = useState(user.watchRegion ?? '');
   const [avatarAssetId, setAvatarAssetId] = useState(user.avatarAssetId);
   const [username, setUsername] = useState(user.username);
+  const [tasteHighlights, setTasteHighlights] = useState(user.tasteHighlights.join(', '));
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
@@ -63,6 +65,7 @@ export function ProfileSettingsForm({
               avatarAssetId,
               timezone,
               watchRegion: watchRegion || null,
+              tasteHighlights: tasteHighlights.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 6),
             });
             if (!result.ok) {
               setError(result.error);
@@ -147,6 +150,10 @@ export function ProfileSettingsForm({
             onChange={(event) => setTimezone(event.target.value)}
             className={inputClass}
           />
+        </Field>
+
+        <Field label="Taste highlights" htmlFor="settings-taste-highlights" optional hint="Up to six short public phrases, separated by commas.">
+          <input id="settings-taste-highlights" value={tasteHighlights} onChange={(event)=>setTasteHighlights(event.target.value)} maxLength={245} placeholder="slow cinema, practical effects, 1970s thrillers" className={inputClass}/>
         </Field>
 
         <Field

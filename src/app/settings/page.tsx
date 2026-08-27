@@ -27,6 +27,7 @@ export default async function ProfileSettingsPage() {
         avatarAssetId: user.avatarAssetId,
         timezone: user.timezone,
         watchRegion: user.watchRegion,
+        tasteHighlights: user.tasteHighlights,
       }}
       regions={regions}
       resolvedRegion={resolvedRegion}

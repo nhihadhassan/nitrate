@@ -1,9 +1,11 @@
 import { notFound } from 'next/navigation';
 
 import { ClubSettingsForm } from '@/components/club/club-settings-form';
+import { PublicJoinSettings } from '@/components/club/public-join-settings';
 import { EmptyState } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
 import { getClubBySlug, getMembership } from '@/server/services/clubs';
+import { listPendingClubJoinRequests } from '@/server/services/network-clubs';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +21,7 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
       <EmptyState title="Admins only" description="Only club admins can change these settings." />
     );
   }
+  const requests = club.visibility === 'public' && user ? await listPendingClubJoinRequests(club.id,user.id):[];
 
   return (
     <div className="max-w-2xl">
@@ -39,6 +42,7 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
         }}
         isOwner={membership.role === 'owner'}
       />
+      <PublicJoinSettings clubId={club.id} visibility={club.visibility} initialPolicy={club.joinPolicy} requests={requests.map(({request,user})=>({id:request.id,username:user.username,displayName:user.displayName,message:request.message,createdAt:request.createdAt.toISOString()}))}/>
     </div>
   );
 }

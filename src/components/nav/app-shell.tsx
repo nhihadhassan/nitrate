@@ -59,6 +59,7 @@ function SiteFooter() {
                   Movie Clubs
                 </Link>
               </li>
+              <li><Link href="/network" className="hover:text-ember">Network</Link></li>
               <li>
                 <Link href="/import" className="hover:text-ember">
                   Import from Letterboxd

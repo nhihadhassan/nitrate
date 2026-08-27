@@ -16,7 +16,7 @@ export function FollowButton({
   userId: string;
   initialFollowing: boolean;
   signedIn: boolean;
-  source?: 'recommendation';
+  source?: 'recommendation' | 'network';
 }) {
   const router = useRouter();
   const toast = useToast();

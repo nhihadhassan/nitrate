@@ -15,6 +15,7 @@ import { WheelPanel } from '@/components/club/wheel-panel';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
+import { ReportClubButton } from '@/components/moderation/report-club-button';
 import { AvatarStack } from '@/components/user/avatar';
 import { filmHref, screeningHref } from '@/lib/links';
 import { resolveClubState } from '@/lib/club';
@@ -123,6 +124,7 @@ export default async function ClubDashboard({
               club watches, rates and remembers it together.
             </p>
             <ClubLoopPreview compact />
+            {user ? <div className="mt-3"><ReportClubButton clubId={club.id} clubName={club.name}/></div>:null}
           </section>
         )}
 

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 
-import { and, eq, gte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 
 import { requireAdmin } from '@/server/auth/session';
 import { db } from '@/server/db';
@@ -121,12 +121,20 @@ export default async function AdminOverviewPage() {
       </section>
 
       <section>
+        <h2 className="text-xl">Network outcomes</h2>
+        <p className="mt-1 text-sm text-muted">Named actions in the last seven days. No dwell time, engagement score, or browsing trail.</p>
+        <NetworkOutcomes />
+      </section>
+
+      <section>
         <h2 className="text-xl">Recent product events</h2>
         <RecentEvents />
       </section>
     </div>
   );
 }
+
+async function NetworkOutcomes(){const names=['public_club_joined','public_club_join_requested','profile_pin_changed','network_recommended_follow'];const rows=await db.select({name:analyticsEvents.name,value:sql<number>`count(*)::int`}).from(analyticsEvents).where(and(gte(analyticsEvents.createdAt,new Date(Date.now()-7*24*60*60*1000)),inArray(analyticsEvents.name,names))).groupBy(analyticsEvents.name);return <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{names.map((name)=><li key={name} className="rounded-md border border-line p-3"><p className="text-xs text-dim">{name.replaceAll('_',' ')}</p><p className="mt-1 text-2xl tabular">{rows.find((row)=>row.name===name)?.value??0}</p></li>)}</ul>}
 
 async function RecentEvents() {
   const rows = await db

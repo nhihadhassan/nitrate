@@ -27,6 +27,7 @@ const LINKS = [
   { href: '/explore', label: 'Explore', match: (p: string) => p.startsWith('/explore') },
   { href: '/films', label: 'Films', match: (p: string) => p.startsWith('/films') },
   { href: '/clubs', label: 'Clubs', match: (p: string) => p.startsWith('/club') },
+  { href: '/network', label: 'Network', match: (p: string) => p.startsWith('/network') },
 ];
 
 export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCount: number }) {
@@ -52,6 +53,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
               aria-current={link.match(pathname) ? 'page' : undefined}
               className={cn(
                 'nav-link rounded-md px-3 py-1.5 text-sm transition-colors',
+                link.href === '/network' && 'hidden lg:block',
                 link.match(pathname)
                   ? 'font-medium text-text'
                   : 'text-muted hover:bg-surface-hover hover:text-text',

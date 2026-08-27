@@ -115,6 +115,7 @@ export default async function ProfileLayout({
                 </Link>
                 {clubCount > 0 ? <Stat value={clubCount} label={clubCount === 1 ? 'club' : 'clubs'} /> : null}
               </div>
+              {profile.tasteHighlights.length ? <ul aria-label="Taste highlights" className="mt-4 flex flex-wrap gap-2">{profile.tasteHighlights.map((item)=><li key={item} className="rounded-full border border-line px-2.5 py-1 text-xs text-muted">{item}</li>)}</ul>:null}
             </div>
           </div>
 

@@ -9,6 +9,7 @@ import { CollaboratorManager, ListEditor, ListOwnerSettings, MovieIdeasTransfer 
 import { Comments } from '@/components/social/comments';
 import { Badge, Container, Divider, EmptyState } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
+import { ProfilePinButton } from '@/components/user/profile-pin-button';
 import { filmHref } from '@/lib/links';
 import { pluralize, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
@@ -16,6 +17,7 @@ import { AppError } from '@/server/errors';
 import { getComments, getListDetail, getOwnerListInvitations } from '@/server/services/lists';
 import { getUserClubs } from '@/server/services/clubs';
 import { getMovieRecommendationContext } from '@/server/services/discovery';
+import { isProfilePinned } from '@/server/services/profile-pins';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,11 +50,12 @@ export default async function ListPage({ params }: Params) {
   }
 
   const { list, owner, items, likedByViewer, savedByViewer, canEdit, isOwner, collaborators, activity, clonedFrom } = detail;
-  const [commentRows, movieContext, clubs, invitations] = await Promise.all([
+  const [commentRows, movieContext, clubs, invitations, pinned] = await Promise.all([
     getComments('list', list.id),
     viewerUser ? getMovieRecommendationContext(viewerUser.id, items.map((item) => item.movie.id)) : Promise.resolve(new Map()),
     viewerUser ? getUserClubs(viewerUser.id) : Promise.resolve([]),
     viewerUser && isOwner ? getOwnerListInvitations(list.id, viewerUser.id) : Promise.resolve([]),
+    viewerUser && isOwner ? isProfilePinned(viewerUser.id, 'list', list.id) : Promise.resolve(false),
   ]);
 
   return (
@@ -87,6 +90,7 @@ export default async function ListPage({ params }: Params) {
             ownerUsername={owner.username}
             visibility={list.visibility}
           />
+          {isOwner && list.visibility !== 'private' ? <span className="ml-2 inline-flex"><ProfilePinButton targetType="list" targetId={list.id} initialPinned={pinned}/></span>:null}
         </div>
       </header>
 

@@ -27,8 +27,9 @@ export default async function ExplorePeoplePage() {
       <header className="mb-7 max-w-2xl">
         <h1 className="text-3xl sm:text-4xl">Find people</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Bounded suggestions from films, favourites, Movie Clubs and people you already follow.
-          Nitrate only makes a taste claim after at least 10 shared ratings.
+          Bounded suggestions from Movie Clubs and people you already follow. Similar-taste
+          discovery appears in Network only after its community evidence gate opens, and never
+          makes a taste claim below 10 shared ratings.
         </p>
       </header>
 

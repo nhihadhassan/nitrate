@@ -103,7 +103,7 @@ export default async function ExplorePage() {
       <header className="mb-10 max-w-2xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-4xl sm:text-5xl">Explore</h1>
-          {user ? <Link href="/tonight" className="flex min-h-11 items-center rounded-md border border-line px-4 text-sm font-medium hover:border-ember/40">Choose for tonight</Link> : null}
+          <div className="flex flex-wrap gap-2">{user ? <Link href="/tonight" className="flex min-h-11 items-center rounded-md border border-line px-4 text-sm font-medium hover:border-ember/40">Choose for tonight</Link> : null}<Link href="/network" className="flex min-h-11 items-center rounded-md border border-line px-4 text-sm font-medium hover:border-iris/40">Open Network</Link></div>
         </div>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
           {user

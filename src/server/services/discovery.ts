@@ -147,7 +147,9 @@ export async function getPeopleRecommendations(
         user: candidate,
         reasons: peopleRecommendationReasons(signal),
         sharedRatings,
-        score: peopleRecommendationScore(signal) + Math.min(closeRatings, 20),
+        score:
+          peopleRecommendationScore(signal) +
+          (options.includeTaste ? Math.min(closeRatings, 20) : 0),
       };
     })
     .filter((candidate) => candidate.reasons.length > 0)

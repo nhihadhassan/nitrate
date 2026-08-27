@@ -30,6 +30,10 @@ const LABELS: Record<string, string> = {
   club_screening_completed: 'the club finished a film',
   club_discussion_reply: 'replied in a discussion',
   moderation_action: 'moderation update',
+  mention: 'mentioned you in a discussion',
+  club_join_request: 'requested to join your club',
+  club_join_approved: 'approved your club request',
+  club_join_declined: 'declined your club request',
 };
 
 export default async function NotificationsPage() {
@@ -67,6 +71,7 @@ export default async function NotificationsPage() {
                       `${notification.actor?.displayName ?? 'Someone'} ${
                         LABELS[notification.type] ?? 'did something'
                       }`}
+                    {notification.groupCount > 1 ? <span className="ml-1 text-dim">· {notification.groupCount} updates</span> : null}
                   </span>
                   <span className="mt-0.5 block text-xs text-dim">
                     {relativeTime(notification.createdAt)}
