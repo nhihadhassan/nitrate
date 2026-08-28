@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { RecommendationContext } from '@/components/discovery/recommendation-context';
+import { RecommendationOptionsMenu } from '@/components/discovery/recommendation-options-menu';
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { Badge, Container, EmptyState } from '@/components/ui/primitives';
@@ -179,6 +180,15 @@ export default async function TonightPage({
                   key={movie.id}
                   film={movie}
                   size="xl"
+                  overlay={
+                    reasons.length ? (
+                      <RecommendationOptionsMenu
+                        targetType="movie"
+                        targetId={movie.id}
+                        reasonKind={reasons[0].kind}
+                      />
+                    ) : undefined
+                  }
                   footer={(
                     <>
                       <p className="mt-0.5 text-[0.6875rem] text-dim">
@@ -186,7 +196,7 @@ export default async function TonightPage({
                         {atHome.length ? ` · ${atHome.slice(0, 2).map((provider) => provider.name).join(', ')}` : ''}
                       </p>
                       {ownership.has(movie.id) ? <Badge tone="iris">Owned · ready tonight</Badge> : null}
-                      <RecommendationContext movieId={movie.id} reasons={reasons} controls />
+                      <RecommendationContext reasons={reasons} />
                     </>
                   )}
                 />

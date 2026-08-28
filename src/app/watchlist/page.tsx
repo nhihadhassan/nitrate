@@ -138,7 +138,7 @@ export default async function WatchlistPage({
                   ) : null}
                   <WatchlistNote movieId={movie.id} initialNote={note} />
                   {ownership.has(movie.id) ? <Badge tone="iris">Owned · {ownership.get(movie.id)!.map((copy) => copy.format.replaceAll('_', ' ')).join(', ')}</Badge> : null}
-                  <RecommendationContext movieId={movie.id} reasons={(filmContext.get(movie.id) ?? []).filter((reason) => reason.kind !== 'on_watchlist')} />
+                  <RecommendationContext reasons={(filmContext.get(movie.id) ?? []).filter((reason) => reason.kind !== 'on_watchlist')} />
                 </>
               }
             />

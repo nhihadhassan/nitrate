@@ -6,7 +6,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { FilmActions } from '@/components/film/film-actions';
 import { ClubFilmAction } from '@/components/club/club-film-action';
-import { RecommendationFeedback } from '@/components/discovery/recommendation-feedback';
+import { RecommendationOptionsMenu } from '@/components/discovery/recommendation-options-menu';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { WhereToWatch } from '@/components/film/where-to-watch';
 import { OwnershipLibrary } from '@/components/film/ownership-library';
@@ -435,14 +435,15 @@ export default async function FilmPage({ params }: Params) {
                 <PosterCard
                   key={item.id}
                   film={item}
-                  footer={viewer ? (
-                    <RecommendationFeedback
-                      targetType="movie"
-                      targetId={item.id}
-                      reasonKind="similar_to_film"
-                      compact
-                    />
-                  ) : null}
+                  overlay={
+                    viewer ? (
+                      <RecommendationOptionsMenu
+                        targetType="movie"
+                        targetId={item.id}
+                        reasonKind="similar_to_film"
+                      />
+                    ) : undefined
+                  }
                 />
               ))}
             </PosterGrid>

@@ -44,14 +44,20 @@ export function Poster({
   className?: string;
   priority?: boolean;
   linked?: boolean;
+  /**
+   * Rendered as a sibling of the film link, not nested inside it — so an
+   * interactive overlay (a menu trigger, say) never ends up as a `<button>`
+   * inside an `<a>`. Position it yourself (e.g. `absolute right-1.5 top-1.5`);
+   * the wrapping frame is already `relative`.
+   */
   overlay?: React.ReactNode;
   ariaHidden?: boolean;
 }) {
   const url = posterUrl(film.posterPath, size);
 
-  const inner = (
+  const frame = (
     <span
-      className={cn('poster-frame premium-poster group block', className)}
+      className={cn('poster-frame premium-poster block', className)}
       data-poster-depth
       data-pointer-light
     >
@@ -65,22 +71,35 @@ export function Poster({
           {film.year ? <span className="text-[0.6875rem] text-dim tabular">{film.year}</span> : null}
         </span>
       )}
-      {overlay}
     </span>
   );
 
-  if (!linked) return inner;
+  // `group` wraps both the link and the overlay sibling, so an overlay
+  // control (e.g. a menu trigger) can reveal itself on hover/focus of the
+  // whole card via `group-hover:`/`group-focus-within:`, even though it is
+  // not nested inside the link.
+  if (!linked) {
+    return (
+      <span className="group relative block">
+        {frame}
+        {overlay}
+      </span>
+    );
+  }
 
   return (
-    <Link
-      href={filmHref(film)}
-      aria-hidden={ariaHidden}
-      tabIndex={ariaHidden ? -1 : undefined}
-      aria-label={`${film.title}${film.year ? ` (${film.year})` : ''}`}
-      className="block rounded-sm focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
-    >
-      {inner}
-    </Link>
+    <span className="group relative block">
+      <Link
+        href={filmHref(film)}
+        aria-hidden={ariaHidden}
+        tabIndex={ariaHidden ? -1 : undefined}
+        aria-label={`${film.title}${film.year ? ` (${film.year})` : ''}`}
+        className="block rounded-sm focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+      >
+        {frame}
+      </Link>
+      {overlay}
+    </span>
   );
 }
 
@@ -91,6 +110,7 @@ export function PosterCard({
   footer,
   className,
   priority,
+  overlay,
 }: {
   film: PosterFilm;
   size?: PosterSize;
@@ -98,10 +118,12 @@ export function PosterCard({
   className?: string;
   /** Set on the handful of cards above the fold so the LCP image is not lazy. */
   priority?: boolean;
+  /** Forwarded to `Poster` — see its own doc comment. */
+  overlay?: React.ReactNode;
 }) {
   return (
     <div className={cn('poster-card min-w-0', className)}>
-      <Poster film={film} size={size} priority={priority} />
+      <Poster film={film} size={size} priority={priority} overlay={overlay} />
       <div className="mt-1.5 min-w-0">
         <Link
           href={filmHref(film)}

@@ -176,7 +176,7 @@ export default async function ListPage({ params }: Params) {
                     <p className="mt-0.5 text-xs leading-relaxed text-muted">{item.note}</p>
                   ) : null}
                   {item.addedBy && item.addedBy.id !== owner.id ? <p className="mt-0.5 text-[0.6875rem] text-dim">Added by {item.addedBy.displayName}</p> : null}
-                  <RecommendationContext movieId={item.movie.id} reasons={movieContext.get(item.movie.id) ?? []} />
+                  <RecommendationContext reasons={movieContext.get(item.movie.id) ?? []} />
                 </div>
               </li>
             ) : (
@@ -193,7 +193,7 @@ export default async function ListPage({ params }: Params) {
                   <p className="mt-1.5 text-[0.6875rem] leading-snug text-dim">{item.note}</p>
                 ) : null}
                 {item.addedBy && item.addedBy.id !== owner.id ? <p className="mt-1 text-[0.6875rem] text-dim">Added by {item.addedBy.displayName}</p> : null}
-                <RecommendationContext movieId={item.movie.id} reasons={movieContext.get(item.movie.id) ?? []} />
+                <RecommendationContext reasons={movieContext.get(item.movie.id) ?? []} />
               </li>
             ),
           )}
