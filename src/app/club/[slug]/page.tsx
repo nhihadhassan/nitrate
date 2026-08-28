@@ -107,6 +107,11 @@ export default async function ClubDashboard({
     hasPicked: Boolean(round && currentUserPickCount >= round.nominationLimitPerMember),
     hasVoted: Boolean(nominations?.viewerVoted),
     hasRsvpd: Boolean(myAttendance?.rsvp),
+    pollStatus: poll?.status ?? null,
+    hasRespondedToPoll: Boolean(poll?.options.some((option) => option.viewerResponse)),
+    pollHasResponses: Boolean(
+      poll?.options.some((option) => option.yes + option.maybe + option.no > 0),
+    ),
   });
 
   return (

@@ -24,6 +24,15 @@ function describeChange(prev: ClubPulse, next: ClubPulse): string | null {
   if (prev.round && !prev.round.picksClosedAt && next.round?.picksClosedAt) {
     return 'Picks just closed';
   }
+  if (!prev.poll && next.poll) {
+    return 'An availability poll just opened';
+  }
+  if (prev.poll && next.poll && prev.poll.responseCount < next.poll.responseCount) {
+    return 'Someone just marked their availability';
+  }
+  if (prev.poll?.status === 'open' && next.poll?.status === 'closed') {
+    return 'A time was just confirmed';
+  }
   if (prev.round && !next.round && next.screening && !prev.screening) {
     return 'Movie night was just scheduled';
   }

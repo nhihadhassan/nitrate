@@ -119,6 +119,17 @@ export default async function HomePage({
         </div>
 
         <aside className="space-y-8 lg:sticky lg:top-20 lg:self-start">
+          {watchlist.length ? (
+            <Link
+              href="/tonight"
+              className="action-tile block rounded-lg border border-ember/25 bg-ember/[0.045] p-3.5"
+            >
+              <p className="eyebrow text-ember">Tonight</p>
+              <p className="mt-1 text-sm font-medium">Not sure what to watch?</p>
+              <p className="mt-0.5 text-xs text-dim">A short, honest shortlist from your watchlist and Movie Ideas.</p>
+            </Link>
+          ) : null}
+
           <section>
             <SectionHeading
               title={<span className="text-lg">Your watchlist</span>}

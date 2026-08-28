@@ -176,6 +176,12 @@ export default async function ScreeningPage({
               clubSlug={club.slug}
               current={context.attendance?.rsvp ?? null}
             />
+            <a
+              href={`/club/${club.slug}/screening/${screening.id}/calendar`}
+              className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted underline underline-offset-2 hover:text-iris"
+            >
+              Add to calendar
+            </a>
           </section>
         ) : null}
 

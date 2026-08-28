@@ -19,6 +19,8 @@ import {
   diaryEntries,
   favoriteFilms,
   follows,
+  genres,
+  movieGenres,
   movies,
   people,
   personFollows,
@@ -314,12 +316,43 @@ export type TonightRecommendation = {
   availability: Awaited<ReturnType<typeof getAvailabilityForMovies>> extends Map<string, infer A> ? A : never;
 };
 
+export type TonightConstraints = {
+  /** Watchlist + Movie Ideas only, or widen to well-regarded films the viewer hasn't logged. */
+  scope?: 'watchlist' | 'broader';
+  /** Films with no known runtime are excluded once a time limit is set — never assumed to fit. */
+  maxRuntimeMinutes?: number | null;
+  genreId?: string | null;
+  /** Only films confirmed streamable or free right now, in the given region. */
+  onlyAvailable?: boolean;
+  /** Advances the deterministic tie-break order — "show me three more" without full reshuffle. */
+  seed?: number;
+};
+
+/** A small, stable, non-cryptographic hash — enough to order ties deterministically per day. */
+function stableHash(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (Math.imul(31, hash) + value.charCodeAt(i)) | 0;
+  }
+  return hash >>> 0;
+}
+
+const TONIGHT_RESULT_COUNT = 3;
+
+/**
+ * A short, honest shortlist — never a grid. Three films, each with its own
+ * reasons, ranked by how well-supported those reasons are and then ordered
+ * deterministically so a page refresh doesn't reshuffle mid-decision. `seed`
+ * is the only thing that moves the order on purpose ("show me three more").
+ */
 export async function getTonightRecommendations(
   userId: string,
   region: string,
-  limit = 18,
+  constraints: TonightConstraints = {},
 ): Promise<TonightRecommendation[]> {
-  const [watchlistRows, clubRows, suppressed] = await Promise.all([
+  const { scope = 'watchlist', maxRuntimeMinutes, genreId, onlyAvailable, seed = 0 } = constraints;
+
+  const [watchlistRows, clubRows, watchedIds, suppressed] = await Promise.all([
     db
       .select({ movie: movies })
       .from(userMovieState)
@@ -339,13 +372,60 @@ export async function getTonightRecommendations(
       .where(isNull(clubQueueItems.removedAt))
       .orderBy(desc(clubQueueItems.createdAt))
       .limit(30),
+    db
+      .select({ movieId: userMovieState.movieId })
+      .from(userMovieState)
+      .where(and(eq(userMovieState.userId, userId), eq(userMovieState.watched, true)))
+      .then((rows) => new Set(rows.map((r) => r.movieId))),
     getSuppressedRecommendationIds(userId, 'movie'),
   ]);
+
   const byId = new Map<string, Movie>();
   [...watchlistRows, ...clubRows].forEach(({ movie }) => {
-    if (!suppressed.has(movie.id) && !byId.has(movie.id)) byId.set(movie.id, movie);
+    if (!suppressed.has(movie.id) && !watchedIds.has(movie.id) && !byId.has(movie.id)) {
+      byId.set(movie.id, movie);
+    }
   });
-  const candidates = [...byId.values()].slice(0, 24);
+
+  if (scope === 'broader' && byId.size < 24) {
+    const broaderRows = await db
+      .select({ movie: movies })
+      .from(movies)
+      .where(sql`${movies.ratingCount} >= 3`)
+      .orderBy(
+        desc(sql`(${movies.ratingSum}::float / nullif(${movies.ratingCount}, 0))`),
+        desc(movies.ratingCount),
+      )
+      .limit(40);
+    for (const { movie } of broaderRows) {
+      if (byId.size >= 40) break;
+      if (!suppressed.has(movie.id) && !watchedIds.has(movie.id) && !byId.has(movie.id)) {
+        byId.set(movie.id, movie);
+      }
+    }
+  }
+
+  let candidates = [...byId.values()];
+
+  if (genreId) {
+    const matchingIds = await db
+      .select({ movieId: movieGenres.movieId })
+      .from(movieGenres)
+      .innerJoin(genres, eq(genres.id, movieGenres.genreId))
+      .where(and(
+        eq(genres.providerId, genreId),
+        inArray(movieGenres.movieId, candidates.map((m) => m.id)),
+      ));
+    const allowed = new Set(matchingIds.map((r) => r.movieId));
+    candidates = candidates.filter((movie) => allowed.has(movie.id));
+  }
+
+  if (maxRuntimeMinutes) {
+    candidates = candidates.filter((movie) => movie.runtime !== null && movie.runtime <= maxRuntimeMinutes);
+  }
+
+  candidates = candidates.slice(0, 40);
+
   const [context, availability] = await Promise.all([
     getMovieRecommendationContext(userId, candidates.map((movie) => movie.id)),
     getAvailabilityForMovies(candidates, region, { limit: 24, concurrency: 4 }),
@@ -354,10 +434,20 @@ export async function getTonightRecommendations(
     const item = availability.get(movieId);
     return Boolean(item && (item.stream.length || item.free.length));
   };
+
+  if (onlyAvailable) {
+    candidates = candidates.filter((movie) => hasAtHome(movie.id));
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
   return candidates
     .map((movie) => ({ movie, reasons: context.get(movie.id) ?? [], availability: availability.get(movie.id) ?? null }))
-    .sort((a, b) => Number(hasAtHome(b.movie.id)) - Number(hasAtHome(a.movie.id)) || b.reasons.length - a.reasons.length || (a.movie.runtime ?? 999) - (b.movie.runtime ?? 999))
-    .slice(0, Math.min(Math.max(limit, 1), 24));
+    .sort((a, b) => {
+      const strength = Number(hasAtHome(b.movie.id)) - Number(hasAtHome(a.movie.id)) || b.reasons.length - a.reasons.length;
+      if (strength !== 0) return strength;
+      return stableHash(`${a.movie.id}:${today}:${seed}`) - stableHash(`${b.movie.id}:${today}:${seed}`);
+    })
+    .slice(0, TONIGHT_RESULT_COUNT);
 }
 
 export async function restoreRecommendationFeedback(userId: string, feedbackId: string): Promise<void> {

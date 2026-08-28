@@ -10,6 +10,7 @@ const TONE: Record<ClubAttentionKind, 'ember' | 'iris'> = {
   vote: 'iris',
   spin: 'iris',
   pick: 'iris',
+  availability: 'iris',
   schedule: 'iris',
   rsvp: 'iris',
 };
@@ -20,6 +21,7 @@ const LABEL: Record<ClubAttentionKind, string> = {
   vote: 'Vote',
   spin: 'Spin',
   pick: 'Pick',
+  availability: 'Availability',
   schedule: 'Schedule',
   rsvp: 'RSVP',
 };

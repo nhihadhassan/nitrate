@@ -2141,6 +2141,11 @@ export type ClubPulse = {
     goingCount: number;
     ratingCount: number;
   } | null;
+  poll: {
+    id: string;
+    status: 'open' | 'closed' | 'cancelled';
+    responseCount: number;
+  } | null;
   discussionPostCount: number;
 };
 
@@ -2187,6 +2192,34 @@ export async function getClubPulse(clubId: string, screeningId?: string | null):
       ])
     : [null, null];
 
+  // Only a round parked on `winner_selected` can have a live availability
+  // poll — no point querying it for any other status.
+  const poll =
+    round && round.status === 'winner_selected'
+      ? await (async () => {
+          const [row] = await db
+            .select({ id: screeningPolls.id, status: screeningPolls.status })
+            .from(screeningPolls)
+            .where(eq(screeningPolls.roundId, round.id))
+            .orderBy(desc(screeningPolls.createdAt))
+            .limit(1);
+          if (!row) return null;
+          const [responseCountRow] = await db
+            .select({ value: count() })
+            .from(screeningPollResponses)
+            .innerJoin(
+              screeningPollOptions,
+              eq(screeningPollOptions.id, screeningPollResponses.optionId),
+            )
+            .where(eq(screeningPollOptions.pollId, row.id));
+          return {
+            id: row.id,
+            status: row.status,
+            responseCount: Number(responseCountRow?.value ?? 0),
+          };
+        })()
+      : null;
+
   return {
     round: round
       ? {
@@ -2207,6 +2240,7 @@ export async function getClubPulse(clubId: string, screeningId?: string | null):
           ratingCount: screening.groupRatingCount,
         }
       : null,
+    poll,
     discussionPostCount: Number(discussionCountRow?.[0]?.value ?? 0),
   };
 }
@@ -2235,7 +2269,7 @@ export async function getUserClubs(userId: string) {
     .orderBy(desc(clubs.updatedAt));
 }
 
-export type ClubAttentionKind = 'tonight' | 'rate' | 'vote' | 'spin' | 'pick' | 'schedule' | 'rsvp';
+export type ClubAttentionKind = 'tonight' | 'rate' | 'vote' | 'spin' | 'pick' | 'availability' | 'schedule' | 'rsvp';
 
 export type ClubAttentionItem = {
   kind: ClubAttentionKind;
@@ -2255,6 +2289,7 @@ const ATTENTION_PRIORITY: ClubAttentionKind[] = [
   'vote',
   'spin',
   'pick',
+  'availability',
   'schedule',
   'rsvp',
 ];
@@ -2326,14 +2361,42 @@ export async function getClubAttention(userId: string): Promise<ClubAttentionIte
               href: clubHref(club),
             });
           }
-        } else if (round.status === 'winner_selected' && isAdmin) {
-          found.push({
-            ...base,
-            kind: 'schedule',
-            title: `Schedule movie night for ${club.name}`,
-            subtitle: 'A winner has been chosen.',
-            href: clubHref(club),
-          });
+        } else if (round.status === 'winner_selected') {
+          const poll = await getScreeningPoll(round.id, userId);
+          if (poll && poll.status === 'open') {
+            const responded = poll.options.some((option) => option.viewerResponse);
+            if (!responded) {
+              found.push({
+                ...base,
+                kind: 'availability',
+                title: `Mark your availability for ${club.name}`,
+                subtitle: 'Help find a time that works for everyone.',
+                href: clubHref(club),
+              });
+            } else if (isAdmin) {
+              const totalResponses = poll.options.reduce(
+                (sum, option) => sum + option.yes + option.maybe + option.no,
+                0,
+              );
+              if (totalResponses > 0) {
+                found.push({
+                  ...base,
+                  kind: 'schedule',
+                  title: `Confirm a time for ${club.name}`,
+                  subtitle: 'Responses are coming in.',
+                  href: clubHref(club),
+                });
+              }
+            }
+          } else if (isAdmin) {
+            found.push({
+              ...base,
+              kind: 'schedule',
+              title: `Schedule movie night for ${club.name}`,
+              subtitle: 'A winner has been chosen.',
+              href: clubHref(club),
+            });
+          }
         }
       }
 

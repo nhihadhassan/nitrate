@@ -50,13 +50,20 @@ export default async function WatchlistPage({
 
   return (
     <Container size="wide" className="py-8">
-      <header className="mb-6">
-        <h1 className="text-3xl sm:text-4xl">Watchlist</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          {pluralize(total, 'film')} waiting.
-          {totalRuntime > 0 ? ` About ${formatRuntime(totalRuntime)} of viewing.` : ''} Logging one
-          takes it off this list automatically.
-        </p>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div>
+          <h1 className="text-3xl sm:text-4xl">Watchlist</h1>
+          <p className="mt-1.5 text-sm text-muted">
+            {pluralize(total, 'film')} waiting.
+            {totalRuntime > 0 ? ` About ${formatRuntime(totalRuntime)} of viewing.` : ''} Logging one
+            takes it off this list automatically.
+          </p>
+        </div>
+        {films.length ? (
+          <Button asChild variant="primary" size="sm">
+            <Link href="/tonight">Choose for tonight</Link>
+          </Button>
+        ) : null}
       </header>
 
       <div className="mb-5 space-y-2.5">
