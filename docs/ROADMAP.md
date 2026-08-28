@@ -23,18 +23,6 @@ runs `npm run verify` on every pull request and on `main` (`.github/workflows/ci
 
 ## Next — the obvious gaps
 
-**Installable on phones.** A web app manifest, icons and a service worker would
-let the club add it to their home screen and have it feel like an app. Small
-job, high perceived payoff for a group that will mostly use this on mobile.
-
-**Email notification preferences.** Members can mute a whole club, but cannot
-choose to get the winner email and skip the submissions nudge. As more email
-types are added this becomes necessary rather than nice.
-
-**Screening reminders.** `getScreeningsNeedingReminder` and the
-`reminderSentAt` column already exist and are unused. The cron could send "movie
-night is tomorrow" with almost no new code.
-
 **Restore a precise weekly time.** Currently the weekly round triggers on a
 weekday only, because Vercel Hobby caps cron at daily. On Pro, restore the
 hourly schedule and re-enable the `weeklyPickHour` picker — the column is still
@@ -43,32 +31,31 @@ there.
 **Rename the Vercel project.** Repo, project and URL still say `nitrate`. Purely
 cosmetic; changes the live URL, and needs account-level permissions.
 
+**Push notifications for the PWA.** The manifest and service worker ship
+without them by design (see `docs/DECISIONS.md`) — a real push story needs
+subscription management and a delivery guarantee, not a small add-on.
+
 ---
 
 ## Later — genuinely valuable, genuinely more work
 
-**Data export.** The PRD promises users own their history. Import exists; export
-does not. CSV and JSON of diary, ratings, reviews, lists and watchlist.
-
 **Advanced statistics.** Per-year breakdowns, most-rewatched, highest-rated
-decade, taste compatibility between members. The data is all there.
+decade, and now `viewing_context`/`ownership_copies` (1.7) as new facts to
+surface. Taste compatibility between members specifically stays deferred — see
+`docs/DECISIONS.md`'s "deliberately not done" list.
 
-**Annual recap.** Shareable end-of-year cards. A natural moment for a group like
-this and an organic reason to come back.
+**External calendar sync** (Google/Outlook, two-way). The `.ics` download
+covers "get it on my calendar"; a live sync is a materially bigger, OAuth-scoped
+project for a want nobody has asked for yet.
 
-**Group recommendation engine.** Club suggestions are currently three
-explainable heuristics. The data model supports scoring across member
-watchlists, ratings and club history — the PRD's "94% group match" idea.
+**Close friends**, as a visibility tier narrower than followers for diary
+entries and reviews specifically — distinct from taste circles (1.5), which are
+a feed audience, not a privacy level. Would need a fourth value on the
+visibility enum and an audience table.
 
-**Streaming availability.** "Where can we actually watch this tonight" is the
-question the queue cannot answer. Region-aware, via properly licensed provider
-data.
-
-**Collaborative lists.** `list_collaborators` exists and is unused; the feature
-can be added without touching the schema.
-
-**Close friends.** A trusted audience narrower than followers, for diary entries
-and reviews. The visibility enum would need a fourth value and an audience table.
+**A precise weather/mood-aware Tonight.** Out of scope for now — the three
+current signals (time, genre, availability) plus scope (watchlist vs. broader)
+cover the common case without turning the sheet into a questionnaire.
 
 ---
 

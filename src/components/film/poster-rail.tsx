@@ -1,4 +1,6 @@
 import { Poster, type PosterFilm } from '@/components/film/poster';
+import { RecommendationFeedback } from '@/components/discovery/recommendation-feedback';
+import { recommendationReasonLabel, type RecommendationReason } from '@/lib/recommendations';
 import { cn } from '@/lib/utils';
 
 /**
@@ -15,7 +17,7 @@ export function PosterRail({
   itemClassName,
   className,
 }: {
-  films: (PosterFilm & { caption?: string })[];
+  films: (PosterFilm & { id?: string; caption?: string; reason?: RecommendationReason; owned?: boolean })[];
   /** Accessible name for the rail's implicit list landmark. */
   label: string;
   size?: 'sm' | 'md' | 'lg';
@@ -44,10 +46,14 @@ export function PosterRail({
           <p className="mt-1.5 truncate text-[0.8125rem] font-medium leading-snug">{film.title}</p>
           <p className="text-[0.6875rem] text-dim tabular">
             {film.year ?? ''}
-            {film.caption ? (
-              <span className="ml-1 text-ember">{film.caption}</span>
+            {film.caption || film.reason ? (
+              <span className="ml-1 text-ember">{film.caption ?? recommendationReasonLabel(film.reason!)}</span>
             ) : null}
           </p>
+          {film.owned ? <p className="mt-0.5 text-[0.6875rem] font-medium text-iris">Owned</p> : null}
+          {film.reason && film.id ? (
+            <RecommendationFeedback targetType="movie" targetId={film.id} reasonKind={film.reason.kind} compact />
+          ) : null}
         </li>
       ))}
     </ul>

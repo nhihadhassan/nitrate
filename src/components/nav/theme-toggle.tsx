@@ -69,7 +69,7 @@ export function ThemeToggle({ withLabel }: { withLabel?: boolean }) {
       type="button"
       onClick={() => choose(theme === 'light' ? 'dark' : 'light')}
       aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
-      className="flex h-9 w-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text"
+      className="flex h-11 w-11 touch-manipulation items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-hover hover:text-text"
     >
       <svg viewBox="0 0 24 24" className="h-[1.15rem] w-[1.15rem]" fill="none" stroke="currentColor" strokeWidth={1.6} aria-hidden>
         <path d="M20 13.5A8.2 8.2 0 0 1 10.5 4a8.5 8.5 0 1 0 9.5 9.5" strokeLinecap="round" strokeLinejoin="round" />

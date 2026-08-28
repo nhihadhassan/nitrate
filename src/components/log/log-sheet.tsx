@@ -54,6 +54,7 @@ export function LogSheet({
   const [spoilers, setSpoilers] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [visibility, setVisibility] = useState<Visibility>(seed.initial?.visibility ?? 'public');
+  const [viewingContext, setViewingContext] = useState<'' | 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other'>('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
@@ -80,6 +81,7 @@ export function LogSheet({
         tags,
         isRewatch,
         screeningId: seed.screeningId ?? null,
+        viewingContext: viewingContext || null,
       });
 
       if (!result.ok) {
@@ -265,6 +267,24 @@ export function LogSheet({
               className={inputClass}
             />
           </Field>
+
+          <details className="rounded-md border border-line px-3 py-2.5">
+            <summary className="cursor-pointer text-sm font-medium text-muted">Add viewing context</summary>
+            <div className="mt-3">
+              <Field label="Where or how did you watch?" htmlFor="log-viewing-context" optional>
+                <select id="log-viewing-context" value={viewingContext} onChange={(event) => setViewingContext(event.target.value as typeof viewingContext)} className={inputClass}>
+                  <option value="">Not specified</option>
+                  <option value="cinema">Cinema</option>
+                  <option value="home">At home</option>
+                  <option value="friend_home">At a friend’s home</option>
+                  <option value="club">Movie Club</option>
+                  <option value="festival">Festival</option>
+                  <option value="travel">While travelling</option>
+                  <option value="other">Other</option>
+                </select>
+              </Field>
+            </div>
+          </details>
 
           <fieldset>
             <legend className="mb-1.5 text-sm font-medium">Who can see this</legend>

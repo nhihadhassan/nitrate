@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { safeUsername } from '@/lib/community-safety';
 
 import { track } from '@/server/analytics';
 import { fakeVerify, hashPassword, verifyPassword } from '@/server/auth/password';
@@ -58,7 +59,7 @@ const usernameSchema = z
   .min(3, 'At least 3 characters.')
   .max(20, 'At most 20 characters.')
   .regex(/^[a-zA-Z0-9_]+$/, 'Letters, numbers and underscores only.')
-  .refine((value) => !RESERVED_USERNAMES.has(value.toLowerCase()), 'That username is reserved.');
+  .refine((value) => !RESERVED_USERNAMES.has(value.toLowerCase()) && safeUsername(value), 'That username is reserved.');
 
 const signupSchema = z.object({
   email: z.string().trim().email('Enter a valid email address.').max(254),

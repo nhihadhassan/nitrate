@@ -11,6 +11,7 @@ import { ReviewBody } from '@/components/review/review-body';
 import { Comments } from '@/components/social/comments';
 import { Badge, Container, Divider } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
+import { ProfilePinButton } from '@/components/user/profile-pin-button';
 import { filmHref } from '@/lib/links';
 import { formatDateOnly, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
@@ -18,6 +19,7 @@ import { db } from '@/server/db';
 import { diaryEntries, diaryEntryTags, movies, reviewLikes, tags, users } from '@/server/db/schema';
 import { viewableSql } from '@/server/privacy';
 import { getComments } from '@/server/services/lists';
+import { isProfilePinned } from '@/server/services/profile-pins';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +66,7 @@ export default async function ReviewPage({ params }: Params) {
 
   const { entry, movie, author } = row;
 
-  const [entryTags, commentRows, liked] = await Promise.all([
+  const [entryTags, commentRows, liked, pinned] = await Promise.all([
     db
       .select({ name: tags.name })
       .from(diaryEntryTags)
@@ -79,6 +81,7 @@ export default async function ReviewPage({ params }: Params) {
           .limit(1)
           .then((rows) => rows.length > 0)
       : Promise.resolve(false),
+    viewer?.id === author.id ? isProfilePinned(author.id, 'review', entry.id) : Promise.resolve(false),
   ]);
 
   return (
@@ -143,6 +146,7 @@ export default async function ReviewPage({ params }: Params) {
             signedIn={Boolean(viewer)}
             authorUsername={author.username}
           />
+          {viewer?.id === author.id && entry.visibility !== 'private' ? <span className="ml-2 inline-flex"><ProfilePinButton targetType="review" targetId={entry.id} initialPinned={pinned}/></span>:null}
         </div>
       </article>
 

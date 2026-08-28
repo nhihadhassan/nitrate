@@ -13,6 +13,7 @@ import type {
   ProviderMovieSummary,
   ProviderPage,
   ProviderPerson,
+  WatchAvailability,
 } from './types';
 
 const PAGE_SIZE = 20;
@@ -250,5 +251,15 @@ export class OfflineProvider implements MovieProvider {
   async genres(): Promise<ProviderGenre[]> {
     const rows = await db.select({ providerId: genres.providerId, name: genres.name }).from(genres);
     return rows;
+  }
+
+  // Nothing about streaming availability is stored locally — there is no
+  // honest offline answer, so this degrades to "no data" rather than a guess.
+  async watchProviders(): Promise<WatchAvailability | null> {
+    return null;
+  }
+
+  async watchRegions(): Promise<{ code: string; name: string }[]> {
+    return [];
   }
 }

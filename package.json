@@ -1,6 +1,6 @@
 {
   "name": "nitrate",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "private": true,
   "description": "A social film diary and Movie Club platform: your films, their films, our films.",
   "engines": {
@@ -17,11 +17,13 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
+    "db:migrate:test": "tsx scripts/migrate-test.ts",
     "db:studio": "drizzle-kit studio",
     "seed": "tsx scripts/seed.ts",
     "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
     "clsx": "2.1.1",
     "drizzle-orm": "0.38.4",
     "next": "^15.5.23",
@@ -34,6 +36,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/archiver": "^6.0.3",
     "@types/node": "22.10.7",
     "@types/react": "19.0.7",
     "@types/react-dom": "19.0.3",

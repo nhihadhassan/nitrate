@@ -130,6 +130,162 @@ serverless function duration limits make a long-lived stream unreliable here,
 and a handful of indexed counts every few seconds is cheap enough not to need
 one.
 
+**Streaming availability is annotated, never filtered by SQL.** TMDB's
+watch-provider data is the most volatile thing the app serves (a 12h cache TTL,
+versus 7/30-day TTLs elsewhere), so a film with no cached row shows no badge
+rather than a wrong one, and the catalogue query itself never excludes a film
+for lack of availability data. `getAvailabilityForMovies` resolves a *bounded*
+candidate set (serve-cached-first, fetch a handful of misses, tolerate
+absences) — availability is a signal on top of already-ranked results, not a
+`WHERE` clause. Region resolves from the user's own choice, then
+`x-vercel-ip-country`, then `'US'`, and is persisted on first resolution so it
+stays visible and stable. Per TMDB's terms, the JustWatch attribution line and
+the outbound link (TMDB's own watch page — never a fabricated deep link) are
+non-negotiable wherever availability renders.
+
+**Tonight has no percentage match scores, ever.** `getTonightRecommendations`
+reuses the same closed-union `RecommendationReason` vocabulary as every other
+discovery surface — "On your watchlist for 4 months", "2 friends loved this" —
+and returns exactly three results, daily-stable via
+`stableHash(id + date [+ seed])` so a refresh doesn't reshuffle but "show me
+three more" can advance deliberately. Constraints (scope, runtime, genre,
+availability) live in the URL as search params, not component state, so
+results are shareable and the back button works. The club variant
+(`getClubIntelligence`'s shortlist) extends the same scoring core rather than
+forking it — availability and runtime signals were added there, and
+`onEveryonesRadar`/`nobodyHasSeen`, computed since 1.3's foundation but never
+rendered, finally reach the UI. The pick/vote/wheel ritual is unchanged; Tonight
+recommends, it does not choose for the club.
+
+**The movie-night poll is optional and funnels through the one legal
+scheduling edge.** `createScreeningPoll` requires a round already in
+`winner_selected`; `confirmScreeningPollOption` calls the same
+`scheduleScreeningRecord` that the direct one-shot form uses, inside one
+transaction that also closes the poll — there is no second insert path into
+`screenings`, so `assertTransition`'s guarantee that `winner_selected →
+screening_scheduled` is the only legal edge still holds. Yes counts double a
+maybe (`availabilityScore = yes*2 + maybe`, tie-broken by earliest time) — a
+pure, unit-tested function (`src/lib/screening-poll.ts`) rather than a query,
+so the "confirm best time" affordance and any future automation agree by
+construction. The poll integrates rather than islands: `ClubPulse` carries a
+`poll` field so live updates need no client change, `getClubAttention` gained
+an `'availability'` kind for Home's "Right now", and `resolveClubState` gives
+the `reveal` stage poll-aware copy ("Mark your availability" vs. "Confirm a
+time") so the lifecycle strip and the dashboard never disagree with each
+other.
+
+**Calendar export is a downloadable file, not a subscribable feed.**
+`src/lib/calendar.ts` hand-rolls RFC 5545 with no dependency — line folding at
+75 octets, UTF-8-safe, full text escaping, unit-tested against all four rules.
+Deliberately *not* a `webcal://` URL: a movie night's time changes rarely
+enough that "download again if it moves" is honest and simple, and a
+downloadable file needs no long-lived, guessable per-user URL. The route
+(`/club/[slug]/screening/[screeningId]/calendar`) mirrors the pulse route's
+auth exactly — 401 signed-out, 403/404 non-member — and `DTSTART`/`DTEND` are
+emitted in UTC (`Z` suffix) since `scheduled_at` is already `timestamptz`, so
+no `VTIMEZONE` block is needed. No `SEQUENCE` line is emitted (screenings have
+no `updatedAt` to derive one from); a moved screening is a new download, not an
+update a calendar app reconciles automatically — an acceptable simplification
+for something a member downloads once, not something the app pushes changes
+into.
+
+**Screening reminders reuse the existing outbox and cron; nothing new was
+built to send mail.** `getScreeningsNeedingReminder` and `reminderSentAt`
+predate this phase and were unused — the only new code is `markScreeningReminderSent`
+and calling it before `flushEmailQueue` in the daily cron. `email_deliveries.template`
+is a bare `text` column, so the new `screening_reminder` template needed no
+migration; the exhaustive `switch` in `renderTemplate` makes forgetting the
+`TemplateName` case a compile error. The three new `users` booleans
+(`email_movie_night_reminders`, `email_picks_and_voting`, `email_winner_selected`)
+are checked as predicates inside `queueClubEmail` before a row is even written,
+so an opted-out member's mail is never queued rather than filtered later.
+
+**PWA caching is deliberately conservative.** The service worker precaches only
+`/_next/static` and one offline fallback page. Every navigation and every
+`/api/*` request is network-only, always — a club's live state, RSVPs and
+discussion must never be served from a stale cache. No push notifications: a
+reliable push story needs a subscription-management surface and a delivery
+guarantee this phase does not build, and a half-working notification is worse
+than none.
+
+**Hand-written migrations continue past 0004.** `drizzle-kit generate` cannot
+be trusted against this repo's snapshot history (see `0003`/`0004`), so `0005`
+through `0010` are hand-written the same way: `IF NOT EXISTS`/`ADD CONSTRAINT …
+EXCEPTION WHEN duplicate_object` guards throughout, one `ALTER TYPE … ADD
+VALUE` per statement (it cannot share a transaction batch with a use of the new
+value), and a journal entry appended by hand. All six are additive only — new
+tables, nullable or defaulted columns, new enum values, new indexes — nothing
+drops or narrows an existing column. `0000`–`0010` are all applied to
+production as of this phase.
+
+---
+
+## The 1.4–2.0 stack
+
+Before this phase, a separate automated process built four further releases
+(1.4 "Your Taste & Our History" through 2.0 "Network") on top of an
+in-progress 1.3 branch, without review, while the session was paused on a
+usage limit. On resuming, the drift was discovered, verified rather than
+trusted or discarded — `git diff --stat` against every release's own claims,
+independent re-runs of typecheck/lint/test/build — and the user chose to keep
+the full stack as the new baseline rather than roll it back. One material gap
+surfaced by that review: the 1.3 dossier's "complete implementation" claim was
+false (Tonight, calendar export and the integration wiring above were all
+missing), and calendar export was missing from every release through 2.0. This
+phase finished those specifically, on top of the existing branches rather than
+rebuilding them, per the user's direction.
+
+Two of the four kept releases (1.4's `share_snapshots`, covering
+`personal_recap`/`club_yearbook`/`taste_comparison`, and 1.5's taste circles)
+land squarely inside this project's own stated exclusion list — annual recap,
+Club Yearbook and taste-compatibility profiles were explicitly out of scope
+for 1.3. They were kept anyway, deliberately: the user was told plainly what
+1.4–2.0 contained before choosing to keep it, which is a different thing from
+that exclusion never having been raised. The exclusion stands for anything
+*not yet built*; it does not retroactively unbuild reviewed, working code the
+user asked to keep.
+
+- **1.4 — Your Taste & Our History**: a private annual recap
+  (`/u/[username]/recap/[year]`, self-only) and a club yearbook
+  (`/club/[slug]/yearbook`) — both deliberately narrative rather than
+  competitive: no leaderboard, no ranking of who "won" the year, and a sparse
+  year gets an honest "fewer entries, still a real year" instead of a padded
+  chapter. Sharing either produces a static, immutable snapshot
+  (`share_snapshots`) rather than a live page: public links store only a
+  SHA-256 digest of a bearer token, never the token itself, and every read
+  still re-checks source visibility and blocking, so a shared link cannot
+  expose more than the viewer already could see. `/api/cards/recap/[year]` and
+  `/api/cards/yearbook/[clubId]` render the matching Open Graph image.
+- **1.5 — Smarter Social Discovery**: a taste circle (`/taste-circle`) — a
+  private, chronological feed from up to five people the viewer already
+  follows and explicitly trusts, opt-in via `taste_circle_feed_enabled`,
+  nobody-can-see-who's-in-it by design, and deliberately not reordering Home.
+  A pairwise taste comparison (`/taste/[left]/[right]`), plus
+  `recommendation_feedback` ("hide" / "already know" / "less like this",
+  scoped and expirable) and `person_follows` feeding it.
+- **1.6 — Shared Curation**: real list collaboration —
+  `list_collaboration_invitations` (invite/accept/decline/revoke, one editor
+  role, no self-invites), `list_activity`, `saved_lists`, plus `lists.version`
+  for optimistic-concurrency edits. `list_collaborators`, present in the schema
+  since earlier and previously unused, is now the live join table this feature
+  writes through.
+- **1.7 — Permanent Film Library**: `diary_entries.viewing_context`
+  (cinema/home/friend's place/club/festival/travel/other) and
+  `ownership_copies` (physical/digital media someone owns), both purely
+  additive annotations on data that already existed. Also closes the
+  long-standing "data export" roadmap item: `/api/account/export` streams a
+  versioned (`schemaVersion: '1.0'`), cursor-batched ZIP of a user's own diary,
+  ratings, reviews, lists and watchlist — JSON and CSV, explicitly excluding
+  other people's private data and club discussions by construction, not by
+  filter.
+- **2.0 — Network**: club `join_policy` (invite-only/request/open) with
+  `club_join_requests`, `profile_pins`, `@mention` support
+  (`discussion_mentions`) and notification grouping (`group_key`/`group_count`
+  on `notifications`, so ten reactions to one post become one row), all gated
+  behind `product_flags` — a `mode: auto | forced_on | forced_off` per surface
+  rather than a shipped-but-hidden feature, with `network_eligibility_daily`
+  recording why a surface is or isn't eligible on a given day.
+
 ---
 
 ## Database isolation
@@ -244,9 +400,26 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
   localStorage keys, CSS animation names. Costs a migration and signs everyone
   out, for nothing a user can see.
 - **TV and episode tracking**, per the PRD's non-goals.
-- **ML recommendations.** Club suggestions are explainable heuristics; the data
-  model can support more later.
-- **Collaborative lists.** The `list_collaborators` table exists and is unused,
-  so the feature can be added without a rebuild.
-- **Unrestricted DMs.** Club discussions cover the need with far less moderation
-  surface.
+- **ML recommendations, and percentage match scores anywhere.** Every
+  recommendation surface — Explore, Tonight, club shortlists — is explainable
+  heuristics with a closed-union reason vocabulary, never a score. The data
+  model can support more later, but a fabricated precision is worse than an
+  honest sentence.
+- **Unrestricted DMs.** Club discussions and `@mentions` (2.0) cover the need
+  with far less moderation surface. Taste circles (1.5) are a narrower feed
+  audience, not messaging.
+- **Push notifications for the PWA.** The manifest, icons and a conservative
+  static-asset service worker ship; push needs a subscription-management
+  surface and a delivery guarantee this phase does not build.
+- **External calendar API integration** (Google/Outlook two-way sync). Calendar
+  export is a standards-based `.ics` download — see above — deliberately
+  simpler and requiring no OAuth scope from a club member.
+- **Close friends**, as a visibility tier narrower than followers for diary
+  entries and reviews specifically. (Taste circles, above, are adjacent but
+  solve a different problem — an opt-in *feed* audience, not a *visibility*
+  level — and don't extend the visibility enum.)
+- **A major statistics-page redesign.** 1.7's `viewing_context` and
+  `ownership_copies` are new facts to eventually surface in stats, not a stats
+  overhaul.
+- **Social gamification** (streaks, badges, leaderboards) anywhere, including
+  in the 2.0 Network surfaces.

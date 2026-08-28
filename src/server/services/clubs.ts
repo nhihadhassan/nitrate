@@ -5,12 +5,14 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import { clubHref, screeningHref } from '@/lib/links';
+import type { RecommendationReason } from '@/lib/recommendations';
 import { formatRuntime, slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
 import {
   activityEvents,
   attendances,
   clubDiscussionPosts,
+  discussionMentions,
   clubInvites,
   clubMembers,
   clubQueueItems,
@@ -21,6 +23,9 @@ import {
   movieGenres,
   movies,
   nominations,
+  screeningPollOptions,
+  screeningPollResponses,
+  screeningPolls,
   screenings,
   selectionRounds,
   userMovieState,
@@ -33,6 +38,7 @@ import {
   type SelectionRound,
 } from '@/server/db/schema';
 import { queueClubEmail } from '@/server/email/queue';
+import { notify, notifyClub } from '@/server/services/notifications';
 import {
   ConflictError,
   NotFoundError,
@@ -1103,7 +1109,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
         recipientName: member.displayName,
       }),
       // One winner email per member per round, however many times this is called.
-      { dedupePrefix: `wheel:${roundId}` },
+      { dedupePrefix: `wheel:${roundId}`, preference: 'winnerSelected' },
       tx,
     );
 
@@ -1240,7 +1246,159 @@ export async function getRoundNominations(
 /* Screenings                                                                 */
 /* -------------------------------------------------------------------------- */
 
-export async function scheduleScreening(input: {
+export type ScreeningPollView = {
+  id: string;
+  status: 'open' | 'closed' | 'cancelled';
+  timezone: string;
+  roundId: string;
+  movieId: string;
+  options: {
+    id: string;
+    startsAt: Date;
+    yes: number;
+    maybe: number;
+    no: number;
+    viewerResponse: 'yes' | 'maybe' | 'no' | null;
+  }[];
+};
+
+export async function getScreeningPoll(
+  roundId: string,
+  viewerId: string,
+): Promise<ScreeningPollView | null> {
+  const round = await loadRound(roundId);
+  await requireMembership(round.clubId, viewerId);
+
+  const [poll] = await db
+    .select()
+    .from(screeningPolls)
+    .where(eq(screeningPolls.roundId, roundId))
+    .orderBy(desc(screeningPolls.createdAt))
+    .limit(1);
+  if (!poll) return null;
+
+  const rows = await db
+    .select({
+      option: screeningPollOptions,
+      responseUserId: screeningPollResponses.userId,
+      availability: screeningPollResponses.availability,
+    })
+    .from(screeningPollOptions)
+    .leftJoin(screeningPollResponses, eq(screeningPollResponses.optionId, screeningPollOptions.id))
+    .where(eq(screeningPollOptions.pollId, poll.id))
+    .orderBy(asc(screeningPollOptions.sortOrder), asc(screeningPollOptions.startsAt));
+
+  const options = new Map<string, ScreeningPollView['options'][number]>();
+  for (const row of rows) {
+    const option = options.get(row.option.id) ?? {
+      id: row.option.id,
+      startsAt: row.option.startsAt,
+      yes: 0,
+      maybe: 0,
+      no: 0,
+      viewerResponse: null,
+    };
+    if (row.availability) option[row.availability] += 1;
+    if (row.responseUserId === viewerId) option.viewerResponse = row.availability;
+    options.set(row.option.id, option);
+  }
+
+  return {
+    id: poll.id,
+    status: poll.status,
+    timezone: poll.timezone,
+    roundId: poll.roundId,
+    movieId: poll.movieId,
+    options: [...options.values()],
+  };
+}
+
+export async function createScreeningPoll(input: {
+  clubId: string;
+  roundId: string;
+  userId: string;
+  timezone: string;
+  startsAt: Date[];
+}): Promise<string> {
+  await requireMembership(input.clubId, input.userId, 'admin');
+  const round = await loadRound(input.roundId);
+  if (round.clubId !== input.clubId || round.status !== 'winner_selected' || !round.winnerNominationId) {
+    throw new ConflictError('Choose a winning film before asking for availability.');
+  }
+  const uniqueTimes = [...new Map(input.startsAt.map((date) => [date.toISOString(), date])).values()];
+  if (uniqueTimes.length < 2 || uniqueTimes.length > 8) {
+    throw new ValidationError('Offer between two and eight different times.');
+  }
+  if (uniqueTimes.some((date) => date.getTime() <= Date.now())) {
+    throw new ValidationError('Poll times must be in the future.');
+  }
+
+  const [winner] = await db
+    .select({ movieId: nominations.movieId })
+    .from(nominations)
+    .where(and(eq(nominations.id, round.winnerNominationId), eq(nominations.roundId, round.id)))
+    .limit(1);
+  if (!winner) throw new ConflictError('The winning film is no longer available.');
+
+  return db.transaction(async (tx) => {
+    const [poll] = await tx
+      .insert(screeningPolls)
+      .values({
+        clubId: input.clubId,
+        roundId: input.roundId,
+        movieId: winner.movieId,
+        timezone: input.timezone,
+        createdByUserId: input.userId,
+      })
+      .returning({ id: screeningPolls.id });
+    await tx.insert(screeningPollOptions).values(
+      uniqueTimes.map((startsAt, sortOrder) => ({ pollId: poll.id, startsAt, sortOrder })),
+    );
+    return poll.id;
+  });
+}
+
+export async function respondToScreeningPoll(input: {
+  pollId: string;
+  optionId: string;
+  userId: string;
+  availability: 'yes' | 'maybe' | 'no';
+}): Promise<void> {
+  const [row] = await db
+    .select({ poll: screeningPolls, optionId: screeningPollOptions.id })
+    .from(screeningPolls)
+    .innerJoin(screeningPollOptions, eq(screeningPollOptions.pollId, screeningPolls.id))
+    .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPollOptions.id, input.optionId)))
+    .limit(1);
+  if (!row) throw new NotFoundError('That time is no longer available.');
+  await requireMembership(row.poll.clubId, input.userId);
+  if (row.poll.status !== 'open') throw new ConflictError('This availability poll is closed.');
+
+  await db
+    .insert(screeningPollResponses)
+    .values({
+      optionId: input.optionId,
+      userId: input.userId,
+      availability: input.availability,
+      respondedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [screeningPollResponses.optionId, screeningPollResponses.userId],
+      set: { availability: input.availability, respondedAt: new Date() },
+    });
+}
+
+export async function cancelScreeningPoll(pollId: string, userId: string): Promise<void> {
+  const [poll] = await db.select().from(screeningPolls).where(eq(screeningPolls.id, pollId)).limit(1);
+  if (!poll) throw new NotFoundError('That availability poll no longer exists.');
+  await requireMembership(poll.clubId, userId, 'admin');
+  await db
+    .update(screeningPolls)
+    .set({ status: 'cancelled', closedAt: new Date() })
+    .where(and(eq(screeningPolls.id, pollId), eq(screeningPolls.status, 'open')));
+}
+
+type ScheduleScreeningInput = {
   clubId: string;
   userId: string;
   movieId: string;
@@ -1250,50 +1408,91 @@ export async function scheduleScreening(input: {
   location: string | null;
   watchLink: string | null;
   notes: string | null;
+};
+
+async function scheduleScreeningRecord(
+  input: ScheduleScreeningInput,
+  tx: DbOrTx,
+): Promise<Screening> {
+  await requireMembership(input.clubId, input.userId, 'admin', tx);
+  if (input.roundId) {
+    const round = await loadRound(input.roundId, tx);
+    assertTransition(round.status, 'screening_scheduled');
+    await tx
+      .update(selectionRounds)
+      .set({ status: 'screening_scheduled', updatedAt: new Date() })
+      .where(eq(selectionRounds.id, input.roundId));
+  }
+
+  const [screening] = await tx
+    .insert(screenings)
+    .values({
+      clubId: input.clubId,
+      roundId: input.roundId,
+      movieId: input.movieId,
+      scheduledAt: input.scheduledAt,
+      timezone: input.timezone,
+      location: input.location,
+      watchLink: input.watchLink,
+      notes: input.notes,
+      createdByUserId: input.userId,
+    })
+    .returning();
+
+  await tx
+    .update(clubQueueItems)
+    .set({ removedAt: new Date() })
+    .where(and(eq(clubQueueItems.clubId, input.clubId), eq(clubQueueItems.movieId, input.movieId)));
+  await tx.insert(activityEvents).values({
+    actorId: input.userId,
+    type: 'club_screening_scheduled',
+    clubId: input.clubId,
+    movieId: input.movieId,
+    screeningId: screening.id,
+    visibility: 'private',
+  });
+  return screening;
+}
+
+export async function scheduleScreening(input: ScheduleScreeningInput): Promise<Screening> {
+  return db.transaction((tx) => scheduleScreeningRecord(input, tx));
+}
+
+export async function confirmScreeningPollOption(input: {
+  pollId: string;
+  optionId: string;
+  userId: string;
 }): Promise<Screening> {
-  await requireMembership(input.clubId, input.userId, 'admin');
+  const [candidate] = await db
+    .select({ poll: screeningPolls, startsAt: screeningPollOptions.startsAt })
+    .from(screeningPolls)
+    .innerJoin(screeningPollOptions, eq(screeningPollOptions.pollId, screeningPolls.id))
+    .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPollOptions.id, input.optionId)))
+    .limit(1);
+  if (!candidate) throw new NotFoundError('That time is no longer available.');
+  await requireMembership(candidate.poll.clubId, input.userId, 'admin');
 
   return db.transaction(async (tx) => {
-    if (input.roundId) {
-      const round = await loadRound(input.roundId, tx);
-      assertTransition(round.status, 'screening_scheduled');
-      await tx
-        .update(selectionRounds)
-        .set({ status: 'screening_scheduled', updatedAt: new Date() })
-        .where(eq(selectionRounds.id, input.roundId));
-    }
-
-    const [screening] = await tx
-      .insert(screenings)
-      .values({
-        clubId: input.clubId,
-        roundId: input.roundId,
-        movieId: input.movieId,
-        scheduledAt: input.scheduledAt,
-        timezone: input.timezone,
-        location: input.location,
-        watchLink: input.watchLink,
-        notes: input.notes,
-        createdByUserId: input.userId,
-      })
-      .returning();
-
-    // A scheduled film leaves the queue; it is no longer a suggestion.
-    await tx
-      .update(clubQueueItems)
-      .set({ removedAt: new Date() })
-      .where(and(eq(clubQueueItems.clubId, input.clubId), eq(clubQueueItems.movieId, input.movieId)));
-
-    await tx.insert(activityEvents).values({
-      actorId: input.userId,
-      type: 'club_screening_scheduled',
-      clubId: input.clubId,
-      movieId: input.movieId,
-      screeningId: screening.id,
-      visibility: 'private',
-    });
-
-    return screening;
+    const [claimed] = await tx
+      .update(screeningPolls)
+      .set({ status: 'closed', closedAt: new Date() })
+      .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPolls.status, 'open')))
+      .returning({ id: screeningPolls.id });
+    if (!claimed) throw new ConflictError('This poll has already been closed.');
+    return scheduleScreeningRecord(
+      {
+        clubId: candidate.poll.clubId,
+        userId: input.userId,
+        movieId: candidate.poll.movieId,
+        roundId: candidate.poll.roundId,
+        scheduledAt: candidate.startsAt,
+        timezone: candidate.poll.timezone,
+        location: null,
+        watchLink: null,
+        notes: null,
+      },
+      tx,
+    );
   });
 }
 
@@ -1627,6 +1826,23 @@ export async function postDiscussion(input: {
       })
       .returning({ id: clubDiscussionPosts.id });
 
+    const usernames = Array.from(new Set(Array.from(body.matchAll(/(?:^|\s)@([a-zA-Z0-9_]{3,24})\b/g), (match) => match[1].toLowerCase()))).slice(0, 10);
+    if (usernames.length) {
+      const mentioned = await tx.select({ id: users.id, username: users.username }).from(users)
+        .innerJoin(clubMembers, and(eq(clubMembers.userId, users.id), eq(clubMembers.clubId, input.clubId), eq(clubMembers.status, 'active')))
+        .where(and(inArray(sql`lower(${users.username})`, usernames), sql`${users.id} <> ${input.userId}`, isNull(users.deletedAt), isNull(users.suspendedAt)));
+      if (mentioned.length) {
+        const [club] = await tx
+          .select({ slug: clubs.slug })
+          .from(clubs)
+          .where(eq(clubs.id, input.clubId))
+          .limit(1);
+        if (!club) throw new NotFoundError('That club no longer exists.');
+        await tx.insert(discussionMentions).values(mentioned.map((member) => ({ postId: post.id, mentionedUserId: member.id }))).onConflictDoNothing();
+        for (const member of mentioned) await notify({ userId: member.id, actorId: input.userId, type: 'mention', clubId: input.clubId, subjectType: 'club_post', subjectId: post.id, url: input.screeningId ? screeningHref(club, { id: input.screeningId }) : clubHref(club), body: `You were mentioned in a Movie Club discussion`, groupKey: `mention:${input.clubId}:${input.screeningId ?? post.id}` }, tx);
+      }
+    }
+
     if (input.screeningId) {
       await tx
         .update(screenings)
@@ -1925,6 +2141,11 @@ export type ClubPulse = {
     goingCount: number;
     ratingCount: number;
   } | null;
+  poll: {
+    id: string;
+    status: 'open' | 'closed' | 'cancelled';
+    responseCount: number;
+  } | null;
   discussionPostCount: number;
 };
 
@@ -1971,6 +2192,34 @@ export async function getClubPulse(clubId: string, screeningId?: string | null):
       ])
     : [null, null];
 
+  // Only a round parked on `winner_selected` can have a live availability
+  // poll — no point querying it for any other status.
+  const poll =
+    round && round.status === 'winner_selected'
+      ? await (async () => {
+          const [row] = await db
+            .select({ id: screeningPolls.id, status: screeningPolls.status })
+            .from(screeningPolls)
+            .where(eq(screeningPolls.roundId, round.id))
+            .orderBy(desc(screeningPolls.createdAt))
+            .limit(1);
+          if (!row) return null;
+          const [responseCountRow] = await db
+            .select({ value: count() })
+            .from(screeningPollResponses)
+            .innerJoin(
+              screeningPollOptions,
+              eq(screeningPollOptions.id, screeningPollResponses.optionId),
+            )
+            .where(eq(screeningPollOptions.pollId, row.id));
+          return {
+            id: row.id,
+            status: row.status,
+            responseCount: Number(responseCountRow?.value ?? 0),
+          };
+        })()
+      : null;
+
   return {
     round: round
       ? {
@@ -1991,6 +2240,7 @@ export async function getClubPulse(clubId: string, screeningId?: string | null):
           ratingCount: screening.groupRatingCount,
         }
       : null,
+    poll,
     discussionPostCount: Number(discussionCountRow?.[0]?.value ?? 0),
   };
 }
@@ -2019,7 +2269,7 @@ export async function getUserClubs(userId: string) {
     .orderBy(desc(clubs.updatedAt));
 }
 
-export type ClubAttentionKind = 'tonight' | 'rate' | 'vote' | 'spin' | 'pick' | 'schedule' | 'rsvp';
+export type ClubAttentionKind = 'tonight' | 'rate' | 'vote' | 'spin' | 'pick' | 'availability' | 'schedule' | 'rsvp';
 
 export type ClubAttentionItem = {
   kind: ClubAttentionKind;
@@ -2039,6 +2289,7 @@ const ATTENTION_PRIORITY: ClubAttentionKind[] = [
   'vote',
   'spin',
   'pick',
+  'availability',
   'schedule',
   'rsvp',
 ];
@@ -2110,14 +2361,42 @@ export async function getClubAttention(userId: string): Promise<ClubAttentionIte
               href: clubHref(club),
             });
           }
-        } else if (round.status === 'winner_selected' && isAdmin) {
-          found.push({
-            ...base,
-            kind: 'schedule',
-            title: `Schedule movie night for ${club.name}`,
-            subtitle: 'A winner has been chosen.',
-            href: clubHref(club),
-          });
+        } else if (round.status === 'winner_selected') {
+          const poll = await getScreeningPoll(round.id, userId);
+          if (poll && poll.status === 'open') {
+            const responded = poll.options.some((option) => option.viewerResponse);
+            if (!responded) {
+              found.push({
+                ...base,
+                kind: 'availability',
+                title: `Mark your availability for ${club.name}`,
+                subtitle: 'Help find a time that works for everyone.',
+                href: clubHref(club),
+              });
+            } else if (isAdmin) {
+              const totalResponses = poll.options.reduce(
+                (sum, option) => sum + option.yes + option.maybe + option.no,
+                0,
+              );
+              if (totalResponses > 0) {
+                found.push({
+                  ...base,
+                  kind: 'schedule',
+                  title: `Confirm a time for ${club.name}`,
+                  subtitle: 'Responses are coming in.',
+                  href: clubHref(club),
+                });
+              }
+            }
+          } else if (isAdmin) {
+            found.push({
+              ...base,
+              kind: 'schedule',
+              title: `Schedule movie night for ${club.name}`,
+              subtitle: 'A winner has been chosen.',
+              href: clubHref(club),
+            });
+          }
         }
       }
 
@@ -2341,14 +2620,14 @@ export async function getClubStats(
 
 export type ClubSuggestion = {
   movie: Movie;
-  reason: string;
+  reason: RecommendationReason;
   metric: number;
 };
 
 export type ClubShortlistItem = {
   movie: Movie;
   score: number;
-  reasons: string[];
+  reasons: RecommendationReason[];
 };
 
 /**
@@ -2531,15 +2810,15 @@ export async function getClubIntelligence(clubId: string): Promise<{
       const matchesTaste = movieTopGenres.has(candidate.movie.id);
       const score = 3 * watchlistCount + unseenCount + (candidate.inIdeas ? 2 : 0) + (matchesTaste ? 1 : 0);
       const reasons = [
-        watchlistCount ? { weight: 3 * watchlistCount, text: `${watchlistCount} ${watchlistCount === 1 ? 'member wants' : 'members want'} to watch` } : null,
-        unseenCount === memberCount ? { weight: unseenCount, text: 'Nobody in the club has seen it' } : null,
-        candidate.inIdeas ? { weight: 2, text: 'Already in Movie Ideas' } : null,
-        matchesTaste ? { weight: 1, text: 'Matches a genre your club rates highly' } : null,
+        watchlistCount ? { weight: 3 * watchlistCount, reason: { kind: 'community_signal', label: `${watchlistCount} ${watchlistCount === 1 ? 'member wants' : 'members want'} to watch` } as RecommendationReason } : null,
+        unseenCount === memberCount ? { weight: unseenCount, reason: { kind: 'community_signal', label: 'Nobody in the club has seen it' } as RecommendationReason } : null,
+        candidate.inIdeas ? { weight: 2, reason: { kind: 'club_interest', count: 1 } as RecommendationReason } : null,
+        matchesTaste ? { weight: 1, reason: { kind: 'community_signal', label: 'Matches a genre your club rates highly' } as RecommendationReason } : null,
       ]
-        .filter((reason): reason is { weight: number; text: string } => Boolean(reason))
+        .filter((reason): reason is { weight: number; reason: RecommendationReason } => Boolean(reason))
         .sort((a, b) => b.weight - a.weight)
         .slice(0, 2)
-        .map((reason) => reason.text);
+        .map((item) => item.reason);
       return {
         movie: candidate.movie,
         score,
@@ -2555,17 +2834,20 @@ export async function getClubIntelligence(clubId: string): Promise<{
     onEveryonesRadar: radar.map((r) => ({
       movie: r.movie,
       metric: r.metric,
-      reason: `On ${r.metric} members' watchlists`,
+      reason: { kind: 'community_signal', label: `On ${r.metric} members' watchlists` },
     })),
     nobodyHasSeen: unseen.map((r) => ({
       movie: r.movie,
       metric: 0,
-      reason: 'Nobody in the club has seen it',
+      reason: { kind: 'community_signal', label: 'Nobody in the club has seen it' },
     })),
     fromTheQueue: queue.map((r) => ({
       movie: r.movie,
       metric: r.metric,
-      reason: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
+      reason: {
+        kind: 'community_signal',
+        label: r.metric > 0 ? `${r.metric} already want to see it` : 'Saved for a future round',
+      },
     })),
     shortlist,
   };
@@ -2772,7 +3054,7 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
           closesAt: null,
           recipientName: member.displayName,
         }),
-        { dedupePrefix: `submissions:${round.id}` },
+        { dedupePrefix: `submissions:${round.id}`, preference: 'picksAndVoting' },
       );
 
       opened.push({ clubId: club.id, clubName: club.name, roundId: round.id });
@@ -2816,4 +3098,64 @@ export async function getScreeningsNeedingReminder(withinHours = 24) {
         lt(screenings.scheduledAt, horizon),
       ),
     );
+}
+
+export async function dispatchScreeningReminders(
+  withinHours = 24,
+): Promise<{ queued: number; screenings: number }> {
+  const due = await getScreeningsNeedingReminder(withinHours);
+  let queued = 0;
+  let sentFor = 0;
+
+  for (const row of due) {
+    const result = await db.transaction(async (tx) => {
+      const [claimed] = await tx
+        .update(screenings)
+        .set({ reminderSentAt: new Date() })
+        .where(and(eq(screenings.id, row.screening.id), isNull(screenings.reminderSentAt)))
+        .returning({ id: screenings.id });
+      if (!claimed) return 0;
+
+      const [club] = await tx.select().from(clubs).where(eq(clubs.id, row.screening.clubId)).limit(1);
+      if (!club) return 0;
+      const when = new Intl.DateTimeFormat('en-CA', {
+        timeZone: row.screening.timezone,
+        dateStyle: 'full',
+        timeStyle: 'short',
+      }).format(row.screening.scheduledAt);
+
+      await notifyClub(
+        club.id,
+        {
+          type: 'club_screening_reminder',
+          url: `/club/${club.slug}/screening/${row.screening.id}`,
+          body: `${row.movie.title} is coming up`,
+          dedupeKey: `screening-reminder:${row.screening.id}`,
+        },
+        tx,
+      );
+      return queueClubEmail(
+        club.id,
+        'screening_reminder',
+        `${row.movie.title} is coming up`,
+        (member) => ({
+          clubName: club.name,
+          clubSlug: club.slug,
+          screeningId: row.screening.id,
+          movieTitle: row.movie.title,
+          when,
+          location: row.screening.location,
+          recipientName: member.displayName,
+        }),
+        {
+          dedupePrefix: `screening-reminder:${row.screening.id}`,
+          preference: 'movieNightReminders',
+        },
+        tx,
+      );
+    });
+    queued += result;
+    sentFor += 1;
+  }
+  return { queued, screenings: sentFor };
 }

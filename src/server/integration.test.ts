@@ -7,15 +7,24 @@ import { db } from '@/server/db';
 import {
   blocks,
   clubs,
+  discussionMentions,
   diaryEntries,
   follows,
   emailDeliveries,
   importBatches,
   importRows,
+  listActivity,
   movies,
+  ownershipCopies,
+  notifications,
+  profilePins,
+  recommendationFeedback,
+  shareSnapshots,
+  screenings,
   selectionRounds,
   userMovieState,
   users,
+  tasteCircleMembers,
   type Club,
   type Movie,
   type User,
@@ -27,6 +36,8 @@ import {
   closeVoting,
   closePicks,
   completeScreening,
+  confirmScreeningPollOption,
+  createScreeningPoll,
   confirmAttendance,
   createClub,
   getClubIntelligence,
@@ -35,13 +46,14 @@ import {
   getClubQueue,
   getClubRatings,
   getRoundNominations,
+  getScreeningPoll,
   joinClubByCode,
   nominate,
   openVoting,
   postDiscussion,
   replaceNomination,
+  respondToScreeningPoll,
   requireMembership,
-  scheduleScreening,
   setRsvp,
   spinWheel,
   startRound,
@@ -54,8 +66,32 @@ import { wheelWinnerEmail } from '@/server/email/templates';
 import { consumeRateLimit } from '@/server/rate-limit';
 import { getHomeFeed } from '@/server/services/feed';
 import { logFilm, updateFilmState } from '@/server/services/films';
+import { addOwnershipCopy, getOwnershipForMovie, removeOwnershipCopy } from '@/server/services/ownership';
 import { getDiary, getProfileStats } from '@/server/services/profile';
 import { search } from '@/server/services/search';
+import { createPersonalRecapShare, getPublicShareSnapshot, revokeShareSnapshot } from '@/server/services/shares';
+import {
+  getActiveRecommendationFeedback,
+  getMovieRecommendationContext,
+  restoreRecommendationFeedback,
+  setRecommendationFeedback,
+  setTasteCircleMember,
+} from '@/server/services/discovery';
+import {
+  addListItem,
+  cloneList,
+  createList,
+  getListDetail,
+  inviteListCollaborator,
+  removeListCollaborator,
+  reorderList,
+  respondToListInvitation,
+  toggleSavedList,
+  updateListItemNote,
+} from '@/server/services/lists';
+import { setNetworkFlagMode } from '@/server/services/network';
+import { decideClubJoinRequest, requestPublicClubJoin } from '@/server/services/network-clubs';
+import { getProfilePins, setProfilePin } from '@/server/services/profile-pins';
 
 /**
  * End-to-end checks against the real database.
@@ -170,6 +206,19 @@ suite('nitrate integration', () => {
     expect(film.ratingHistogram['8']).toBe(1);
   });
 
+  it('stores private multi-copy ownership and optional viewing context', async () => {
+    const first = await addOwnershipCopy(alex.id, stalker.id, { format: '4k_uhd', edition: 'Synthetic edition' });
+    await addOwnershipCopy(alex.id, stalker.id, { format: 'digital', notes: 'Offline fixture' });
+    const copies = await getOwnershipForMovie(alex.id, stalker.id);
+    expect(copies.map((copy) => copy.format)).toEqual(['4k_uhd', 'digital']);
+
+    const logged = await logFilm({ userId: alex.id, movieId: stalker.id, watchedDate: '2024-04-01', rating: 9, liked: true, reviewText: null, containsSpoilers: false, visibility: 'private', tags: [], viewingContext: 'cinema' });
+    expect(logged.entry.viewingContext).toBe('cinema');
+    await removeOwnershipCopy(alex.id, first.id);
+    expect((await getOwnershipForMovie(alex.id, stalker.id)).map((copy) => copy.format)).toEqual(['digital']);
+    await db.delete(ownershipCopies).where(eq(ownershipCopies.userId, alex.id));
+  });
+
   it('keeps historical ratings when a rewatch is rated differently', async () => {
     await logFilm({
       userId: alex.id,
@@ -214,6 +263,21 @@ suite('nitrate integration', () => {
     expect(stats.diaryCount).toBe(2);
     expect(stats.rewatchCount).toBe(1);
     expect(stats.averageRating).toBe(10);
+  });
+
+  it('stores only a hashed recap token and revokes the public snapshot', async () => {
+    const createdShare = await createPersonalRecapShare(alex.id, 2025);
+    const [stored] = await db
+      .select({ tokenHash: shareSnapshots.tokenHash })
+      .from(shareSnapshots)
+      .where(eq(shareSnapshots.id, createdShare.id));
+    expect(stored.tokenHash).toHaveLength(32);
+    expect(stored.tokenHash.equals(Buffer.from(createdShare.token, 'base64url'))).toBe(false);
+
+    const snapshot = await getPublicShareSnapshot(createdShare.token);
+    expect(snapshot.kind).toBe('personal_recap');
+    await revokeShareSnapshot(createdShare.id, alex.id);
+    await expect(getPublicShareSnapshot(createdShare.token)).rejects.toThrow(/unavailable/i);
   });
 
   /* ---------------------------------------------------------------------- */
@@ -385,18 +449,35 @@ suite('nitrate integration', () => {
     expect(revealed.totalsVisible).toBe(true);
     expect(revealed.nominations[0].voteCount).toBe(2);
 
-    // Schedule, RSVP, complete.
-    const screening = await scheduleScreening({
+    // Ask for availability, let members revise answers, then atomically turn
+    // the chosen option into the one screening for this round.
+    const firstTime = new Date(Date.now() + 86_400_000);
+    const secondTime = new Date(Date.now() + 2 * 86_400_000);
+    const pollId = await createScreeningPoll({
       clubId: club.id,
-      userId: alex.id,
-      movieId: heat.id,
       roundId: round.id,
-      scheduledAt: new Date(Date.now() + 86_400_000),
+      userId: alex.id,
       timezone: 'Europe/London',
-      location: "Alex's flat",
-      watchLink: null,
-      notes: null,
+      startsAt: [firstTime, secondTime],
     });
+    const emptyPoll = await getScreeningPoll(round.id, maya.id);
+    expect(emptyPoll?.options).toHaveLength(2);
+    await respondToScreeningPoll({ pollId, optionId: emptyPoll!.options[0].id, userId: maya.id, availability: 'maybe' });
+    await respondToScreeningPoll({ pollId, optionId: emptyPoll!.options[0].id, userId: maya.id, availability: 'yes' });
+    await respondToScreeningPoll({ pollId, optionId: emptyPoll!.options[1].id, userId: noor.id, availability: 'no' });
+    const answeredPoll = await getScreeningPoll(round.id, maya.id);
+    expect(answeredPoll?.options[0].yes).toBe(1);
+    expect(answeredPoll?.options[0].viewerResponse).toBe('yes');
+
+    const screening = await confirmScreeningPollOption({
+      pollId,
+      optionId: emptyPoll!.options[0].id,
+      userId: alex.id,
+    });
+    expect(screening.scheduledAt.toISOString()).toBe(firstTime.toISOString());
+    await expect(
+      confirmScreeningPollOption({ pollId, optionId: emptyPoll!.options[1].id, userId: alex.id }),
+    ).rejects.toThrow(/closed/i);
 
     await setRsvp(screening.id, maya.id, 'going');
     await setRsvp(screening.id, noor.id, 'cant');
@@ -726,6 +807,129 @@ suite('nitrate integration', () => {
       await consumeRateLimit('login', subject);
     }
     await expect(consumeRateLimit('login', subject)).rejects.toThrow(/too quickly/i);
+  }, 30_000);
+
+  /* ---------------------------------------------------------------------- */
+  /* Smarter social discovery                                               */
+  /* ---------------------------------------------------------------------- */
+
+  it('keeps Taste circle membership private, follow-bound and reversible', async () => {
+    await db.insert(follows).values({ followerId: alex.id, followingId: maya.id }).onConflictDoNothing();
+    await setTasteCircleMember(alex.id, maya.id, true);
+    const [membership] = await db
+      .select()
+      .from(tasteCircleMembers)
+      .where(and(eq(tasteCircleMembers.userId, alex.id), eq(tasteCircleMembers.memberUserId, maya.id)));
+    expect(membership).toBeTruthy();
+
+    await setTasteCircleMember(alex.id, maya.id, false);
+    const removed = await db
+      .select()
+      .from(tasteCircleMembers)
+      .where(and(eq(tasteCircleMembers.userId, alex.id), eq(tasteCircleMembers.memberUserId, maya.id)));
+    expect(removed).toHaveLength(0);
+  });
+
+  it('stores expiring recommendation feedback and allows manual restoration', async () => {
+    await setRecommendationFeedback({
+      userId: alex.id,
+      targetType: 'movie',
+      targetId: heat.id,
+      kind: 'hide',
+      reasonKind: 'friend_loved',
+    });
+    const active = await getActiveRecommendationFeedback(alex.id);
+    const item = active.find((row) => row.targetId === heat.id);
+    expect(item?.expiresAt).toBeInstanceOf(Date);
+    expect(item!.expiresAt!.getTime()).toBeGreaterThan(Date.now() + 89 * 24 * 60 * 60 * 1000);
+
+    await restoreRecommendationFeedback(alex.id, item!.id);
+    expect((await getActiveRecommendationFeedback(alex.id)).some((row) => row.id === item!.id)).toBe(false);
+    await db.delete(recommendationFeedback).where(eq(recommendationFeedback.userId, alex.id));
+  });
+
+  it('uses the same structured friend context across recommendation surfaces', async () => {
+    const context = await getMovieRecommendationContext(maya.id, [heat.id, stalker.id]);
+    expect(context.get(heat.id)?.some((reason) => reason.kind === 'friend_loved')).toBe(true);
+    expect(context.get(heat.id)?.every((reason) => typeof reason.kind === 'string')).toBe(true);
+  });
+
+  /* ---------------------------------------------------------------------- */
+  /* Shared list curation                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  it('enforces owner/editor roles, activity attribution and stale reorder protection', async () => {
+    const list = await createList({
+      userId: alex.id,
+      title: `Shared curation ${tag}`,
+      description: 'Synthetic collaboration test',
+      visibility: 'public',
+      isRanked: true,
+      movieIds: [heat.id],
+    });
+    const { invitation } = await inviteListCollaborator(list.id, alex.id, maya.username);
+    await respondToListInvitation(invitation.id, maya.id, 'accept');
+
+    const initial = await getListDetail(list.id, { id: maya.id, role: 'member' });
+    expect(initial.canEdit).toBe(true);
+    expect(initial.isOwner).toBe(false);
+    const note = await updateListItemNote(list.id, maya.id, initial.items[0].id, 'Editor note');
+    const added = await addListItem(list.id, maya.id, stalker.id, null);
+    expect(added.added).toBe(true);
+    expect(added.version).toBe(note.version + 1);
+
+    const current = await getListDetail(list.id, { id: maya.id, role: 'member' });
+    const reordered = await reorderList(
+      list.id,
+      maya.id,
+      [...current.items].reverse().map((item) => item.id),
+      current.list.version,
+    );
+    expect(reordered.version).toBe(current.list.version + 1);
+    await expect(reorderList(list.id, maya.id, current.items.map((item) => item.id), current.list.version)).rejects.toThrow(/changed in another tab/i);
+
+    const activity = await db.select().from(listActivity).where(eq(listActivity.listId, list.id));
+    expect(activity.some((entry) => entry.actorUserId === maya.id && entry.action === 'item_added')).toBe(true);
+    expect(activity.some((entry) => entry.action === 'note_updated')).toBe(true);
+    expect(activity.some((entry) => entry.action === 'reordered')).toBe(true);
+
+    expect(await toggleSavedList(list.id, maya.id)).toBe(true);
+    const clone = await cloneList(list.id, maya.id);
+    expect(clone.visibility).toBe('private');
+    expect(clone.clonedFromListId).toBe(list.id);
+
+    await removeListCollaborator(list.id, alex.id, maya.id);
+    await expect(addListItem(list.id, maya.id, heat.id, null)).rejects.toThrow(/cannot edit/i);
+  }, 30_000);
+
+  /* ---------------------------------------------------------------------- */
+  /* Network                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  it('gates public club joining, groups mentions, and exposes only valid profile pins', async () => {
+    const networkMember = await makeUser('network');
+    await setNetworkFlagMode('public_clubs', 'forced_on', alex.id);
+    await db.update(clubs).set({ visibility: 'public', joinPolicy: 'request' }).where(eq(clubs.id, club.id));
+
+    const request = await requestPublicClubJoin(club.id, networkMember.id, 'I enjoy the club fixtures.');
+    await decideClubJoinRequest(request.id, alex.id, 'approved');
+    await expect(requireMembership(club.id, networkMember.id)).resolves.toBeTruthy();
+
+    const [screening] = await db.select({ id: screenings.id }).from(screenings).where(eq(screenings.clubId, club.id)).limit(1);
+    await postDiscussion({ clubId: club.id, screeningId: screening.id, parentId: null, userId: alex.id, body: `Welcome @${networkMember.username}`, containsSpoilers: false });
+    await postDiscussion({ clubId: club.id, screeningId: screening.id, parentId: null, userId: alex.id, body: `A second note for @${networkMember.username}`, containsSpoilers: false });
+    const mentions = await db.select().from(discussionMentions).where(eq(discussionMentions.mentionedUserId, networkMember.id));
+    expect(mentions).toHaveLength(2);
+    const [grouped] = await db.select().from(notifications).where(and(eq(notifications.userId, networkMember.id), eq(notifications.groupKey, `mention:${club.id}:${screening.id}`)));
+    expect(grouped.groupCount).toBe(2);
+
+    const [review] = await db.select({ id: diaryEntries.id }).from(diaryEntries).where(and(eq(diaryEntries.userId, alex.id), eq(diaryEntries.visibility, 'public'), sql`${diaryEntries.reviewText} is not null`)).limit(1);
+    await setProfilePin(alex.id, 'review', review.id, true);
+    const pins = await getProfilePins(alex.id, { id: alex.id, role: 'member' });
+    expect(pins.some((pin) => pin.type === 'review' && pin.href === `/review/${review.id}`)).toBe(true);
+    await db.delete(profilePins).where(eq(profilePins.userId, alex.id));
+    await setNetworkFlagMode('public_clubs', 'auto', alex.id);
+    await db.update(clubs).set({ visibility: 'private', joinPolicy: 'invite_only' }).where(eq(clubs.id, club.id));
   }, 30_000);
 
   /* ---------------------------------------------------------------------- */

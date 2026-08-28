@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/admin/clubs', label: 'Clubs' },
   { href: '/admin/movies', label: 'Film metadata' },
   { href: '/admin/email', label: 'Outbox' },
+  { href: '/admin/network', label: 'Network' },
   { href: '/admin/audit', label: 'Audit log' },
 ];
 

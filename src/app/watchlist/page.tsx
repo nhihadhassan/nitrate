@@ -3,11 +3,16 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { WatchlistNote } from '@/components/film/watchlist-note';
+import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
+import { Badge } from '@/components/ui/primitives';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { countWatchlist, getWatchlist, type WatchlistSort } from '@/server/services/profile';
+import { getMovieRecommendationContext } from '@/server/services/discovery';
+import { getOwnershipMap } from '@/server/services/ownership';
 
 export const metadata: Metadata = { title: 'Watchlist' };
 export const dynamic = 'force-dynamic';
@@ -38,18 +43,27 @@ export default async function WatchlistPage({
     getWatchlist(user.id, { sort: activeSort, decade: activeDecade, limit: 120 }),
     countWatchlist(user.id),
   ]);
+  const filmContext = await getMovieRecommendationContext(user.id, films.map(({ movie }) => movie.id));
+  const ownership = await getOwnershipMap(user.id, films.map(({ movie }) => movie.id));
 
   const totalRuntime = films.reduce((sum, f) => sum + (f.movie.runtime ?? 0), 0);
 
   return (
     <Container size="wide" className="py-8">
-      <header className="mb-6">
-        <h1 className="text-3xl sm:text-4xl">Watchlist</h1>
-        <p className="mt-1.5 text-sm text-muted">
-          {pluralize(total, 'film')} waiting.
-          {totalRuntime > 0 ? ` About ${formatRuntime(totalRuntime)} of viewing.` : ''} Logging one
-          takes it off this list automatically.
-        </p>
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
+        <div>
+          <h1 className="text-3xl sm:text-4xl">Watchlist</h1>
+          <p className="mt-1.5 text-sm text-muted">
+            {pluralize(total, 'film')} waiting.
+            {totalRuntime > 0 ? ` About ${formatRuntime(totalRuntime)} of viewing.` : ''} Logging one
+            takes it off this list automatically.
+          </p>
+        </div>
+        {films.length ? (
+          <Button asChild variant="primary" size="sm">
+            <Link href="/tonight">Choose for tonight</Link>
+          </Button>
+        ) : null}
       </header>
 
       <div className="mb-5 space-y-2.5">
@@ -106,7 +120,7 @@ export default async function WatchlistPage({
 
       {films.length ? (
         <PosterGrid>
-          {films.map(({ movie }) => (
+          {films.map(({ movie, note }) => (
             <PosterCard
               key={movie.id}
               film={{
@@ -116,11 +130,16 @@ export default async function WatchlistPage({
                 posterPath: movie.posterPath,
               }}
               footer={
-                movie.runtime ? (
-                  <p className="mt-0.5 text-[0.6875rem] text-dim tabular">
-                    {formatRuntime(movie.runtime)}
-                  </p>
-                ) : null
+                <>
+                  {movie.runtime ? (
+                    <p className="mt-0.5 text-[0.6875rem] text-dim tabular">
+                      {formatRuntime(movie.runtime)}
+                    </p>
+                  ) : null}
+                  <WatchlistNote movieId={movie.id} initialNote={note} />
+                  {ownership.has(movie.id) ? <Badge tone="iris">Owned · {ownership.get(movie.id)!.map((copy) => copy.format.replaceAll('_', ' ')).join(', ')}</Badge> : null}
+                  <RecommendationContext movieId={movie.id} reasons={(filmContext.get(movie.id) ?? []).filter((reason) => reason.kind !== 'on_watchlist')} />
+                </>
               }
             />
           ))}

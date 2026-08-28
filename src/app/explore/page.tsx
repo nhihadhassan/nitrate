@@ -11,6 +11,8 @@ import { filmHref, reviewHref } from '@/lib/links';
 import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getPopularLists } from '@/server/services/lists';
+import { getSuppressedRecommendationIds } from '@/server/services/discovery';
+import { getOwnershipMap } from '@/server/services/ownership';
 import {
   getBecauseYouLoved,
   getCommunityTopFilms,
@@ -50,6 +52,7 @@ export default async function ExplorePage() {
     communityTop,
     reviews,
     lists,
+    suppressedMovieIds,
   ] = await Promise.all([
     getEditorialRails(),
     user ? getFriendsAreWatching(user.id, 12) : Promise.resolve([]),
@@ -62,7 +65,24 @@ export default async function ExplorePage() {
     getCommunityTopFilms(12),
     getPopularReviews(viewer, 4),
     getPopularLists(viewer, 6),
+    user ? getSuppressedRecommendationIds(user.id, 'movie') : Promise.resolve(new Set<string>()),
   ]);
+
+  const allRailFilms = [
+    ...rails.trending, ...rails.nowPlaying, ...rails.canon, ...rails.upcoming,
+    ...friendsWatching, ...friendsLoved, ...clubPopular, ...friendsWant, ...watchlist,
+    ...communityTop, ...(becauseYouLoved?.films ?? []), ...(favouriteGenre?.films ?? []),
+  ];
+  const ownership = user ? await getOwnershipMap(user.id, Array.from(new Set(allRailFilms.map((film) => film.id)))) : new Map();
+  for (const film of allRailFilms) if (ownership.has(film.id)) (film as RailFilm & { owned?: boolean }).owned = true;
+
+  const visible = (films: RailFilm[]) => films.filter((film) => !suppressedMovieIds.has(film.id));
+  const visibleBecause = becauseYouLoved
+    ? { ...becauseYouLoved, films: visible(becauseYouLoved.films) }
+    : null;
+  const visibleFavouriteGenre = favouriteGenre
+    ? { ...favouriteGenre, films: visible(favouriteGenre.films) }
+    : null;
 
   const hasSocial = friendsWatching.length > 0 || friendsLoved.length > 0;
 
@@ -72,7 +92,7 @@ export default async function ExplorePage() {
     ? 'friends-watching'
     : friendsLoved.length
       ? 'friends-loved'
-      : becauseYouLoved?.films.length
+      : visibleBecause?.films.length
         ? 'because-you-loved'
         : watchlist.length
           ? 'watchlist'
@@ -81,7 +101,10 @@ export default async function ExplorePage() {
   return (
     <Container size="wide" className="py-8 pb-20">
       <header className="mb-10 max-w-2xl">
-        <h1 className="text-4xl sm:text-5xl">Explore</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-4xl sm:text-5xl">Explore</h1>
+          <div className="flex flex-wrap gap-2">{user ? <Link href="/tonight" className="flex min-h-11 items-center rounded-md border border-line px-4 text-sm font-medium hover:border-ember/40">Choose for tonight</Link> : null}<Link href="/network" className="flex min-h-11 items-center rounded-md border border-line px-4 text-sm font-medium hover:border-iris/40">Open Network</Link></div>
+        </div>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">
           {user
             ? 'What your circle is watching, what the wider film world is turning over, and a few decades worth digging through.'
@@ -97,41 +120,41 @@ export default async function ExplorePage() {
         ) : null}
 
         {/* Your people: the social layer leads, because it is the reason to be here. */}
-        {hasSocial || (becauseYouLoved?.films.length ?? 0) > 0 || watchlist.length ? (
+        {hasSocial || (visibleBecause?.films.length ?? 0) > 0 || watchlist.length ? (
           <div className="space-y-8">
             <p className="eyebrow">Your people</p>
 
             <Rail
               title="Friends are watching"
               subtitle="The most-logged films across the people you follow, this month."
-              films={friendsWatching}
+              films={visible(friendsWatching)}
               eager={firstRail === 'friends-watching'}
             />
 
             <Rail
               title="Popular with your clubs"
               subtitle="Movie Ideas your groups are already circling."
-              films={clubPopular}
+              films={visible(clubPopular)}
             />
 
             <Rail
               title="Friends want to watch"
               subtitle="Watchlist overlap from people who share it publicly."
-              films={friendsWant}
+              films={visible(friendsWant)}
             />
 
             <Rail
               title="Friends loved"
               subtitle="Films the people you follow gave a heart to, that you have not seen."
-              films={friendsLoved}
+              films={visible(friendsLoved)}
               eager={firstRail === 'friends-loved'}
             />
 
-            {becauseYouLoved?.films.length ? (
+            {visibleBecause?.films.length ? (
               <Rail
-                title={`Because you loved ${becauseYouLoved.seed.title}`}
+                title={`Because you loved ${visibleBecause.seed.title}`}
                 subtitle="Neighbours of one of your five-star films."
-                films={becauseYouLoved.films}
+                films={visibleBecause.films}
                 eager={firstRail === 'because-you-loved'}
               />
             ) : null}
@@ -139,7 +162,7 @@ export default async function ExplorePage() {
             <Rail
               title="On your watchlist"
               subtitle="You already said you would."
-              films={watchlist}
+              films={visible(watchlist)}
               href="/watchlist"
               linkLabel="Full watchlist"
               eager={firstRail === 'watchlist'}
@@ -178,7 +201,7 @@ export default async function ExplorePage() {
           <Rail
             title="Rated highest here"
             subtitle="By members, weighted so one glowing rating cannot outrank a hundred."
-            films={communityTop}
+            films={visible(communityTop)}
           />
 
           <Rail
@@ -187,11 +210,11 @@ export default async function ExplorePage() {
             films={rails.canon}
           />
 
-          {favouriteGenre ? (
+          {visibleFavouriteGenre ? (
             <Rail
-              title={`More ${favouriteGenre.genre.toLowerCase()}`}
+              title={`More ${visibleFavouriteGenre.genre.toLowerCase()}`}
               subtitle="Your most-watched genre, minus everything you have already seen."
-              films={favouriteGenre.films}
+              films={visibleFavouriteGenre.films}
             />
           ) : null}
 

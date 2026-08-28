@@ -12,6 +12,8 @@ import { changeUsernameAction, updateProfileAction } from '@/server/actions/prof
 
 export function ProfileSettingsForm({
   user,
+  regions,
+  resolvedRegion,
 }: {
   user: {
     username: string;
@@ -22,7 +24,13 @@ export function ProfileSettingsForm({
     pronouns: string | null;
     avatarAssetId: string | null;
     timezone: string;
+    watchRegion: string | null;
+    tasteHighlights: string[];
   };
+  /** Full picker list from TMDB; empty when the provider is unreachable. */
+  regions: { code: string; name: string }[];
+  /** What "Automatic" currently resolves to, so the honest source is visible even when nothing is chosen. */
+  resolvedRegion: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -32,8 +40,10 @@ export function ProfileSettingsForm({
   const [websiteUrl, setWebsiteUrl] = useState(user.websiteUrl ?? '');
   const [pronouns, setPronouns] = useState(user.pronouns ?? '');
   const [timezone, setTimezone] = useState(user.timezone);
+  const [watchRegion, setWatchRegion] = useState(user.watchRegion ?? '');
   const [avatarAssetId, setAvatarAssetId] = useState(user.avatarAssetId);
   const [username, setUsername] = useState(user.username);
+  const [tasteHighlights, setTasteHighlights] = useState(user.tasteHighlights.join(', '));
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
   const [pending, startTransition] = useTransition();
@@ -54,6 +64,8 @@ export function ProfileSettingsForm({
               pronouns: pronouns.trim() || null,
               avatarAssetId,
               timezone,
+              watchRegion: watchRegion || null,
+              tasteHighlights: tasteHighlights.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 6),
             });
             if (!result.ok) {
               setError(result.error);
@@ -138,6 +150,34 @@ export function ProfileSettingsForm({
             onChange={(event) => setTimezone(event.target.value)}
             className={inputClass}
           />
+        </Field>
+
+        <Field label="Taste highlights" htmlFor="settings-taste-highlights" optional hint="Up to six short public phrases, separated by commas.">
+          <input id="settings-taste-highlights" value={tasteHighlights} onChange={(event)=>setTasteHighlights(event.target.value)} maxLength={245} placeholder="slow cinema, practical effects, 1970s thrillers" className={inputClass}/>
+        </Field>
+
+        <Field
+          label="Streaming region"
+          htmlFor="settings-watch-region"
+          hint={
+            watchRegion
+              ? 'Decides which providers show up under "Where to watch".'
+              : `Automatic — currently ${resolvedRegion}, based on your location. Decides which providers show up under "Where to watch".`
+          }
+        >
+          <select
+            id="settings-watch-region"
+            value={watchRegion}
+            onChange={(event) => setWatchRegion(event.target.value)}
+            className={inputClass}
+          >
+            <option value="">Automatic ({resolvedRegion})</option>
+            {regions.map((region) => (
+              <option key={region.code} value={region.code}>
+                {region.name}
+              </option>
+            ))}
+          </select>
         </Field>
 
         <div className="flex justify-end">

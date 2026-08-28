@@ -27,6 +27,7 @@ const LINKS = [
   { href: '/explore', label: 'Explore', match: (p: string) => p.startsWith('/explore') },
   { href: '/films', label: 'Films', match: (p: string) => p.startsWith('/films') },
   { href: '/clubs', label: 'Clubs', match: (p: string) => p.startsWith('/club') },
+  { href: '/network', label: 'Network', match: (p: string) => p.startsWith('/network') },
 ];
 
 export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCount: number }) {
@@ -52,6 +53,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
               aria-current={link.match(pathname) ? 'page' : undefined}
               className={cn(
                 'nav-link rounded-md px-3 py-1.5 text-sm transition-colors',
+                link.href === '/network' && 'hidden lg:block',
                 link.match(pathname)
                   ? 'font-medium text-text'
                   : 'text-muted hover:bg-surface-hover hover:text-text',
@@ -147,7 +149,7 @@ function SearchTrigger({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex h-9 w-56 items-center gap-2 rounded-md border border-line bg-canvas-raised px-2.5 text-sm text-dim transition-colors hover:border-line-strong lg:w-64"
+      className="flex h-9 w-48 items-center gap-2 rounded-md border border-line bg-canvas-raised px-2.5 text-sm text-dim transition-colors hover:border-line-strong lg:w-64"
     >
       <SearchIcon className="h-4 w-4" />
       <span className="flex-1 text-left">Films, people, clubs…</span>
@@ -186,7 +188,10 @@ function AccountMenu({ user }: { user: NavUser }) {
     { href: userSectionHref(user, 'diary'), label: 'Diary' },
     { href: userSectionHref(user, 'films'), label: 'Films' },
     { href: userSectionHref(user, 'lists'), label: 'Lists' },
+    { href: '/lists', label: 'List library' },
     { href: '/watchlist', label: 'Watchlist' },
+    { href: '/tonight', label: 'Tonight' },
+    { href: '/taste-circle', label: 'Taste circle' },
     { href: '/settings', label: 'Settings' },
   ];
 

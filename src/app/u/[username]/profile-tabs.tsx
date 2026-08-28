@@ -14,6 +14,7 @@ export function ProfileTabs({ username, isSelf }: { username: string; isSelf: bo
     { href: base, label: 'Profile' },
     { href: `${base}/films`, label: 'Films' },
     { href: `${base}/diary`, label: 'Diary' },
+    { href: `${base}/stats`, label: 'Stats' },
     { href: `${base}/reviews`, label: 'Reviews' },
     { href: `${base}/lists`, label: 'Lists' },
     { href: `${base}/likes`, label: 'Likes' },

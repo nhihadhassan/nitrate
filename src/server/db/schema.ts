@@ -65,6 +65,9 @@ export const screeningStatus = nitrate.enum('screening_status', [
   'cancelled',
 ]);
 export const rsvpStatus = nitrate.enum('rsvp_status', ['going', 'maybe', 'cant']);
+/** A movie-night availability poll: several proposed times, before one is confirmed into a screening. */
+export const pollStatus = nitrate.enum('poll_status', ['open', 'closed', 'cancelled']);
+export const pollAvailability = nitrate.enum('poll_availability', ['yes', 'maybe', 'no']);
 /** How a round decides its winner: members vote, or the wheel picks at random. */
 export const selectionMode = nitrate.enum('selection_mode', ['vote', 'wheel']);
 export const emailStatus = nitrate.enum('email_status', ['queued', 'sent', 'failed', 'skipped']);
@@ -104,9 +107,14 @@ export const notificationType = nitrate.enum('notification_type', [
   'club_winner_selected',
   'club_screening_scheduled',
   'club_screening_reminder',
+  'list_collaboration_invite',
   'club_screening_completed',
   'club_discussion_reply',
   'moderation_action',
+  'mention',
+  'club_join_request',
+  'club_join_approved',
+  'club_join_declined',
 ]);
 export const subjectType = nitrate.enum('subject_type', [
   'user',
@@ -204,12 +212,20 @@ export const users = nitrate.table(
     }),
     role: userRole('role').notNull().default('member'),
     timezone: text('timezone').notNull().default('UTC'),
+    /** ISO-3166-1 alpha-2. Null until resolved once (self-chosen or inferred) — see src/server/services/region.ts. */
+    watchRegion: text('watch_region'),
 
     profileVisibility: visibility('profile_visibility').notNull().default('public'),
     defaultEntryVisibility: visibility('default_entry_visibility').notNull().default('public'),
     showWatchlistPublicly: boolean('show_watchlist_publicly').notNull().default(true),
     allowFollows: boolean('allow_follows').notNull().default(true),
     adultContent: boolean('adult_content').notNull().default(false),
+
+    emailMovieNightReminders: boolean('email_movie_night_reminders').notNull().default(true),
+    emailPicksAndVoting: boolean('email_picks_and_voting').notNull().default(true),
+    emailWinnerSelected: boolean('email_winner_selected').notNull().default(true),
+    tasteCircleFeedEnabled: boolean('taste_circle_feed_enabled').notNull().default(false),
+    tasteHighlights: text('taste_highlights').array().notNull().default(sql`ARRAY[]::text[]`),
 
     onboardingCompletedAt: timestamp('onboarding_completed_at', { withTimezone: true }),
     suspendedAt: timestamp('suspended_at', { withTimezone: true }),
@@ -412,6 +428,8 @@ export const userMovieState = nitrate.table(
     ratedAt: timestamp('rated_at', { withTimezone: true }),
     inWatchlist: boolean('in_watchlist').notNull().default(false),
     watchlistedAt: timestamp('watchlisted_at', { withTimezone: true }),
+    /** Private context for a watchlist save, e.g. "Rachel recommended this". Never shown to anyone else. */
+    note: text('note'),
 
     logCount: integer('log_count').notNull().default(0),
     lastWatchedDate: date('last_watched_date'),
@@ -441,6 +459,45 @@ export const favoriteFilms = nitrate.table(
     primaryKey({ columns: [t.userId, t.position] }),
     uniqueIndex('favorites_user_movie_key').on(t.userId, t.movieId),
   ],
+);
+
+export const tasteCircleMembers = nitrate.table(
+  'taste_circle_members',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    memberUserId: uuid('member_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.memberUserId] }), index('taste_circle_member_idx').on(t.memberUserId)],
+);
+
+export const recommendationFeedback = nitrate.table(
+  'recommendation_feedback',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').$type<'user' | 'movie' | 'person'>().notNull(),
+    targetId: text('target_id').notNull(),
+    kind: text('kind').$type<'hide' | 'already_know' | 'less_like_this'>().notNull(),
+    reasonKind: text('reason_kind'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    restoredAt: timestamp('restored_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('recommendation_feedback_active_key').on(t.userId, t.targetType, t.targetId, t.kind).where(sql`${t.restoredAt} is null`),
+    index('recommendation_feedback_expiry_idx').on(t.userId, t.expiresAt),
+  ],
+);
+
+export const personFollows = nitrate.table(
+  'person_follows',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    personId: uuid('person_id').notNull().references(() => people.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.personId] }), index('person_follows_person_idx').on(t.personId)],
 );
 
 export const tags = nitrate.table(
@@ -475,6 +532,7 @@ export const diaryEntries = nitrate.table(
     rating: smallint('rating'),
     liked: boolean('liked').notNull().default(false),
     reviewText: text('review_text'),
+    viewingContext: text('viewing_context').$type<ViewingContext>(),
     containsSpoilers: boolean('contains_spoilers').notNull().default(false),
     isRewatch: boolean('is_rewatch').notNull().default(false),
     visibility: visibility('visibility').notNull().default('public'),
@@ -498,6 +556,25 @@ export const diaryEntries = nitrate.table(
     index('diary_review_idx').on(t.movieId, t.likeCount),
     uniqueIndex('diary_external_key').on(t.userId, t.externalKey),
     uniqueIndex('diary_screening_key').on(t.userId, t.screeningId),
+  ],
+);
+
+export const ownershipCopies = nitrate.table(
+  'ownership_copies',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    movieId: uuid('movie_id').notNull().references(() => movies.id, { onDelete: 'cascade' }),
+    format: text('format').$type<OwnershipFormat>().notNull(),
+    edition: text('edition'),
+    notes: text('notes'),
+    purchasedOn: date('purchased_on'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('ownership_user_movie_idx').on(t.userId, t.movieId),
+    index('ownership_user_format_idx').on(t.userId, t.format),
   ],
 );
 
@@ -549,6 +626,9 @@ export const lists = nitrate.table(
     isRanked: boolean('is_ranked').notNull().default(false),
     /** Reserved for collaborative lists; the join table already exists. */
     allowCollaborators: boolean('allow_collaborators').notNull().default(false),
+    version: integer('version').notNull().default(1),
+    isPinned: boolean('is_pinned').notNull().default(false),
+    clonedFromListId: uuid('cloned_from_list_id'),
 
     itemCount: integer('item_count').notNull().default(0),
     likeCount: integer('like_count').notNull().default(0),
@@ -562,6 +642,7 @@ export const lists = nitrate.table(
     uniqueIndex('lists_user_slug_key').on(t.userId, t.slug),
     index('lists_popular_idx').on(t.visibility, t.likeCount),
     index('lists_user_idx').on(t.userId, t.updatedAt),
+    index('lists_pinned_idx').on(t.userId, t.isPinned, t.updatedAt),
   ],
 );
 
@@ -600,6 +681,55 @@ export const listCollaborators = nitrate.table(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.listId, t.userId] })],
+);
+
+export const listCollaborationInvitations = nitrate.table(
+  'list_collaboration_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+    inviterUserId: uuid('inviter_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    inviteeUserId: uuid('invitee_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'editor'>().notNull().default('editor'),
+    status: text('status').$type<'pending' | 'accepted' | 'declined' | 'revoked' | 'expired'>().notNull().default('pending'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('list_collab_invite_pending_key').on(t.listId, t.inviteeUserId).where(sql`${t.status} = 'pending'`),
+    index('list_collab_invite_inbox_idx').on(t.inviteeUserId, t.status, t.expiresAt),
+  ],
+);
+
+export const listActivity = nitrate.table(
+  'list_activity',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+    actorUserId: uuid('actor_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    action: text('action').$type<'list_updated' | 'item_added' | 'item_removed' | 'note_updated' | 'reordered' | 'collaborator_added' | 'collaborator_removed' | 'cloned' | 'bulk_transferred'>().notNull(),
+    listItemId: uuid('list_item_id').references(() => listItems.id, { onDelete: 'set null' }),
+    movieId: uuid('movie_id').references(() => movies.id, { onDelete: 'set null' }),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index('list_activity_list_time_idx').on(t.listId, t.createdAt)],
+);
+
+export const savedLists = nitrate.table(
+  'saved_lists',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    listId: uuid('list_id').notNull().references(() => lists.id, { onDelete: 'cascade' }),
+    isPinned: boolean('is_pinned').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.listId] }),
+    index('saved_lists_user_sort_idx').on(t.userId, t.isPinned, t.createdAt),
+  ],
 );
 
 export const listLikes = nitrate.table(
@@ -731,6 +861,8 @@ export const notifications = nitrate.table(
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
     /** Collapses duplicates (e.g. "voting is closing" fired by two triggers). */
     dedupeKey: text('dedupe_key'),
+    groupKey: text('group_key'),
+    groupCount: integer('group_count').notNull().default(1),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -738,6 +870,8 @@ export const notifications = nitrate.table(
     index('notifications_user_idx').on(t.userId, t.createdAt),
     index('notifications_unread_idx').on(t.userId, t.readAt),
     uniqueIndex('notifications_dedupe_key').on(t.userId, t.dedupeKey),
+    index('notifications_group_idx').on(t.userId, t.groupKey, t.createdAt),
+    uniqueIndex('notifications_active_group_key').on(t.userId, t.groupKey).where(sql`${t.groupKey} is not null`),
   ],
 );
 
@@ -777,6 +911,7 @@ export const clubs = nitrate.table(
      * visible immediately, for clubs that would rather just talk.
      */
     blindRatingsEnabled: boolean('blind_ratings_enabled').notNull().default(true),
+    joinPolicy: text('join_policy').$type<'invite_only' | 'request' | 'open'>().notNull().default('invite_only'),
 
     memberCount: integer('member_count').notNull().default(1),
     screeningCount: integer('screening_count').notNull().default(0),
@@ -789,6 +924,25 @@ export const clubs = nitrate.table(
     uniqueIndex('clubs_slug_key').on(t.slug),
     uniqueIndex('clubs_invite_code_key').on(t.inviteCode),
     index('clubs_visibility_idx').on(t.visibility, t.memberCount),
+  ],
+);
+
+export const clubJoinRequests = nitrate.table(
+  'club_join_requests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clubId: uuid('club_id').notNull().references(() => clubs.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    status: text('status').$type<'pending' | 'approved' | 'declined' | 'withdrawn'>().notNull().default('pending'),
+    message: text('message'),
+    decidedByUserId: uuid('decided_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('club_join_requests_pending_key').on(t.clubId, t.userId).where(sql`${t.status} = 'pending'`),
+    index('club_join_requests_club_idx').on(t.clubId, t.status, t.createdAt),
+    index('club_join_requests_user_idx').on(t.userId, t.status, t.createdAt),
   ],
 );
 
@@ -949,6 +1103,77 @@ export const votes = nitrate.table(
   ],
 );
 
+/**
+ * An optional step between a winner being chosen and a screening being
+ * scheduled: an admin proposes several times, members mark availability, and
+ * the strongest slot is confirmed. The round stays in `winner_selected` for
+ * the whole lifetime of a poll — a poll never creates a screening itself,
+ * only `scheduleScreening` does (see services/clubs.ts).
+ */
+export const screeningPolls = nitrate.table(
+  'screening_polls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clubId: uuid('club_id')
+      .notNull()
+      .references(() => clubs.id, { onDelete: 'cascade' }),
+    roundId: uuid('round_id')
+      .notNull()
+      .references(() => selectionRounds.id, { onDelete: 'cascade' }),
+    movieId: uuid('movie_id')
+      .notNull()
+      .references(() => movies.id, { onDelete: 'cascade' }),
+    timezone: text('timezone').notNull().default('UTC'),
+    status: pollStatus('status').notNull().default('open'),
+    createdByUserId: uuid('created_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('polls_club_idx').on(t.clubId),
+    index('polls_round_idx').on(t.roundId),
+    uniqueIndex('polls_one_open_per_round').on(t.roundId).where(sql`${t.status} = 'open'`),
+  ],
+);
+
+export const screeningPollOptions = nitrate.table(
+  'screening_poll_options',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    pollId: uuid('poll_id')
+      .notNull()
+      .references(() => screeningPolls.id, { onDelete: 'cascade' }),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    sortOrder: smallint('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('poll_options_poll_idx').on(t.pollId, t.sortOrder),
+    uniqueIndex('poll_options_time_key').on(t.pollId, t.startsAt),
+  ],
+);
+
+export const screeningPollResponses = nitrate.table(
+  'screening_poll_responses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    optionId: uuid('option_id')
+      .notNull()
+      .references(() => screeningPollOptions.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    availability: pollAvailability('availability').notNull(),
+    respondedAt: timestamp('responded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('poll_response_key').on(t.optionId, t.userId),
+    index('poll_responses_user_idx').on(t.userId),
+  ],
+);
+
 export const screenings = nitrate.table(
   'screenings',
   {
@@ -1071,6 +1296,35 @@ export const clubDiscussionReactions = nitrate.table(
   (t) => [primaryKey({ columns: [t.postId, t.userId, t.emoji] })],
 );
 
+export const discussionMentions = nitrate.table(
+  'discussion_mentions',
+  {
+    postId: uuid('post_id').notNull().references(() => clubDiscussionPosts.id, { onDelete: 'cascade' }),
+    mentionedUserId: uuid('mentioned_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.postId, t.mentionedUserId] }),
+    index('discussion_mentions_user_idx').on(t.mentionedUserId, t.createdAt),
+  ],
+);
+
+export const profilePins = nitrate.table(
+  'profile_pins',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    targetType: text('target_type').$type<'review' | 'list'>().notNull(),
+    targetId: uuid('target_id').notNull(),
+    position: smallint('position').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('profile_pins_user_position_key').on(t.userId, t.position),
+    uniqueIndex('profile_pins_user_target_key').on(t.userId, t.targetType, t.targetId),
+  ],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Outbound email                                                             */
 /* -------------------------------------------------------------------------- */
@@ -1101,6 +1355,36 @@ export const emailDeliveries = nitrate.table(
   (t) => [
     index('email_status_idx').on(t.status, t.createdAt),
     uniqueIndex('email_dedupe_key').on(t.dedupeKey),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Revocable public snapshots                                                 */
+/* -------------------------------------------------------------------------- */
+
+export const shareSnapshots = nitrate.table(
+  'share_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    ownerUserId: uuid('owner_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<'personal_recap' | 'club_yearbook' | 'taste_comparison'>().notNull(),
+    schemaVersion: smallint('schema_version').notNull().default(1),
+    tokenHash: bytea('token_hash').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    sourceUserId: uuid('source_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    comparedUserId: uuid('compared_user_id').references(() => users.id, { onDelete: 'cascade' }),
+    sourceClubId: uuid('source_club_id').references(() => clubs.id, { onDelete: 'cascade' }),
+    sourceYear: smallint('source_year'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    lastAccessedAt: timestamp('last_accessed_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('share_snapshots_token_hash_key').on(t.tokenHash),
+    index('share_snapshots_owner_idx').on(t.ownerUserId, t.createdAt),
+    index('share_snapshots_source_idx').on(t.sourceUserId, t.sourceClubId, t.revokedAt),
   ],
 );
 
@@ -1232,6 +1516,32 @@ export const analyticsEvents = nitrate.table(
   ],
 );
 
+export const productFlags = nitrate.table(
+  'product_flags',
+  {
+    key: text('key').$type<'people' | 'community_lists' | 'public_clubs' | 'community_trends'>().primaryKey(),
+    mode: text('mode').$type<'auto' | 'forced_on' | 'forced_off'>().notNull().default('auto'),
+    unlockedAt: timestamp('unlocked_at', { withTimezone: true }),
+    eligibleSince: date('eligible_since'),
+    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }),
+    metrics: jsonb('metrics').$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+    updatedByUserId: uuid('updated_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+export const networkEligibilityDaily = nitrate.table(
+  'network_eligibility_daily',
+  {
+    surface: text('surface').$type<'people' | 'community_lists' | 'public_clubs' | 'community_trends'>().notNull(),
+    day: date('day').notNull(),
+    eligible: boolean('eligible').notNull(),
+    metrics: jsonb('metrics').$type<Record<string, number>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.surface, t.day] })],
+);
+
 /* -------------------------------------------------------------------------- */
 /* Relations                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -1302,6 +1612,26 @@ export const nominationsRelations = relations(nominations, ({ one, many }) => ({
   votes: many(votes),
 }));
 
+export const screeningPollsRelations = relations(screeningPolls, ({ one, many }) => ({
+  club: one(clubs, { fields: [screeningPolls.clubId], references: [clubs.id] }),
+  round: one(selectionRounds, { fields: [screeningPolls.roundId], references: [selectionRounds.id] }),
+  movie: one(movies, { fields: [screeningPolls.movieId], references: [movies.id] }),
+  options: many(screeningPollOptions),
+}));
+
+export const screeningPollOptionsRelations = relations(screeningPollOptions, ({ one, many }) => ({
+  poll: one(screeningPolls, { fields: [screeningPollOptions.pollId], references: [screeningPolls.id] }),
+  responses: many(screeningPollResponses),
+}));
+
+export const screeningPollResponsesRelations = relations(screeningPollResponses, ({ one }) => ({
+  option: one(screeningPollOptions, {
+    fields: [screeningPollResponses.optionId],
+    references: [screeningPollOptions.id],
+  }),
+  user: one(users, { fields: [screeningPollResponses.userId], references: [users.id] }),
+}));
+
 export const screeningsRelations = relations(screenings, ({ one, many }) => ({
   club: one(clubs, { fields: [screenings.clubId], references: [clubs.id] }),
   movie: one(movies, { fields: [screenings.movieId], references: [movies.id] }),
@@ -1320,6 +1650,10 @@ export type NewMovie = typeof movies.$inferInsert;
 export type Person = typeof people.$inferSelect;
 export type Credit = typeof credits.$inferSelect;
 export type UserMovieState = typeof userMovieState.$inferSelect;
+export type ViewingContext = 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other';
+export type OwnershipFormat = '4k_uhd' | 'blu_ray' | 'dvd' | 'digital' | 'other';
+export type OwnershipCopy = typeof ownershipCopies.$inferSelect;
+export type RecommendationFeedback = typeof recommendationFeedback.$inferSelect;
 export type DiaryEntry = typeof diaryEntries.$inferSelect;
 export type List = typeof lists.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;
@@ -1329,6 +1663,9 @@ export type ClubQueueItem = typeof clubQueueItems.$inferSelect;
 export type SelectionRound = typeof selectionRounds.$inferSelect;
 export type Nomination = typeof nominations.$inferSelect;
 export type Vote = typeof votes.$inferSelect;
+export type ScreeningPoll = typeof screeningPolls.$inferSelect;
+export type ScreeningPollOption = typeof screeningPollOptions.$inferSelect;
+export type ScreeningPollResponse = typeof screeningPollResponses.$inferSelect;
 export type Screening = typeof screenings.$inferSelect;
 export type Attendance = typeof attendances.$inferSelect;
 export type ClubRating = typeof clubRatings.$inferSelect;
@@ -1339,3 +1676,7 @@ export type Report = typeof reports.$inferSelect;
 export type ImportBatch = typeof importBatches.$inferSelect;
 export type ImportRow = typeof importRows.$inferSelect;
 export type EmailDelivery = typeof emailDeliveries.$inferSelect;
+export type ShareSnapshotRow = typeof shareSnapshots.$inferSelect;
+export type ProductFlag = typeof productFlags.$inferSelect;
+export type ClubJoinRequest = typeof clubJoinRequests.$inferSelect;
+export type ProfilePin = typeof profilePins.$inferSelect;

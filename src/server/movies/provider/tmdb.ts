@@ -11,6 +11,8 @@ import type {
   ProviderMovieSummary,
   ProviderPage,
   ProviderPerson,
+  WatchAvailability,
+  WatchOption,
 } from './types';
 
 const BASE_URL = 'https://api.themoviedb.org/3';
@@ -65,6 +67,27 @@ type TmdbPaged<T> = {
   total_results?: number;
 };
 
+type TmdbWatchOption = {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string | null;
+  display_priority?: number;
+};
+
+type TmdbWatchRegion = {
+  link?: string;
+  flatrate?: TmdbWatchOption[];
+  rent?: TmdbWatchOption[];
+  buy?: TmdbWatchOption[];
+  free?: TmdbWatchOption[];
+  ads?: TmdbWatchOption[];
+};
+
+type TmdbWatchProviders = {
+  id?: number;
+  results?: Record<string, TmdbWatchRegion>;
+};
+
 /* -------------------------------------------------------------------------- */
 /* Mapping                                                                    */
 /* -------------------------------------------------------------------------- */
@@ -101,6 +124,15 @@ function toPerson(person: TmdbPerson): ProviderPerson {
     knownForDepartment: person.known_for_department ?? null,
     biography: person.biography ?? null,
     knownFor: person.known_for?.filter((k) => k.title).map(toSummary),
+  };
+}
+
+function toWatchOption(option: TmdbWatchOption): WatchOption {
+  return {
+    providerId: String(option.provider_id),
+    name: option.provider_name,
+    logoPath: option.logo_path ?? null,
+    displayPriority: option.display_priority ?? 0,
   };
 }
 
@@ -335,6 +367,38 @@ export class TmdbProvider implements MovieProvider {
       60 * 60 * 24 * 30,
     );
     return (raw?.genres ?? []).map((g) => ({ providerId: String(g.id), name: g.name }));
+  }
+
+  // Availability is the most volatile data TMDB serves — a much shorter TTL
+  // than the 7-day `getMovie` cache, and deliberately its own request rather
+  // than an `append_to_response` on `getMovie` (which is only re-fetched every
+  // 30 days locally and would never see fresh availability).
+  async watchProviders(providerId: string, region: string): Promise<WatchAvailability | null> {
+    const raw = await this.request<TmdbWatchProviders>(
+      `/movie/${encodeURIComponent(providerId)}/watch/providers`,
+      {},
+      60 * 60 * 12,
+    );
+    const forRegion = raw?.results?.[region.toUpperCase()];
+    if (!forRegion) return null;
+
+    return {
+      region: region.toUpperCase(),
+      link: forRegion.link ?? null,
+      stream: (forRegion.flatrate ?? []).map(toWatchOption),
+      rent: (forRegion.rent ?? []).map(toWatchOption),
+      buy: (forRegion.buy ?? []).map(toWatchOption),
+      free: [...(forRegion.free ?? []), ...(forRegion.ads ?? [])].map(toWatchOption),
+    };
+  }
+
+  async watchRegions(): Promise<{ code: string; name: string }[]> {
+    const raw = await this.request<{ results?: { iso_3166_1: string; english_name: string }[] }>(
+      '/watch/providers/regions',
+      {},
+      60 * 60 * 24 * 30,
+    );
+    return (raw?.results ?? []).map((r) => ({ code: r.iso_3166_1, name: r.english_name }));
   }
 }
 

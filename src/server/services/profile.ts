@@ -1,11 +1,12 @@
 import 'server-only';
 
-import { and, asc, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
 
 import { db } from '@/server/db';
 import {
   clubMembers,
   clubs,
+  credits,
   diaryEntries,
   diaryEntryTags,
   favoriteFilms,
@@ -15,12 +16,16 @@ import {
   lists,
   movieGenres,
   movies,
+  ownershipCopies,
+  people,
   reviewLikes,
+  screenings,
   tags as tagsTable,
   userMovieState,
   users,
   type Movie,
   type User,
+  type ViewingContext,
 } from '@/server/db/schema';
 import { viewableSql, type Viewer } from '@/server/privacy';
 
@@ -94,10 +99,15 @@ export async function setFavoriteFilms(userId: string, movieIds: string[]): Prom
 /* -------------------------------------------------------------------------- */
 
 export type FilmsSort = 'recent' | 'rating' | 'title' | 'release';
+export type LibraryFilters = {
+  yearFrom?: number; yearTo?: number; ratingMin?: number; genreId?: string; tag?: string;
+  director?: string; rewatch?: boolean; onlyLiked?: boolean; clubId?: string;
+  viewingContext?: string; runtimeMax?: number; owned?: boolean;
+};
 
 export async function getWatchedFilms(
   userId: string,
-  options: { sort?: FilmsSort; limit?: number; offset?: number; onlyRated?: boolean; onlyLiked?: boolean } = {},
+  options: { sort?: FilmsSort; limit?: number; offset?: number; onlyRated?: boolean } & LibraryFilters = {},
 ) {
   const sort = options.sort ?? 'recent';
   const orderBy =
@@ -119,6 +129,17 @@ export async function getWatchedFilms(
         eq(userMovieState.watched, true),
         options.onlyRated ? sql`${userMovieState.rating} is not null` : undefined,
         options.onlyLiked ? eq(userMovieState.liked, true) : undefined,
+        options.ratingMin ? gte(userMovieState.rating, options.ratingMin) : undefined,
+        options.yearFrom ? gte(movies.year, options.yearFrom) : undefined,
+        options.yearTo ? lte(movies.year, options.yearTo) : undefined,
+        options.runtimeMax ? lte(movies.runtime, options.runtimeMax) : undefined,
+        options.genreId ? sql`exists (select 1 from ${movieGenres} mg join ${genres} g on g.id = mg.genre_id where mg.movie_id = ${movies.id} and g.provider_id = ${options.genreId})` : undefined,
+        options.tag ? sql`exists (select 1 from ${diaryEntries} de join ${diaryEntryTags} det on det.diary_entry_id = de.id join ${tagsTable} t on t.id = det.tag_id where de.user_id = ${userId} and de.movie_id = ${movies.id} and lower(t.slug) = lower(${options.tag}) and de.deleted_at is null)` : undefined,
+        options.director ? sql`exists (select 1 from ${credits} c join ${people} p on p.id = c.person_id where c.movie_id = ${movies.id} and c.kind = 'crew' and c.job = 'Director' and lower(p.name) like ${`%${options.director.toLowerCase()}%`})` : undefined,
+        options.rewatch ? sql`exists (select 1 from ${diaryEntries} de where de.user_id = ${userId} and de.movie_id = ${movies.id} and de.is_rewatch = true and de.deleted_at is null)` : undefined,
+        options.clubId ? sql`exists (select 1 from ${diaryEntries} de join ${screenings} s on s.id = de.screening_id where de.user_id = ${userId} and de.movie_id = ${movies.id} and s.club_id = ${options.clubId} and de.deleted_at is null)` : undefined,
+        options.viewingContext ? sql`exists (select 1 from ${diaryEntries} de where de.user_id = ${userId} and de.movie_id = ${movies.id} and de.viewing_context = ${options.viewingContext} and de.deleted_at is null)` : undefined,
+        options.owned ? sql`exists (select 1 from ${ownershipCopies} oc where oc.user_id = ${userId} and oc.movie_id = ${movies.id})` : undefined,
       ),
     )
     .orderBy(...orderBy)
@@ -143,7 +164,7 @@ export type DiaryRow = {
 export async function getDiary(
   userId: string,
   viewer: Viewer,
-  options: { limit?: number; offset?: number; year?: number } = {},
+  options: { limit?: number; offset?: number; year?: number } & LibraryFilters = {},
 ): Promise<DiaryRow[]> {
   const rows = await db
     .select({ entry: diaryEntries, movie: movies })
@@ -157,6 +178,18 @@ export async function getDiary(
         options.year
           ? sql`extract(year from ${diaryEntries.watchedDate}) = ${options.year}`
           : undefined,
+        options.yearFrom ? gte(movies.year, options.yearFrom) : undefined,
+        options.yearTo ? lte(movies.year, options.yearTo) : undefined,
+        options.ratingMin ? gte(diaryEntries.rating, options.ratingMin) : undefined,
+        options.onlyLiked ? eq(diaryEntries.liked, true) : undefined,
+        options.rewatch ? eq(diaryEntries.isRewatch, true) : undefined,
+        options.viewingContext ? eq(diaryEntries.viewingContext, options.viewingContext as ViewingContext) : undefined,
+        options.runtimeMax ? lte(movies.runtime, options.runtimeMax) : undefined,
+        options.genreId ? sql`exists (select 1 from ${movieGenres} mg join ${genres} g on g.id = mg.genre_id where mg.movie_id = ${movies.id} and g.provider_id = ${options.genreId})` : undefined,
+        options.tag ? sql`exists (select 1 from ${diaryEntryTags} det join ${tagsTable} t on t.id = det.tag_id where det.diary_entry_id = ${diaryEntries.id} and lower(t.slug) = lower(${options.tag}))` : undefined,
+        options.director ? sql`exists (select 1 from ${credits} c join ${people} p on p.id = c.person_id where c.movie_id = ${movies.id} and c.kind = 'crew' and c.job = 'Director' and lower(p.name) like ${`%${options.director.toLowerCase()}%`})` : undefined,
+        options.clubId ? sql`exists (select 1 from ${screenings} s where s.id = ${diaryEntries.screeningId} and s.club_id = ${options.clubId})` : undefined,
+        options.owned ? sql`exists (select 1 from ${ownershipCopies} oc where oc.user_id = ${userId} and oc.movie_id = ${movies.id})` : undefined,
       ),
     )
     .orderBy(desc(diaryEntries.watchedDate), desc(diaryEntries.createdAt))
@@ -231,7 +264,7 @@ export async function getWatchlist(
             : [desc(userMovieState.watchlistedAt)];
 
   const base = db
-    .select({ movie: movies, addedAt: userMovieState.watchlistedAt })
+    .select({ movie: movies, addedAt: userMovieState.watchlistedAt, note: userMovieState.note })
     .from(userMovieState)
     .innerJoin(movies, eq(movies.id, userMovieState.movieId));
 

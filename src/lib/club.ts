@@ -64,6 +64,12 @@ export type ClubStageInput = {
   hasVoted: boolean;
   /** The viewer has already RSVP'd to the upcoming screening. */
   hasRsvpd: boolean;
+  /** Status of the movie-night availability poll for the current round, if any. */
+  pollStatus?: 'open' | 'closed' | 'cancelled' | null;
+  /** The viewer has marked their availability on at least one poll option. */
+  hasRespondedToPoll?: boolean;
+  /** At least one member has responded to the poll. */
+  pollHasResponses?: boolean;
 };
 
 export type ClubState = {
@@ -91,6 +97,9 @@ export function resolveClubState(input: ClubStageInput): ClubState {
     hasPicked,
     hasVoted,
     hasRsvpd,
+    pollStatus = null,
+    hasRespondedToPoll = false,
+    pollHasResponses = false,
   } = input;
 
   if (awaitingViewerRating) {
@@ -158,6 +167,20 @@ export function resolveClubState(input: ClubStageInput): ClubState {
         next: 'An admin closes voting to reveal the winner.',
       };
     case 'winner_selected':
+      if (pollStatus === 'open') {
+        return {
+          stage: 'reveal',
+          headline: 'We have a winner. Now find a time that works for everyone.',
+          youNeedTo: !hasRespondedToPoll
+            ? 'Mark your availability'
+            : isAdmin && pollHasResponses
+              ? 'Confirm a time'
+              : null,
+          next: isAdmin
+            ? 'Confirm the strongest time once responses are in.'
+            : 'An admin confirms the final time once responses are in.',
+        };
+      }
       return {
         stage: 'reveal',
         headline: 'We have a winner.',

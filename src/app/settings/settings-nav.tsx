@@ -9,6 +9,9 @@ const LINKS = [
   { href: '/settings', label: 'Profile' },
   { href: '/settings/favorites', label: 'Favourite films' },
   { href: '/settings/privacy', label: 'Privacy' },
+  { href: '/settings/notifications', label: 'Email' },
+  { href: '/settings/sharing', label: 'Sharing' },
+  { href: '/settings/discovery', label: 'Discovery' },
   { href: '/import', label: 'Import' },
   { href: '/settings/account', label: 'Account' },
 ];

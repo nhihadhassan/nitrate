@@ -1,12 +1,16 @@
 import Link from 'next/link';
 
 import { Poster } from '@/components/film/poster';
+import { LibraryFilters, type LibraryFilterValues } from '@/components/film/library-filters';
 import { LikeMark, Stars } from '@/components/film/stars';
 import { Badge, EmptyState } from '@/components/ui/primitives';
 import { filmHref } from '@/lib/links';
 import { formatDateOnly } from '@/lib/utils';
 import { loadProfileContext } from '@/server/services/profile-context';
 import { getDiary } from '@/server/services/profile';
+import { getCurrentUser } from '@/server/auth/session';
+import { getAvailabilityForMovies } from '@/server/movies/watch-providers';
+import { resolveWatchRegion } from '@/server/services/region';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,10 +21,11 @@ export default async function DiaryPage({
   searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ page?: string; year?: string }>;
+  searchParams: Promise<{ page?: string; year?: string } & LibraryFilterValues>;
 }) {
   const { username } = await params;
-  const { page, year } = await searchParams;
+  const query = await searchParams;
+  const { page, year } = query;
   const { profile, viewer, access } = await loadProfileContext(username);
 
   const pageNumber = Math.max(1, Number(page) || 1);
@@ -28,9 +33,19 @@ export default async function DiaryPage({
     limit: PAGE_SIZE,
     offset: (pageNumber - 1) * PAGE_SIZE,
     year: year ? Number(year) : undefined,
+    yearFrom: Number(query.yearFrom) || undefined, yearTo: Number(query.yearTo) || undefined,
+    ratingMin: Number(query.ratingMin) || undefined, genreId: query.genre, tag: query.tag,
+    director: query.director, rewatch: query.rewatch === '1', onlyLiked: query.liked === '1',
+    clubId: query.club, viewingContext: query.context, runtimeMax: Number(query.runtimeMax) || undefined,
+    owned: access.isSelf && query.owned === '1',
   });
 
-  if (!entries.length) {
+  const current = await getCurrentUser();
+  const region = query.available === '1' && current && access.isSelf ? await resolveWatchRegion(current.watchRegion) : null;
+  const availability = region ? await getAvailabilityForMovies(entries.map(({ movie }) => movie), region, { limit: PAGE_SIZE }) : new Map();
+  const visibleEntries = region ? entries.filter(({ movie }) => { const row = availability.get(movie.id); return row ? row.stream.length + row.free.length + row.rent.length + row.buy.length > 0 : false; }) : entries;
+
+  if (!visibleEntries.length) {
     return (
       <EmptyState
         title={access.isSelf ? 'Your diary starts with one film' : 'No diary entries'}
@@ -45,7 +60,7 @@ export default async function DiaryPage({
 
   // Group by month so a long diary reads as a timeline, not a wall.
   const groups = new Map<string, typeof entries>();
-  for (const entry of entries) {
+  for (const entry of visibleEntries) {
     const key = entry.entry.watchedDate.slice(0, 7);
     const list = groups.get(key) ?? [];
     list.push(entry);
@@ -54,6 +69,7 @@ export default async function DiaryPage({
 
   return (
     <div className="space-y-8">
+      <LibraryFilters action={`/@${profile.username}/diary`} values={query} diary />
       {Array.from(groups.entries()).map(([month, rows]) => (
         <section key={month}>
           <h2 className="eyebrow mb-3">
@@ -89,6 +105,7 @@ export default async function DiaryPage({
                     {entry.rating ? <Stars value={entry.rating} size="xs" /> : null}
                     {entry.liked ? <LikeMark className="text-xs text-rose" /> : null}
                     {entry.isRewatch ? <Badge tone="iris">Rewatch</Badge> : null}
+                    {entry.viewingContext ? <Badge>{entry.viewingContext.replaceAll('_', ' ')}</Badge> : null}
                     {entry.reviewText ? (
                       <Link
                         href={`/review/${entry.id}`}

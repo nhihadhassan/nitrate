@@ -2,10 +2,16 @@ import Link from 'next/link';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { LikeMark, Stars } from '@/components/film/stars';
+import { LibraryFilters, type LibraryFilterValues } from '@/components/film/library-filters';
+import { Badge } from '@/components/ui/primitives';
 import { EmptyState } from '@/components/ui/primitives';
 import { cn, pluralize } from '@/lib/utils';
 import { loadProfileContext } from '@/server/services/profile-context';
 import { countWatchedFilms, getWatchedFilms, type FilmsSort } from '@/server/services/profile';
+import { getCurrentUser } from '@/server/auth/session';
+import { getAvailabilityForMovies } from '@/server/movies/watch-providers';
+import { getOwnershipMap } from '@/server/services/ownership';
+import { resolveWatchRegion } from '@/server/services/region';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,11 +29,13 @@ export default async function ProfileFilmsPage({
   searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ sort?: string; page?: string }>;
+  searchParams: Promise<{ sort?: string; page?: string } & LibraryFilterValues>;
 }) {
   const { username } = await params;
-  const { sort, page } = await searchParams;
-  const { profile } = await loadProfileContext(username);
+  const query = await searchParams;
+  const { sort, page } = query;
+  const { profile, access } = await loadProfileContext(username);
+  const viewer = await getCurrentUser();
 
   const activeSort = (SORTS.find((s) => s.key === sort)?.key ?? 'recent') as FilmsSort;
   const pageNumber = Math.max(1, Number(page) || 1);
@@ -37,9 +45,19 @@ export default async function ProfileFilmsPage({
       sort: activeSort,
       limit: PAGE_SIZE,
       offset: (pageNumber - 1) * PAGE_SIZE,
+      yearFrom: Number(query.yearFrom) || undefined, yearTo: Number(query.yearTo) || undefined,
+      ratingMin: Number(query.ratingMin) || undefined, genreId: query.genre, tag: query.tag,
+      director: query.director, rewatch: query.rewatch === '1', onlyLiked: query.liked === '1',
+      clubId: query.club, viewingContext: query.context, runtimeMax: Number(query.runtimeMax) || undefined,
+      owned: access.isSelf && query.owned === '1',
     }),
     countWatchedFilms(profile.id),
   ]);
+
+  const region = query.available === '1' && viewer && access.isSelf ? await resolveWatchRegion(viewer.watchRegion) : null;
+  const availability = region ? await getAvailabilityForMovies(films.map(({ movie }) => movie), region, { limit: PAGE_SIZE }) : new Map();
+  const visibleFilms = region ? films.filter(({ movie }) => { const row = availability.get(movie.id); return row ? row.stream.length + row.free.length + row.rent.length + row.buy.length > 0 : false; }) : films;
+  const ownership = access.isSelf ? await getOwnershipMap(profile.id, visibleFilms.map(({ movie }) => movie.id)) : new Map();
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -65,11 +83,12 @@ export default async function ProfileFilmsPage({
           ))}
         </nav>
       </div>
+      <LibraryFilters action={`/@${profile.username}/films`} values={query} />
 
-      {films.length ? (
+      {visibleFilms.length ? (
         <>
           <PosterGrid>
-            {films.map(({ movie, state }) => (
+            {visibleFilms.map(({ movie, state }) => (
               <PosterCard
                 key={movie.id}
                 film={{
@@ -79,7 +98,7 @@ export default async function ProfileFilmsPage({
                   posterPath: movie.posterPath,
                 }}
                 footer={
-                  state.rating || state.liked ? (
+                  state.rating || state.liked || ownership.has(movie.id) ? (
                     <div className="mt-0.5 flex items-center gap-1.5">
                       <Stars
                         value={state.rating}
@@ -92,6 +111,7 @@ export default async function ProfileFilmsPage({
                           label={`${profile.displayName} liked this film`}
                         />
                       ) : null}
+                      {ownership.has(movie.id) ? <Badge tone="iris">Owned · {ownership.get(movie.id)!.length}</Badge> : null}
                     </div>
                   ) : null
                 }

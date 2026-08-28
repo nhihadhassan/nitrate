@@ -38,6 +38,16 @@ export const ANALYTICS_EVENTS = [
   'attendance_confirmed',
   'club_rating_submitted',
   'club_discussion_posted',
+  'recommendation_opened',
+  'recommendation_hidden',
+  'recommendation_restored',
+  'recommended_follow',
+  'taste_circle_changed',
+  'filmmaker_followed',
+  'public_club_joined',
+  'public_club_join_requested',
+  'profile_pin_changed',
+  'network_recommended_follow',
 ] as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[number];

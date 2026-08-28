@@ -1,0 +1,8 @@
+import Link from 'next/link';
+import { Container, EmptyState } from '@/components/ui/primitives';
+import { NetworkGate } from '@/components/network/network-gate';
+import { getCurrentUser } from '@/server/auth/session';
+import { getCommunityLists, getNetworkStatuses } from '@/server/services/network';
+
+export const dynamic = 'force-dynamic'; export const metadata = { title: 'Community lists' };
+export default async function CommunityListsPage() { const user = await getCurrentUser(); const status=(await getNetworkStatuses()).find((row)=>row.key==='community_lists')!; if(!status.available)return <Container className="py-10"><NetworkGate surface="community_lists" metrics={status.metrics} streak={status.streak}/></Container>; const rows=await getCommunityLists(user?.id??null); return <Container size="wide" className="py-8 pb-20"><header><p className="eyebrow">Network · Curation</p><h1 className="mt-2 text-4xl">Community lists</h1><p className="mt-2 text-sm text-muted">Substantial public lists, sorted by public appreciation and recent care—not creator popularity.</p></header>{rows.length?<ul className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{rows.map(({list,owner,itemCount})=><li key={list.id} className="rounded-lg border border-line p-4"><Link href={`/list/${list.id}`} className="text-lg font-medium hover:text-ember">{list.title}</Link><p className="mt-1 text-xs text-dim">by @{owner.username} · {itemCount} films · {list.likeCount} likes</p><p className="mt-3 line-clamp-3 text-sm text-muted">{list.description??'A public list on Nitrate.'}</p></li>)}</ul>:<div className="mt-8"><EmptyState title="No eligible lists" description="Only public lists with at least 10 films qualify."/></div>}</Container>; }

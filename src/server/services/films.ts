@@ -13,6 +13,7 @@ import {
   userMovieState,
   users,
   type DiaryEntry,
+  type ViewingContext,
   type UserMovieState,
 } from '@/server/db/schema';
 import { NotFoundError, PermissionError, ValidationError } from '@/server/errors';
@@ -99,6 +100,25 @@ export async function getUserMovieState(
     .where(and(eq(userMovieState.userId, userId), eq(userMovieState.movieId, movieId)))
     .limit(1);
   return row ?? null;
+}
+
+export async function updateWatchlistNote(
+  userId: string,
+  movieId: string,
+  note: string | null,
+): Promise<void> {
+  const [updated] = await db
+    .update(userMovieState)
+    .set({ note })
+    .where(
+      and(
+        eq(userMovieState.userId, userId),
+        eq(userMovieState.movieId, movieId),
+        eq(userMovieState.inWatchlist, true),
+      ),
+    )
+    .returning({ movieId: userMovieState.movieId });
+  if (!updated) throw new NotFoundError('That film is not on your watchlist.');
 }
 
 async function ensureState(tx: DbOrTx, userId: string, movieId: string): Promise<UserMovieState> {
@@ -222,6 +242,7 @@ export type LogFilmInput = {
   externalKey?: string | null;
   /** When true an existing entry for the same screening is updated, not duplicated. */
   upsertOnScreening?: boolean;
+  viewingContext?: ViewingContext | null;
 };
 
 export type LogFilmResult = {
@@ -285,6 +306,7 @@ export async function logFilm(input: LogFilmInput): Promise<LogFilmResult> {
           liked: input.liked,
           reviewText: input.reviewText,
           containsSpoilers: input.containsSpoilers,
+          viewingContext: input.viewingContext ?? null,
           visibility: input.visibility,
           updatedAt: new Date(),
           deletedAt: null,
@@ -303,6 +325,7 @@ export async function logFilm(input: LogFilmInput): Promise<LogFilmResult> {
           liked: input.liked,
           reviewText: input.reviewText,
           containsSpoilers: input.containsSpoilers,
+          viewingContext: input.viewingContext ?? null,
           visibility: input.visibility,
           isRewatch,
           source: input.source ?? 'manual',
@@ -422,6 +445,7 @@ export async function updateDiaryEntry(
     containsSpoilers?: boolean;
     visibility?: 'public' | 'followers' | 'private';
     tags?: string[];
+    viewingContext?: ViewingContext | null;
   },
 ): Promise<DiaryEntry> {
   return db.transaction(async (tx) => {
@@ -437,6 +461,7 @@ export async function updateDiaryEntry(
         liked: patch.liked ?? entry.liked,
         reviewText: patch.reviewText === undefined ? entry.reviewText : patch.reviewText,
         containsSpoilers: patch.containsSpoilers ?? entry.containsSpoilers,
+        viewingContext: patch.viewingContext === undefined ? entry.viewingContext : patch.viewingContext,
         visibility: patch.visibility ?? entry.visibility,
         updatedAt: new Date(),
       })

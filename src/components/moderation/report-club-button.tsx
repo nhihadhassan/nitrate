@@ -1,0 +1,2 @@
+'use client';import {useState}from'react';import {Button}from'@/components/ui/button';import {ReportDialog}from'./report-dialog';
+export function ReportClubButton({clubId,clubName}:{clubId:string;clubName:string}){const[open,setOpen]=useState(false);return <>{<Button size="sm" variant="ghost" onClick={()=>setOpen(true)}>Report club</Button>}{open?<ReportDialog subjectType="club" subjectId={clubId} subjectLabel={clubName} onClose={()=>setOpen(false)}/>:null}</>}

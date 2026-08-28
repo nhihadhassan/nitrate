@@ -158,7 +158,42 @@ export function submissionsOpenEmail(payload: SubmissionsOpenPayload): OutboundE
   };
 }
 
-export type TemplateName = 'wheel_winner' | 'submissions_open';
+export type ScreeningReminderPayload = {
+  clubName: string;
+  clubSlug: string;
+  screeningId: string;
+  movieTitle: string;
+  when: string;
+  location: string | null;
+  recipientName: string;
+};
+
+export function screeningReminderEmail(payload: ScreeningReminderPayload): OutboundEmail {
+  const url = `${env.siteUrl}/club/${payload.clubSlug}/screening/${payload.screeningId}`;
+  const bodyHtml = `
+    <p style="margin:0 0 14px;"><strong style="color:#f4f4f5;">${escapeHtml(payload.movieTitle)}</strong> is coming up in ${escapeHtml(payload.clubName)}.</p>
+    <p style="margin:0;">${escapeHtml(payload.when)}${payload.location ? `<br>${escapeHtml(payload.location)}` : ''}</p>`;
+  return {
+    to: '',
+    subject: `${payload.movieTitle} is coming up`,
+    html: layout({
+      preheader: `Movie night is coming up: ${payload.movieTitle}`,
+      heading: 'Movie night is coming up',
+      body: bodyHtml,
+      ctaLabel: 'Open movie night',
+      ctaUrl: url,
+    }),
+    text: [
+      `${payload.movieTitle} is coming up in ${payload.clubName}.`,
+      payload.when,
+      payload.location ?? '',
+      '',
+      `Open movie night: ${url}`,
+    ].filter(Boolean).join('\n'),
+  };
+}
+
+export type TemplateName = 'wheel_winner' | 'submissions_open' | 'screening_reminder';
 
 export function renderTemplate(
   template: TemplateName,
@@ -169,5 +204,7 @@ export function renderTemplate(
       return wheelWinnerEmail(payload as WheelWinnerPayload);
     case 'submissions_open':
       return submissionsOpenEmail(payload as SubmissionsOpenPayload);
+    case 'screening_reminder':
+      return screeningReminderEmail(payload as ScreeningReminderPayload);
   }
 }

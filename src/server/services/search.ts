@@ -3,6 +3,7 @@ import 'server-only';
 import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import type { FilmRef } from '@/lib/types';
+import { escapeLikeTerm } from '@/lib/community-safety';
 import { db } from '@/server/db';
 import { clubMembers, clubs, lists, movies, users } from '@/server/db/schema';
 import { filmRefsFromSummaries } from '@/server/movies/catalog';
@@ -43,12 +44,12 @@ export async function search(
   viewer: Viewer,
   options: SearchOptions = {},
 ): Promise<SearchResults> {
-  const trimmed = query.trim();
+  const trimmed = query.trim().slice(0, 80);
   if (trimmed.length < 2) {
     return { films: [], people: [], users: [], lists: [], clubs: [], degraded: false };
   }
   const limit = options.limit ?? 8;
-  const term = `%${trimmed.toLowerCase()}%`;
+  const term = `%${escapeLikeTerm(trimmed.toLowerCase())}%`;
 
   const [films, people, userRows, listRows, clubRows] = await Promise.all([
     withProvider((provider) => provider.searchMovies(trimmed, 1)),
@@ -70,7 +71,7 @@ export async function search(
         and(
           isNull(users.deletedAt),
           isNull(users.suspendedAt),
-          sql`(lower(${users.username}) like ${term} or lower(${users.displayName}) like ${term})`,
+          sql`(lower(${users.username}) like ${term} escape '\\' or lower(${users.displayName}) like ${term} escape '\\')`,
           // Private profiles are not discoverable by strangers.
           viewer
             ? sql`(${users.profileVisibility} <> 'private' or ${users.id} = ${viewer.id})`
@@ -101,7 +102,7 @@ export async function search(
         and(
           isNull(lists.deletedAt),
           isNull(users.deletedAt),
-          sql`lower(${lists.title}) like ${term}`,
+          sql`lower(${lists.title}) like ${term} escape '\\'`,
           viewableSql(sql`${lists.visibility}`, sql`${lists.userId}`, viewer),
         ),
       )
@@ -120,7 +121,7 @@ export async function search(
       .where(
         and(
           isNull(clubs.deletedAt),
-          sql`lower(${clubs.name}) like ${term}`,
+          sql`lower(${clubs.name}) like ${term} escape '\\'`,
           // Public clubs, plus private ones the viewer already belongs to.
           viewer
             ? sql`(${clubs.visibility} = 'public' or exists (

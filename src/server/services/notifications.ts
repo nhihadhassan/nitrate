@@ -19,6 +19,8 @@ export type NotifyInput = {
   metadata?: Record<string, unknown>;
   /** Same key within a burst collapses into one row. */
   dedupeKey?: string;
+  /** Stable subject-level key used to collapse a burst into one counted row. */
+  groupKey?: string;
 };
 
 /**
@@ -48,6 +50,20 @@ export async function notify(input: NotifyInput, tx: DbOrTx = db): Promise<void>
       .where(and(eq(clubMembers.clubId, input.clubId), eq(clubMembers.userId, input.userId)))
       .limit(1);
     if (membership && (membership.muted || membership.status !== 'active')) return;
+  }
+
+  if (input.groupKey) {
+    await tx.insert(notifications).values({
+      userId: input.userId, actorId: input.actorId ?? null, type: input.type, url: input.url,
+      body: input.body ?? null, subjectType: input.subjectType ?? null, subjectId: input.subjectId ?? null,
+      clubId: input.clubId ?? null, metadata: input.metadata ?? {}, groupKey: input.groupKey,
+    }).onConflictDoUpdate({
+      target: [notifications.userId, notifications.groupKey],
+      targetWhere: sql`${notifications.groupKey} is not null`,
+      set: { actorId: input.actorId ?? null, body: input.body ?? null, url: input.url,
+        metadata: input.metadata ?? {}, groupCount: sql`${notifications.groupCount} + 1`, readAt: null, createdAt: new Date() },
+    });
+    return;
   }
 
   await tx

@@ -10,6 +10,7 @@ import { Divider, EmptyState, SectionHeading } from '@/components/ui/primitives'
 import { filmHref, personHref, reviewHref, userSectionHref } from '@/lib/links';
 import { formatRuntime, pluralize } from '@/lib/utils';
 import { getUserActivity } from '@/server/services/feed';
+import { getProfilePins } from '@/server/services/profile-pins';
 import { loadProfileContext } from '@/server/services/profile-context';
 import {
   getProfileStats,
@@ -38,18 +39,20 @@ export default async function ProfileOverviewPage({ params }: Params) {
   const { username } = await params;
   const { profile, viewer, access } = await loadProfileContext(username);
 
-  const [stats, recentFilms, activity, reviews, lists] = await Promise.all([
+  const [stats, recentFilms, activity, reviews, lists, pins] = await Promise.all([
     getProfileStats(profile.id),
     getWatchedFilms(profile.id, { limit: 12 }),
     getUserActivity(profile.id, viewer, 6),
     getUserReviews(profile.id, viewer, { limit: 2 }),
     getUserLists(profile.id, viewer, 3),
+    getProfilePins(profile.id, viewer),
   ]);
 
   const hours = Math.round(stats.totalRuntimeMinutes / 60);
 
   return (
     <div className="mx-auto max-w-5xl space-y-12">
+      {pins.length ? <section><SectionHeading title="Pinned"/><ul className="grid gap-3 sm:grid-cols-2">{pins.map((pin)=><li key={pin.id} className="rounded-lg border border-line p-4"><p className="eyebrow">{pin.type}</p><Link href={pin.href} className="mt-1 block text-lg font-medium hover:text-ember">{pin.title}</Link>{pin.subtitle?<p className="mt-2 line-clamp-2 text-sm text-muted">{pin.subtitle}</p>:null}</li>)}</ul></section>:null}
       <section>
         <SectionHeading
           title="Recently watched"

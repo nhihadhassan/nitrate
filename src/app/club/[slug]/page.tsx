@@ -9,11 +9,13 @@ import { LifecycleStrip } from '@/components/club/lifecycle-strip';
 import { NominatePanel } from '@/components/club/nominate-panel';
 import { RoundControls } from '@/components/club/round-controls';
 import { ScheduleScreeningForm } from '@/components/club/schedule-screening-form';
+import { ScreeningPoll } from '@/components/club/screening-poll';
 import { VotingPanel } from '@/components/club/voting-panel';
 import { WheelPanel } from '@/components/club/wheel-panel';
 import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
+import { ReportClubButton } from '@/components/moderation/report-club-button';
 import { AvatarStack } from '@/components/user/avatar';
 import { filmHref, screeningHref } from '@/lib/links';
 import { resolveClubState } from '@/lib/club';
@@ -33,8 +35,10 @@ import {
   getRecentlyCompleted,
   getRoundNominations,
   getScreeningAttendance,
+  getScreeningPoll,
   getUpcomingScreening,
 } from '@/server/services/clubs';
+import { getOwnershipMap } from '@/server/services/ownership';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +72,7 @@ export default async function ClubDashboard({
   ]);
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
+  const poll = round && isMember && user ? await getScreeningPoll(round.id, user.id) : null;
   const pickCounts = new Map<string, number>();
   Object.entries(nominations?.memberPickCounts ?? {}).forEach(([memberId, count]) => pickCounts.set(memberId, count));
   const allMembersPicked = Boolean(
@@ -84,6 +89,9 @@ export default async function ClubDashboard({
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
   const myAttendance = attendance.find((a) => a.userId === user?.id);
+  const shortlistOwnership = user && intelligence
+    ? await getOwnershipMap(user.id, intelligence.shortlist.map((item) => item.movie.id))
+    : new Map();
 
   const state = resolveClubState({
     roundStatus: round?.status ?? null,
@@ -99,6 +107,11 @@ export default async function ClubDashboard({
     hasPicked: Boolean(round && currentUserPickCount >= round.nominationLimitPerMember),
     hasVoted: Boolean(nominations?.viewerVoted),
     hasRsvpd: Boolean(myAttendance?.rsvp),
+    pollStatus: poll?.status ?? null,
+    hasRespondedToPoll: Boolean(poll?.options.some((option) => option.viewerResponse)),
+    pollHasResponses: Boolean(
+      poll?.options.some((option) => option.yes + option.maybe + option.no > 0),
+    ),
   });
 
   return (
@@ -116,6 +129,7 @@ export default async function ClubDashboard({
               club watches, rates and remembers it together.
             </p>
             <ClubLoopPreview compact />
+            {user ? <div className="mt-3"><ReportClubButton clubId={club.id} clubName={club.name}/></div>:null}
           </section>
         )}
 
@@ -277,7 +291,7 @@ export default async function ClubDashboard({
                   title: item.movie.title,
                   year: item.movie.year,
                   posterPath: item.movie.posterPath,
-                  reason: item.reasons.join(' · '),
+                  reasons: item.reasons,
                 }))}
                 pickingOpen={!picksExpired && !picksClosed}
                 showContenders={nominations.contendersVisible}
@@ -344,24 +358,54 @@ export default async function ClubDashboard({
             ) : null}
 
             {round.status === 'winner_selected' && isAdmin && nominations.nominations.length ? (
-              <div className="mt-6 rounded-lg border border-line p-4">
-                <p className="eyebrow mb-3">Schedule the night</p>
-                <ScheduleScreeningForm
+              <div className="mt-6 space-y-4">
+                <ScreeningPoll
                   clubId={club.id}
                   clubSlug={club.slug}
                   roundId={round.id}
                   timezone={club.timezone}
-                  movie={(() => {
-                    const winner =
-                      nominations.nominations.find((n) => n.id === round.winnerNominationId) ??
-                      nominations.nominations[0];
-                    return {
-                      movieId: winner.movie.id,
-                      title: winner.movie.title,
-                      year: winner.movie.year,
-                      posterPath: winner.movie.posterPath,
-                    };
-                  })()}
+                  isAdmin={isAdmin}
+                  poll={poll ? {
+                    ...poll,
+                    options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
+                  } : null}
+                />
+                {!poll ? (
+                  <div className="rounded-lg border border-line p-4">
+                    <p className="eyebrow mb-3">Schedule directly</p>
+                    <ScheduleScreeningForm
+                      clubId={club.id}
+                      clubSlug={club.slug}
+                      roundId={round.id}
+                      timezone={club.timezone}
+                      movie={(() => {
+                        const winner =
+                          nominations.nominations.find((n) => n.id === round.winnerNominationId) ??
+                          nominations.nominations[0];
+                        return {
+                          movieId: winner.movie.id,
+                          title: winner.movie.title,
+                          year: winner.movie.year,
+                          posterPath: winner.movie.posterPath,
+                        };
+                      })()}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {round.status === 'winner_selected' && isMember && !isAdmin && poll ? (
+              <div className="mt-6">
+                <ScreeningPoll
+                  clubId={club.id}
+                  clubSlug={club.slug}
+                  roundId={round.id}
+                  timezone={club.timezone}
+                  isAdmin={false}
+                  poll={{
+                    ...poll,
+                    options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
+                  }}
                 />
               </div>
             ) : null}
@@ -391,6 +435,11 @@ export default async function ClubDashboard({
         {completed.length ? (
           <section>
             <SectionHeading title="Recently watched together" href={`/club/${club.slug}/history`} />
+            <p className="-mt-3 mb-4 text-xs text-dim">
+              <Link href={`/club/${club.slug}/yearbook?year=${new Date().getFullYear()}`} className="underline underline-offset-2 hover:text-iris">
+                Open this year&apos;s Club Yearbook
+              </Link>
+            </p>
             <ul className="space-y-3">
               {completed.map(({ screening, movie, average, ratingsHidden }) => (
                 <li key={screening.id}>
@@ -579,7 +628,10 @@ export default async function ClubDashboard({
 
         {intelligence ? (
           <ClubShortlist
-            items={intelligence.shortlist}
+            items={intelligence.shortlist.map((item) => ({
+              ...item,
+              ownedFormats: (shortlistOwnership.get(item.movie.id) ?? []).map((copy: { format: string }) => copy.format.replaceAll('_', ' ')),
+            }))}
             clubId={club.id}
             roundId={round?.status === 'nominations_open' ? round.id : null}
             canPick={Boolean(

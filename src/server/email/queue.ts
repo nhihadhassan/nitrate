@@ -50,11 +50,22 @@ export async function queueClubEmail(
   template: TemplateName,
   subject: string,
   payloadFor: (member: { displayName: string }) => Record<string, unknown>,
-  options: { excludeUserId?: string; dedupePrefix?: string } = {},
+  options: {
+    excludeUserId?: string;
+    dedupePrefix?: string;
+    preference?: 'movieNightReminders' | 'picksAndVoting' | 'winnerSelected';
+  } = {},
   tx: DbOrTx = db,
 ): Promise<number> {
   const members = await tx
-    .select({ id: users.id, email: users.email, displayName: users.displayName })
+    .select({
+      id: users.id,
+      email: users.email,
+      displayName: users.displayName,
+      movieNightReminders: users.emailMovieNightReminders,
+      picksAndVoting: users.emailPicksAndVoting,
+      winnerSelected: users.emailWinnerSelected,
+    })
     .from(clubMembers)
     .innerJoin(users, eq(users.id, clubMembers.userId))
     .where(
@@ -68,7 +79,11 @@ export async function queueClubEmail(
       ),
     );
 
-  const recipients = members.filter((m) => m.id !== options.excludeUserId);
+  const recipients = members.filter(
+    (member) =>
+      member.id !== options.excludeUserId &&
+      (!options.preference || member[options.preference]),
+  );
   if (!recipients.length) return 0;
 
   await tx

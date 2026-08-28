@@ -3,6 +3,7 @@ import 'server-only';
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
 
 import type { FilmRef } from '@/lib/types';
+import type { RecommendationReason } from '@/lib/recommendations';
 import { COMMUNITY_RANKING, PROVIDER_RANKING, bayesianAverage } from '@/lib/ranking';
 import { db } from '@/server/db';
 import {
@@ -25,7 +26,7 @@ import {
 import { viewableSql, type Viewer } from '@/server/privacy';
 
 /** A rail entry: a canonical film plus, sometimes, the reason it is here. */
-export type RailFilm = FilmRef & { caption?: string };
+export type RailFilm = FilmRef & { caption?: string; reason?: RecommendationReason };
 
 function usable(items: ProviderMovieSummary[]): ProviderMovieSummary[] {
   return items.filter((movie) => !movie.adult && movie.posterPath);
@@ -112,7 +113,10 @@ export async function getFriendsWantToWatch(userId: string, limit = 12): Promise
     .groupBy(movies.id)
     .orderBy(desc(sql`count(distinct ${userMovieState.userId})`), desc(movies.providerPopularity))
     .limit(limit);
-  return rows.map((row) => ({ ...toFilmRef(row.movie), caption: `${row.count} ${row.count === 1 ? 'friend wants to watch' : 'friends want to watch'}` }));
+  return rows.map((row) => ({
+    ...toFilmRef(row.movie),
+    reason: { kind: 'community_signal', label: `${row.count} ${row.count === 1 ? 'friend wants to watch' : 'friends want to watch'}` },
+  }));
 }
 
 /** A small rail from the shared Movie Ideas already present in the viewer's clubs. */
@@ -126,7 +130,7 @@ export async function getPopularWithClubs(userId: string, limit = 12): Promise<R
     .groupBy(movies.id)
     .orderBy(desc(sql`count(distinct ${clubQueueItems.clubId})`), desc(movies.providerPopularity))
     .limit(limit);
-  return rows.map((row) => ({ ...toFilmRef(row.movie), caption: `${row.count} ${row.count === 1 ? 'club wants to watch' : 'clubs want to watch'}` }));
+  return rows.map((row) => ({ ...toFilmRef(row.movie), reason: { kind: 'club_interest', count: row.count } }));
 }
 
 /* -------------------------------------------------------------------------- */
@@ -160,7 +164,7 @@ export async function getFriendsAreWatching(userId: string, limit = 12): Promise
 
   return rows.map((row) => ({
     ...toFilmRef(row.movie),
-    caption: row.count === 1 ? '1 friend watched' : `${row.count} friends watched`,
+    reason: { kind: 'friend_watched', count: row.count },
   }));
 }
 
@@ -197,7 +201,7 @@ export async function getFriendsLoved(userId: string, limit = 12): Promise<RailF
 
   return rows.map((row) => ({
     ...toFilmRef(row.movie),
-    caption: row.count === 1 ? `${row.names[0]} loved it` : `${row.count} friends loved it`,
+    reason: { kind: 'friend_loved', names: row.names.slice(0, row.count) },
   }));
 }
 
@@ -210,7 +214,7 @@ export async function getWatchlistRail(userId: string, limit = 12): Promise<Rail
     .where(and(eq(userMovieState.userId, userId), eq(userMovieState.inWatchlist, true)))
     .orderBy(desc(userMovieState.watchlistedAt))
     .limit(limit);
-  return rows.map((row) => toFilmRef(row.movie));
+  return rows.map((row) => ({ ...toFilmRef(row.movie), reason: { kind: 'on_watchlist' } }));
 }
 
 export type TasteRail = { seed: FilmRef; films: RailFilm[] };
@@ -250,7 +254,10 @@ export async function getBecauseYouLoved(userId: string, limit = 12): Promise<Ta
 
   return {
     seed: toFilmRef(seedRow.movie),
-    films: refs.filter((ref) => !seen.has(ref.id)),
+    films: refs.filter((ref) => !seen.has(ref.id)).map((film) => ({
+      ...film,
+      reason: { kind: 'similar_to_film', title: seedRow.movie.title },
+    })),
   };
 }
 
@@ -291,9 +298,12 @@ export async function getCommunityTopFilms(limit = 12): Promise<RailFilm[]> {
 
   return rows.map((row) => ({
     ...toFilmRef(row.movie),
-    caption: `${(row.movie.ratingSum / row.movie.ratingCount / 2).toFixed(1)} from ${row.movie.ratingCount} ${
-      row.movie.ratingCount === 1 ? 'member' : 'members'
-    }`,
+    reason: {
+      kind: 'community_signal',
+      label: `${(row.movie.ratingSum / row.movie.ratingCount / 2).toFixed(1)} from ${row.movie.ratingCount} ${
+        row.movie.ratingCount === 1 ? 'member' : 'members'
+      }`,
+    },
   }));
 }
 
@@ -337,7 +347,13 @@ export async function getFromYourFavouriteGenre(
     .limit(limit);
 
   if (rows.length < 4) return null;
-  return { genre: top.name, films: rows.map((row) => toFilmRef(row.movie)) };
+  return {
+    genre: top.name,
+    films: rows.map((row) => ({
+      ...toFilmRef(row.movie),
+      reason: { kind: 'favourite_genre', genre: top.name },
+    })),
+  };
 }
 
 export type PopularReview = {
