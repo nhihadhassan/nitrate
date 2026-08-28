@@ -107,7 +107,7 @@ export default async function SearchPage({
                   <PosterCard
                     key={film.id}
                     film={film}
-                    footer={<RecommendationContext movieId={film.id} reasons={filmContext.get(film.id) ?? []} />}
+                    footer={<RecommendationContext reasons={filmContext.get(film.id) ?? []} />}
                   />
                 ))}
               </PosterGrid>

@@ -25,20 +25,33 @@ function availabilityKey(providerId: string, region: string): string {
   return `tmdb:watch:${providerId}:${region.toUpperCase()}`;
 }
 
+// `payload` is `jsonb not null` — a plain JS `null` (a legitimate cached
+// answer: "no availability data here") binds as a raw SQL NULL, not a JSON
+// `null`, and trips the column's not-null constraint. Wrapping every payload
+// in `{ value }` keeps the column itself always non-null while still letting
+// the cached *value* be null.
+type CacheEnvelope<T> = { value: T };
+
+function unwrap<T>(payload: unknown): T | undefined {
+  if (!payload || typeof payload !== 'object' || !('value' in payload)) return undefined;
+  return (payload as CacheEnvelope<T>).value;
+}
+
 async function readCache<T>(key: string): Promise<T | undefined> {
   const [row] = await db.select().from(providerCache).where(eq(providerCache.key, key)).limit(1);
   if (!row || row.expiresAt.getTime() <= Date.now()) return undefined;
-  return row.payload as T;
+  return unwrap<T>(row.payload);
 }
 
 async function writeCache(key: string, payload: unknown, ttlMs: number): Promise<void> {
   const expiresAt = new Date(Date.now() + ttlMs);
+  const envelope: CacheEnvelope<unknown> = { value: payload };
   await db
     .insert(providerCache)
-    .values({ key, payload: payload as object, expiresAt })
+    .values({ key, payload: envelope, expiresAt })
     .onConflictDoUpdate({
       target: providerCache.key,
-      set: { payload: payload as object, expiresAt, createdAt: new Date() },
+      set: { payload: envelope, expiresAt, createdAt: new Date() },
     });
 }
 
@@ -88,8 +101,9 @@ export async function getAvailabilityForMovies(
   const misses: typeof candidates = [];
   for (const { movie, key } of keyed) {
     const row = cachedRows.get(key);
-    if (row && row.expiresAt.getTime() > now) {
-      result.set(movie.id, row.payload as WatchAvailability | null);
+    const cached = row && row.expiresAt.getTime() > now ? unwrap<WatchAvailability | null>(row.payload) : undefined;
+    if (cached !== undefined) {
+      result.set(movie.id, cached);
     } else {
       misses.push(movie);
     }

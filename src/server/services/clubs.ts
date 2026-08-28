@@ -2809,11 +2809,13 @@ export async function getClubIntelligence(clubId: string): Promise<{
       const unseenCount = memberCount - candidate.watchers.size;
       const matchesTaste = movieTopGenres.has(candidate.movie.id);
       const score = 3 * watchlistCount + unseenCount + (candidate.inIdeas ? 2 : 0) + (matchesTaste ? 1 : 0);
+      // Kept short on purpose — these sit on a compact card next to four
+      // others, not as a standalone sentence.
       const reasons = [
-        watchlistCount ? { weight: 3 * watchlistCount, reason: { kind: 'community_signal', label: `${watchlistCount} ${watchlistCount === 1 ? 'member wants' : 'members want'} to watch` } as RecommendationReason } : null,
-        unseenCount === memberCount ? { weight: unseenCount, reason: { kind: 'community_signal', label: 'Nobody in the club has seen it' } as RecommendationReason } : null,
+        watchlistCount ? { weight: 3 * watchlistCount, reason: { kind: 'community_signal', label: watchlistCount === 1 ? '1 wants it' : `${watchlistCount} want it` } as RecommendationReason } : null,
+        unseenCount === memberCount ? { weight: unseenCount, reason: { kind: 'community_signal', label: 'Unseen by everyone' } as RecommendationReason } : null,
         candidate.inIdeas ? { weight: 2, reason: { kind: 'club_interest', count: 1 } as RecommendationReason } : null,
-        matchesTaste ? { weight: 1, reason: { kind: 'community_signal', label: 'Matches a genre your club rates highly' } as RecommendationReason } : null,
+        matchesTaste ? { weight: 1, reason: { kind: 'community_signal', label: "Fits the club's taste" } as RecommendationReason } : null,
       ]
         .filter((reason): reason is { weight: number; reason: RecommendationReason } => Boolean(reason))
         .sort((a, b) => b.weight - a.weight)

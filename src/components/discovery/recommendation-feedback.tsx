@@ -8,18 +8,22 @@ import { useToast } from '@/components/ui/toast';
 import type { RecommendationReasonKind } from '@/lib/recommendations';
 import { recommendationFeedbackAction } from '@/server/actions/discovery';
 
+/**
+ * Full, always-visible "Hide" / "Less like this" controls. For a poster-corner
+ * menu instead (the common case), use `RecommendationOptionsMenu` — this
+ * component is for surfaces with room for inline buttons, like the people
+ * suggestion cards on `/explore/people`.
+ */
 export function RecommendationFeedback({
   targetType,
   targetId,
   reasonKind,
   includeAlreadyKnow = false,
-  compact = false,
 }: {
   targetType: 'user' | 'movie' | 'person';
   targetId: string;
   reasonKind?: RecommendationReasonKind;
   includeAlreadyKnow?: boolean;
-  compact?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -37,7 +41,7 @@ export function RecommendationFeedback({
     });
   };
 
-  const controls = (
+  return (
     <div className="flex flex-wrap gap-1.5" aria-label="Recommendation controls">
       <Button size="sm" variant="ghost" disabled={pending} onClick={() => submit('hide')}>
         Hide
@@ -52,14 +56,5 @@ export function RecommendationFeedback({
         </Button>
       )}
     </div>
-  );
-  if (!compact) return controls;
-  return (
-    <details className="relative mt-1 text-[0.6875rem] text-dim">
-      <summary className="min-h-6 cursor-pointer list-none py-1 hover:text-text">Tune suggestion</summary>
-      <div className="absolute bottom-7 left-0 z-20 w-36 rounded-md border border-line bg-canvas-raised p-1.5 shadow-pop">
-        {controls}
-      </div>
-    </details>
   );
 }

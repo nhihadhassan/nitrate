@@ -1,18 +1,23 @@
 import Link from 'next/link';
 
 import { FeedCard } from '@/components/feed/feed-card';
-import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { PosterRail } from '@/components/film/poster-rail';
 import { LandingPage } from '@/components/marketing/landing';
 import { RightNow } from '@/components/club/right-now';
+import { TonightFeature } from '@/components/discovery/tonight-feature';
 import { Button } from '@/components/ui/button';
 import { Container, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
+import { BRAND } from '@/lib/brand';
+import { ROUND_STATUS_LABELS } from '@/lib/types';
+import { pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getHomeFeed } from '@/server/services/feed';
 import { getClubAttention, getUserClubs } from '@/server/services/clubs';
+import { getTonightRecommendations } from '@/server/services/discovery';
 import { getWatchlistPreview } from '@/server/services/profile';
-import { BRAND } from '@/lib/brand';
-import { getDiaryAnniversaries } from '@/server/services/stats';
+import { resolveWatchRegion } from '@/server/services/region';
+import { getDiaryAnniversaries, getPersonalStats } from '@/server/services/stats';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,17 +33,60 @@ export default async function HomePage({
   const feedScope = scope === 'everyone' ? 'everyone' : 'following';
   const viewer = { id: user.id, role: user.role };
 
-  const [feed, clubs, watchlist, attention, anniversaries] = await Promise.all([
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const region = await resolveWatchRegion(user.watchRegion);
+
+  const [feed, clubs, watchlist, attention, anniversaries, tonight, monthStats] = await Promise.all([
     getHomeFeed(viewer, { scope: feedScope, limit: 30 }),
     getUserClubs(user.id),
     getWatchlistPreview(user.id, 6),
     getClubAttention(user.id),
     getDiaryAnniversaries(user.id),
+    getTonightRecommendations(user.id, region),
+    getPersonalStats(user.id, { kind: 'month', year, month }),
   ]);
+
+  const monthLink = `/u/${encodeURIComponent(user.username)}/stats?scope=month&year=${year}&month=${month}`;
 
   return (
     <Container className="py-6 sm:py-8" size="wide">
+      {/* Right now: what needs a decision, when there is one. Nothing here
+          when nothing is due — this never renders an empty dashboard. */}
       <RightNow items={attention} />
+
+      {/* Tonight: a real film, not a link explaining a feature exists. */}
+      <TonightFeature suggestions={tonight} />
+
+      {/* Your month: a small, honest snapshot — only when there is one. */}
+      {monthStats.viewingCount ? (
+        <section className="mb-9 border-b border-line pb-8">
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+            <div>
+              <p className="eyebrow">Your month</p>
+              <p className="mt-1 text-lg">
+                {pluralize(monthStats.viewingCount, 'film')} · {Math.round(monthStats.runtimeMinutes / 60)}h
+                {monthStats.averageRating != null
+                  ? ` · ${(monthStats.averageRating / 2).toFixed(1)}★ average`
+                  : ''}
+              </p>
+            </div>
+            <Link href={monthLink} className="text-xs text-dim transition-colors hover:text-ember">
+              View stats →
+            </Link>
+          </div>
+          {monthStats.latestViewings.length ? (
+            <div className="mt-3 flex gap-2">
+              {monthStats.latestViewings.slice(0, 8).map((film) => (
+                <div key={`${film.movieId}-${film.watchedDate ?? ''}`} className="w-11 shrink-0">
+                  <Poster film={film} size="xs" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {anniversaries.length ? (
         <section className="mb-9 border-b border-line pb-8">
@@ -119,17 +167,6 @@ export default async function HomePage({
         </div>
 
         <aside className="space-y-8 lg:sticky lg:top-20 lg:self-start">
-          {watchlist.length ? (
-            <Link
-              href="/tonight"
-              className="action-tile block rounded-lg border border-ember/25 bg-ember/[0.045] p-3.5"
-            >
-              <p className="eyebrow text-ember">Tonight</p>
-              <p className="mt-1 text-sm font-medium">Not sure what to watch?</p>
-              <p className="mt-0.5 text-xs text-dim">A short, honest shortlist from your watchlist and Movie Ideas.</p>
-            </Link>
-          ) : null}
-
           <section>
             <SectionHeading
               title={<span className="text-lg">Your watchlist</span>}
@@ -167,14 +204,22 @@ export default async function HomePage({
           <section>
             <p className="eyebrow mb-2.5">Your clubs</p>
             {clubs.length ? (
-              <ul className="space-y-1.5">
+              <ul className="space-y-2.5">
                 {clubs.slice(0, 6).map((club) => (
                   <li key={club.club.id}>
-                    <Link
-                      href={`/club/${club.club.slug}`}
-                      className="block truncate text-sm text-muted transition-colors hover:text-ember"
-                    >
-                      {club.club.name}
+                    <Link href={`/club/${club.club.slug}`} className="group block min-w-0">
+                      <span className="block truncate text-sm text-muted transition-colors group-hover:text-ember">
+                        {club.club.name}
+                      </span>
+                      {club.nextScreeningAt ? (
+                        <span className="block text-xs text-dim">
+                          Movie night {relativeTime(club.nextScreeningAt)}
+                        </span>
+                      ) : club.activeRoundStatus && club.activeRoundStatus in ROUND_STATUS_LABELS ? (
+                        <span className="block text-xs text-dim">
+                          {ROUND_STATUS_LABELS[club.activeRoundStatus as keyof typeof ROUND_STATUS_LABELS]}
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 ))}

@@ -156,6 +156,7 @@ export default async function ExplorePage() {
                 subtitle="Neighbours of one of your five-star films."
                 films={visibleBecause.films}
                 eager={firstRail === 'because-you-loved'}
+                showReason={false}
               />
             ) : null}
 
@@ -166,6 +167,8 @@ export default async function ExplorePage() {
               href="/watchlist"
               linkLabel="Full watchlist"
               eager={firstRail === 'watchlist'}
+              showReason={false}
+              showFeedback={false}
             />
           </div>
         ) : null}
@@ -215,6 +218,7 @@ export default async function ExplorePage() {
               title={`More ${visibleFavouriteGenre.genre.toLowerCase()}`}
               subtitle="Your most-watched genre, minus everything you have already seen."
               films={visibleFavouriteGenre.films}
+              showReason={false}
             />
           ) : null}
 
@@ -359,6 +363,8 @@ function Rail({
   href,
   linkLabel,
   eager,
+  showReason = true,
+  showFeedback = true,
 }: {
   title: string;
   subtitle?: string;
@@ -367,12 +373,21 @@ function Rail({
   linkLabel?: string;
   /** The first rail on the page owns the largest contentful paint. */
   eager?: boolean;
+  /** False when the heading already says why — see `PosterRail`. */
+  showReason?: boolean;
+  showFeedback?: boolean;
 }) {
   if (!films.length) return null;
   return (
     <section>
       <SectionHeading title={title} subtitle={subtitle} href={href} linkLabel={linkLabel} />
-      <PosterRail label={title} films={films.slice(0, 12)} eager={eager} />
+      <PosterRail
+        label={title}
+        films={films.slice(0, 12)}
+        eager={eager}
+        showReason={showReason}
+        showFeedback={showFeedback}
+      />
     </section>
   );
 }
