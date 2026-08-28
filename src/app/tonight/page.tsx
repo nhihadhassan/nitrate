@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { Badge, Container, EmptyState } from '@/components/ui/primitives';
 import { cn, formatRuntime } from '@/lib/utils';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import { getTonightRecommendations, type TonightConstraints } from '@/server/services/discovery';
 import { getGenres } from '@/server/services/explore';
 import { getOwnershipMap } from '@/server/services/ownership';
@@ -34,7 +35,8 @@ export default async function TonightPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/tonight');
   const params = await searchParams;
 
   const scope: TonightConstraints['scope'] = params.scope === 'broader' ? 'broader' : 'watchlist';
