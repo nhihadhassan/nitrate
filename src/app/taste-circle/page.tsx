@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { FeedCard } from '@/components/feed/feed-card';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import { getTasteCircle } from '@/server/services/discovery';
 import { getHomeFeed } from '@/server/services/feed';
 
@@ -12,7 +13,8 @@ export const metadata: Metadata = { title: 'Taste circle' };
 export const dynamic = 'force-dynamic';
 
 export default async function TasteCirclePage() {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/taste-circle');
   const circle = await getTasteCircle(user.id);
   const feed = user.tasteCircleFeedEnabled
     ? await getHomeFeed(

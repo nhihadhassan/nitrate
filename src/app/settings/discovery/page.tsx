@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { DiscoverySettings } from '@/components/settings/discovery-settings';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import {
   getFollowedFilmmakers,
   getKnownUpcomingWork,
@@ -15,7 +16,8 @@ export const metadata: Metadata = { title: 'Discovery settings' };
 export const dynamic = 'force-dynamic';
 
 export default async function DiscoverySettingsPage() {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/settings/discovery');
   const [following, circle, hidden, filmmakers, upcoming] = await Promise.all([
     getFollowList(user.id, 'following'),
     getTasteCircle(user.id),

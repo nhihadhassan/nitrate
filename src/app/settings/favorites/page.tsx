@@ -1,14 +1,16 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 import { FavoritesEditor } from '@/components/settings/favorites-editor';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import { getFavoriteFilms } from '@/server/services/profile';
 
 export const metadata: Metadata = { title: 'Favourite films' };
 export const dynamic = 'force-dynamic';
 
 export default async function FavoritesSettingsPage() {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/settings/favorites');
   const favorites = await getFavoriteFilms(user.id);
 
   return (
