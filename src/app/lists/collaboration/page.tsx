@@ -1,16 +1,18 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { CollaborationInbox } from '@/components/list/collaboration-inbox';
 import { Container } from '@/components/ui/primitives';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import { getListCollaborationInbox } from '@/server/services/lists';
 
 export const metadata: Metadata = { title: 'List collaborations' };
 export const dynamic = 'force-dynamic';
 
 export default async function ListCollaborationPage() {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/lists/collaboration');
   const invitations = await getListCollaborationInbox(user.id);
   return (
     <Container size="default" className="py-8 pb-20">

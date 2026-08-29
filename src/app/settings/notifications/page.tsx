@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 import { NotificationSettingsForm } from '@/components/settings/notification-settings-form';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 
 export const metadata: Metadata = { title: 'Email settings' };
 export const dynamic = 'force-dynamic';
 
 export default async function NotificationSettingsPage() {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/settings/notifications');
   return (
     <NotificationSettingsForm
       preferences={{

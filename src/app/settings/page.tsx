@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
 import { ProfileSettingsForm } from '@/components/settings/profile-settings-form';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import { resolveWatchRegion } from '@/server/services/region';
 import { getWatchRegions } from '@/server/movies/watch-providers';
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = { title: 'Profile settings' };
 export const dynamic = 'force-dynamic';
 
 export default async function ProfileSettingsPage() {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/settings');
   const [regions, resolvedRegion] = await Promise.all([
     getWatchRegions(),
     resolveWatchRegion(user.watchRegion),

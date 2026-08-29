@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { ListLibraryCard } from '@/components/list/list-library-card';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState, inputClass } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
-import { requireUser } from '@/server/auth/session';
+import { getCurrentUser } from '@/server/auth/session';
 import { getListLibrary, type ListLibrarySort, type ListLibraryView } from '@/server/services/lists';
 
 export const metadata: Metadata = { title: 'List library' };
@@ -23,7 +24,8 @@ const SORTS: Array<{ key: ListLibrarySort; label: string }> = [
 ];
 
 export default async function ListLibraryPage({ searchParams }: { searchParams: Promise<{ view?: string; q?: string; sort?: string }> }) {
-  const user = await requireUser();
+  const user = await getCurrentUser();
+  if (!user) redirect('/login?next=/lists');
   const params = await searchParams;
   const view = (VIEWS.find((item) => item.key === params.view)?.key ?? 'mine') as ListLibraryView;
   const sort = (SORTS.find((item) => item.key === params.sort)?.key ?? 'updated') as ListLibrarySort;
