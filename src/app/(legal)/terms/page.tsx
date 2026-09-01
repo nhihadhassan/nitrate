@@ -2,7 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 
-export const metadata: Metadata = { title: 'Terms of service' };
+export const metadata: Metadata = {
+  title: 'Terms of service',
+  description: 'The terms for using Nitrate, publishing film content and participating in Movie Clubs.',
+  alternates: { canonical: '/terms' },
+};
 
 export default function TermsPage() {
   return (

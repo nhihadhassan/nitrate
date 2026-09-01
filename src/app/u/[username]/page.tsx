@@ -7,8 +7,10 @@ import { LikeMark, RatingHistogram, Stars } from '@/components/film/stars';
 import { ListCard } from '@/components/list/list-card';
 import { ReviewBody } from '@/components/review/review-body';
 import { Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
-import { filmHref, personHref, reviewHref, userSectionHref } from '@/lib/links';
-import { formatRuntime, pluralize } from '@/lib/utils';
+import { avatarUrl } from '@/lib/images';
+import { filmHref, personHref, reviewHref, userHref, userSectionHref } from '@/lib/links';
+import { formatRuntime, pluralize, truncate } from '@/lib/utils';
+import { loadUserByUsername } from '@/server/privacy';
 import { getUserActivity } from '@/server/services/feed';
 import { getProfilePins } from '@/server/services/profile-pins';
 import { loadProfileContext } from '@/server/services/profile-context';
@@ -25,7 +27,24 @@ type Params = { params: Promise<{ username: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { username } = await params;
-  return { title: `@${decodeURIComponent(username)}` };
+  const profile = await loadUserByUsername(decodeURIComponent(username)).catch(() => null);
+  if (!profile) return { title: 'Profile', robots: { index: false, follow: false } };
+  const isPublic = profile.profileVisibility === 'public' && !profile.deletedAt && !profile.suspendedAt;
+  const image = avatarUrl(profile.avatarAssetId);
+  return {
+    title: `${profile.displayName} (@${profile.username})`,
+    description: profile.bio
+      ? truncate(profile.bio, 160)
+      : `${profile.displayName}'s films, reviews and lists on Nitrate.`,
+    alternates: isPublic ? { canonical: userHref(profile) } : undefined,
+    robots: isPublic ? undefined : { index: false, follow: false },
+    openGraph: isPublic
+      ? { title: profile.displayName, url: userHref(profile), images: image ? [image] : undefined }
+      : undefined,
+    twitter: isPublic
+      ? { card: image ? 'summary_large_image' : 'summary', images: image ? [image] : undefined }
+      : undefined,
+  };
 }
 
 /**

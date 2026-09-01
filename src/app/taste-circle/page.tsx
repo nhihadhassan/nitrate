@@ -9,7 +9,7 @@ import { getCurrentUser } from '@/server/auth/session';
 import { getTasteCircle } from '@/server/services/discovery';
 import { getHomeFeed } from '@/server/services/feed';
 
-export const metadata: Metadata = { title: 'Taste circle' };
+export const metadata: Metadata = { title: 'Taste circle', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 export default async function TasteCirclePage() {

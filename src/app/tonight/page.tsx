@@ -14,7 +14,7 @@ import { getGenres } from '@/server/services/explore';
 import { getOwnershipMap } from '@/server/services/ownership';
 import { resolveWatchRegion } from '@/server/services/region';
 
-export const metadata: Metadata = { title: 'Tonight' };
+export const metadata: Metadata = { title: 'Tonight', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 const TIME_OPTIONS = [

@@ -14,7 +14,11 @@ import { getCurrentUser } from '@/server/auth/session';
 import { search } from '@/server/services/search';
 import { getMovieRecommendationContext } from '@/server/services/discovery';
 
-export const metadata: Metadata = { title: 'Search' };
+export const metadata: Metadata = {
+  title: 'Search',
+  description: 'Search Nitrate for films, cast and crew, members, lists and Movie Clubs.',
+  robots: { index: false, follow: false },
+};
 export const dynamic = 'force-dynamic';
 
 const SCOPES = [

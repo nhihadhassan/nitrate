@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { FeedCard } from '@/components/feed/feed-card';
@@ -20,6 +21,11 @@ import { resolveWatchRegion } from '@/server/services/region';
 import { getDiaryAnniversaries, getPersonalStats } from '@/server/services/stats';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = {
+  title: { absolute: BRAND.name },
+  description: BRAND.description,
+  alternates: { canonical: '/' },
+};
 
 export default async function HomePage({
   searchParams,

@@ -5,7 +5,7 @@ import { CreateClubForm } from '@/components/club/create-club-form';
 import { Container } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
 
-export const metadata: Metadata = { title: 'Create a club' };
+export const metadata: Metadata = { title: 'Create a club', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 export default async function NewClubPage() {

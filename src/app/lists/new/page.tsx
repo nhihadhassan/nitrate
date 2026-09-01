@@ -5,7 +5,7 @@ import { ListBuilder } from '@/components/list/list-builder';
 import { Container } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
 
-export const metadata: Metadata = { title: 'New list' };
+export const metadata: Metadata = { title: 'New list', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 export default async function NewListPage() {

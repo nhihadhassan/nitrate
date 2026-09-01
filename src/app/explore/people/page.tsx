@@ -9,7 +9,11 @@ import { getCurrentUser } from '@/server/auth/session';
 import { getPeopleRecommendations } from '@/server/services/discovery';
 import { getSuggestedUsers } from '@/server/services/profile';
 
-export const metadata: Metadata = { title: 'Find people' };
+export const metadata: Metadata = {
+  title: 'Find people',
+  description: 'Find film lovers and friends to follow on Nitrate.',
+  robots: { index: false, follow: false },
+};
 export const dynamic = 'force-dynamic';
 
 export default async function ExplorePeoplePage() {
@@ -27,9 +31,8 @@ export default async function ExplorePeoplePage() {
       <header className="mb-7 max-w-2xl">
         <h1 className="text-3xl sm:text-4xl">Find people</h1>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Bounded suggestions from Movie Clubs and people you already follow. Similar-taste
-          discovery appears in Network only after its community evidence gate opens, and never
-          makes a taste claim below 10 shared ratings.
+          Start with people from your Movie Clubs and the circles you already trust. Suggestions
+          explain the connection when there is one.
         </p>
       </header>
 
@@ -70,8 +73,8 @@ export default async function ExplorePeoplePage() {
         </ul>
       ) : (
         <EmptyState
-          title="No suggestions right now"
-          description="You have reached the end of the bounded suggestion pool. Hidden suggestions can be restored in Discovery settings."
+          title="No one new right now"
+          description="You can restore hidden suggestions in Discovery settings, or check back as your circles grow."
         />
       )}
     </Container>

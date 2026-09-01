@@ -7,7 +7,7 @@ import { getClubPreviewByInvite } from '@/server/services/clubs';
 import { getEditorialRails } from '@/server/services/explore';
 import { getOnboardingProgress, getSuggestedUsers } from '@/server/services/profile';
 
-export const metadata: Metadata = { title: 'Get set up' };
+export const metadata: Metadata = { title: 'Get set up', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 export default async function OnboardingPage({

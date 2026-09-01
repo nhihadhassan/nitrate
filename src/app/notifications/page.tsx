@@ -8,7 +8,7 @@ import { relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { listNotifications, markNotificationsRead } from '@/server/services/notifications';
 
-export const metadata: Metadata = { title: 'Notifications' };
+export const metadata: Metadata = { title: 'Notifications', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 const LABELS: Record<string, string> = {

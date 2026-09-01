@@ -2,10 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ProfileActions } from '@/components/user/profile-actions';
+import { JsonLd } from '@/components/seo/json-ld';
 import { Poster } from '@/components/film/poster';
 import { Avatar } from '@/components/user/avatar';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { formatCount } from '@/lib/utils';
+import { env } from '@/env';
+import { avatarUrl } from '@/lib/images';
+import { userHref } from '@/lib/links';
 import { getCurrentUser } from '@/server/auth/session';
 import { loadUserByUsername, resolveProfileAccess } from '@/server/privacy';
 import { countClubsFor } from '@/server/services/clubs';
@@ -54,6 +58,23 @@ export default async function ProfileLayout({
 
   return (
     <div>
+      {profile.profileVisibility === 'public' && !profile.deletedAt && !profile.suspendedAt ? (
+        <JsonLd
+          data={{
+            '@context': 'https://schema.org',
+            '@type': 'ProfilePage',
+            url: new URL(userHref(profile), env.siteUrl).toString(),
+            mainEntity: {
+              '@type': 'Person',
+              name: profile.displayName,
+              alternateName: `@${profile.username}`,
+              description: profile.bio ?? undefined,
+              image: avatarUrl(profile.avatarAssetId) ?? undefined,
+              url: new URL(userHref(profile), env.siteUrl).toString(),
+            },
+          }}
+        />
+      ) : null}
       <header className="border-b border-line">
         <Container className="pt-8 sm:pt-10" size="wide">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">

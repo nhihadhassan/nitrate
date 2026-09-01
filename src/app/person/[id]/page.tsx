@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
 import { FilmmakerFollowButton } from '@/components/discovery/filmmaker-follow-button';
+import { JsonLd } from '@/components/seo/json-ld';
 import { Container, EmptyState } from '@/components/ui/primitives';
+import { env } from '@/env';
 import { profileUrl } from '@/lib/images';
 import { truncate } from '@/lib/utils';
 import { filmRefsFromSummaries } from '@/server/movies/catalog';
@@ -20,7 +22,16 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   const { data } = await withProvider((p) => p.getPerson(id)).catch(() => ({ data: null }));
   if (!data) return { title: 'Person' };
-  return { title: data.name, description: data.biography ? truncate(data.biography, 160) : undefined };
+  const image = profileUrl(data.profilePath, 'md');
+  return {
+    title: data.name,
+    description: data.biography
+      ? truncate(data.biography, 160)
+      : `Films and credits for ${data.name} on Nitrate.`,
+    alternates: { canonical: `/person/${encodeURIComponent(id)}` },
+    openGraph: { title: data.name, images: image ? [image] : undefined },
+    twitter: { card: image ? 'summary_large_image' : 'summary', images: image ? [image] : undefined },
+  };
 }
 
 export default async function PersonPage({ params }: Params) {
@@ -44,6 +55,17 @@ export default async function PersonPage({ params }: Params) {
 
   return (
     <Container size="wide" className="py-8 pb-20">
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Person',
+          name: person.name,
+          url: new URL(`/person/${encodeURIComponent(id)}`, env.siteUrl).toString(),
+          image: photo ?? undefined,
+          description: person.biography ? truncate(person.biography, 500) : undefined,
+          jobTitle: person.knownForDepartment ?? undefined,
+        }}
+      />
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end">
         <div className="relative aspect-[2/3] w-32 shrink-0 overflow-hidden rounded-md bg-surface sm:w-40">
           {photo ? (

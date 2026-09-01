@@ -7,10 +7,12 @@ import { RecommendationContext } from '@/components/discovery/recommendation-con
 import { ListActions } from '@/components/list/list-actions';
 import { CollaboratorManager, ListEditor, ListOwnerSettings, MovieIdeasTransfer } from '@/components/list/shared-list-tools';
 import { Comments } from '@/components/social/comments';
+import { JsonLd } from '@/components/seo/json-ld';
 import { Badge, Container, Divider, EmptyState } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
 import { ProfilePinButton } from '@/components/user/profile-pin-button';
 import { filmHref } from '@/lib/links';
+import { env } from '@/env';
 import { pluralize, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { AppError } from '@/server/errors';
@@ -29,10 +31,14 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     const { list } = await getListDetail(id, null);
     return {
       title: list.title,
-      description: list.description ? truncate(list.description, 160) : undefined,
+      description: list.description
+        ? truncate(list.description, 160)
+        : `${list.title}, a public film list on Nitrate.`,
+      alternates: { canonical: `/list/${id}` },
+      openGraph: { title: list.title, url: `/list/${id}`, type: 'article' },
     };
   } catch {
-    return { title: 'List' };
+    return { title: 'List', robots: { index: false, follow: false } };
   }
 }
 
@@ -60,6 +66,29 @@ export default async function ListPage({ params }: Params) {
 
   return (
     <Container size="wide" className="py-8">
+      {list.visibility === 'public' ? (
+        <JsonLd
+          data={{
+            '@context': 'https://schema.org',
+            '@type': 'ItemList',
+            name: list.title,
+            description: list.description ?? undefined,
+            url: new URL(`/list/${list.id}`, env.siteUrl).toString(),
+            numberOfItems: list.itemCount,
+            author: {
+              '@type': 'Person',
+              name: owner.displayName,
+              url: new URL(`/@${encodeURIComponent(owner.username)}`, env.siteUrl).toString(),
+            },
+            itemListElement: items.slice(0, 50).map((item, index) => ({
+              '@type': 'ListItem',
+              position: index + 1,
+              name: item.movie.title,
+              url: new URL(filmHref(item.movie), env.siteUrl).toString(),
+            })),
+          }}
+        />
+      ) : null}
       <header className="mb-7 max-w-3xl">
         <div className="flex flex-wrap items-center gap-2">
           {list.isRanked ? <Badge tone="ember">Ranked</Badge> : null}

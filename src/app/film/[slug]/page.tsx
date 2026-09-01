@@ -12,9 +12,10 @@ import { WhereToWatch } from '@/components/film/where-to-watch';
 import { OwnershipLibrary } from '@/components/film/ownership-library';
 import { AverageRating, LikeMark, RatingHistogram, RatingNumber, Stars } from '@/components/film/stars';
 import { ReviewBody } from '@/components/review/review-body';
+import { JsonLd } from '@/components/seo/json-ld';
 import { Badge, Container, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { Avatar, UserChip } from '@/components/user/avatar';
-import { backdropUrl, profileUrl } from '@/lib/images';
+import { backdropUrl, posterUrl, profileUrl } from '@/lib/images';
 import { filmHref, personHref, reviewHref, screeningHref, userHref } from '@/lib/links';
 import { formatCount, formatDateOnly, formatRuntime, pluralize, relativeTime, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
@@ -35,6 +36,7 @@ import { resolveWatchRegion } from '@/server/services/region';
 import { getWatchAvailability } from '@/server/movies/watch-providers';
 import { getSuppressedRecommendationIds } from '@/server/services/discovery';
 import { getOwnershipForMovie } from '@/server/services/ownership';
+import { env } from '@/env';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,11 +58,22 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const title = `${movie.title}${movie.year ? ` (${movie.year})` : ''}`;
   return {
     title,
-    description: movie.overview ? truncate(movie.overview, 200) : undefined,
+    description: movie.overview
+      ? truncate(movie.overview, 200)
+      : `See details, reviews and film activity for ${title} on Nitrate.`,
     alternates: { canonical: filmHref(movie) },
+    robots: movie.adult ? { index: false, follow: false } : undefined,
     openGraph: {
       title,
       description: movie.overview ?? undefined,
+      type: 'video.movie',
+      url: filmHref(movie),
+      images: movie.backdropPath ? [backdropUrl(movie.backdropPath, 'md')!] : undefined,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: movie.overview ? truncate(movie.overview, 200) : undefined,
       images: movie.backdropPath ? [backdropUrl(movie.backdropPath, 'md')!] : undefined,
     },
   };
@@ -147,6 +160,34 @@ export default async function FilmPage({ params }: Params) {
 
   return (
     <article>
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Movie',
+          name: movie.title,
+          url: new URL(filmHref(movie), env.siteUrl).toString(),
+          description: movie.overview ?? undefined,
+          image: posterUrl(movie.posterPath, 'xl') ?? backdrop ?? undefined,
+          dateCreated: movie.releaseDate ?? (movie.year ? String(movie.year) : undefined),
+          duration: movie.runtime ? `PT${movie.runtime}M` : undefined,
+          genre: genres.map((genre) => genre.name),
+          director: credits.directors.map((director) => ({
+            '@type': 'Person',
+            name: director.name,
+            url: new URL(personHref(director), env.siteUrl).toString(),
+          })),
+          aggregateRating:
+            average != null
+              ? {
+                  '@type': 'AggregateRating',
+                  ratingValue: Number((average / 2).toFixed(2)),
+                  ratingCount: movie.ratingCount,
+                  bestRating: 5,
+                  worstRating: 0.5,
+                }
+              : undefined,
+        }}
+      />
       {/* Backdrop: tall enough to set a mood, faded so text never fights it. */}
       <div className="relative">
         {backdrop ? (

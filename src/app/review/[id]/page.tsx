@@ -9,10 +9,13 @@ import { LikeMark, Stars } from '@/components/film/stars';
 import { ReviewActions } from '@/components/review/review-actions';
 import { ReviewBody } from '@/components/review/review-body';
 import { Comments } from '@/components/social/comments';
+import { JsonLd } from '@/components/seo/json-ld';
 import { Badge, Container, Divider } from '@/components/ui/primitives';
 import { UserChip } from '@/components/user/avatar';
 import { ProfilePinButton } from '@/components/user/profile-pin-button';
-import { filmHref } from '@/lib/links';
+import { env } from '@/env';
+import { posterUrl } from '@/lib/images';
+import { filmHref, reviewHref, userHref } from '@/lib/links';
 import { formatDateOnly, truncate } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { db } from '@/server/db';
@@ -53,6 +56,20 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     description: row.entry.containsSpoilers
       ? 'This review contains spoilers.'
       : truncate(row.entry.reviewText ?? '', 160),
+    alternates: { canonical: reviewHref(row.entry) },
+    openGraph: {
+      type: 'article',
+      url: reviewHref(row.entry),
+      images: row.movie.backdropPath
+        ? [`https://image.tmdb.org/t/p/w780${row.movie.backdropPath}`]
+        : undefined,
+    },
+    twitter: {
+      card: row.movie.backdropPath ? 'summary_large_image' : 'summary',
+      images: row.movie.backdropPath
+        ? [`https://image.tmdb.org/t/p/w780${row.movie.backdropPath}`]
+        : undefined,
+    },
   };
 }
 
@@ -86,6 +103,35 @@ export default async function ReviewPage({ params }: Params) {
 
   return (
     <Container size="narrow" className="py-8">
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Review',
+          url: new URL(reviewHref(entry), env.siteUrl).toString(),
+          datePublished: entry.createdAt.toISOString(),
+          dateModified: entry.updatedAt.toISOString(),
+          author: {
+            '@type': 'Person',
+            name: author.displayName,
+            url: new URL(userHref(author), env.siteUrl).toString(),
+          },
+          itemReviewed: {
+            '@type': 'Movie',
+            name: movie.title,
+            url: new URL(filmHref(movie), env.siteUrl).toString(),
+            image: posterUrl(movie.posterPath, 'lg') ?? undefined,
+          },
+          reviewBody: entry.containsSpoilers ? undefined : entry.reviewText ?? undefined,
+          reviewRating: entry.rating
+            ? {
+                '@type': 'Rating',
+                ratingValue: entry.rating / 2,
+                bestRating: 5,
+                worstRating: 0.5,
+              }
+            : undefined,
+        }}
+      />
       <article>
         <div className="flex gap-4">
           <div className="w-20 shrink-0 sm:w-24">

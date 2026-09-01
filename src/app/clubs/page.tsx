@@ -13,6 +13,7 @@ import { discoverPublicClubs, getUserClubs } from '@/server/services/clubs';
 export const metadata: Metadata = {
   title: 'Movie Clubs',
   description: 'Pick, vote, schedule and discuss movies with your friends.',
+  alternates: { canonical: '/clubs' },
 };
 export const dynamic = 'force-dynamic';
 

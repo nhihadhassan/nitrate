@@ -3,6 +3,7 @@ import { Inter, Instrument_Serif } from 'next/font/google';
 
 import { AppShell } from '@/components/nav/app-shell';
 import { Providers } from '@/components/providers';
+import { JsonLd } from '@/components/seo/json-ld';
 import { BRAND, titleTemplate } from '@/lib/brand';
 import { env } from '@/env';
 import { getCurrentUser } from '@/server/auth/session';
@@ -36,7 +37,14 @@ export const metadata: Metadata = {
     title: BRAND.name,
     description: BRAND.tagline,
     siteName: BRAND.name,
+    url: '/',
+    locale: 'en_CA',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: BRAND.name,
+    description: BRAND.tagline,
   },
   icons: {
     icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
@@ -79,6 +87,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className={`${inter.variable} ${display.variable}`}>
+        <JsonLd
+          data={[
+            {
+              '@context': 'https://schema.org',
+              '@type': 'WebSite',
+              name: BRAND.name,
+              url: env.siteUrl,
+              description: BRAND.description,
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: `${env.siteUrl}/search?q={search_term_string}`,
+                'query-input': 'required name=search_term_string',
+              },
+            },
+            {
+              '@context': 'https://schema.org',
+              '@type': 'WebApplication',
+              name: BRAND.name,
+              url: env.siteUrl,
+              description: BRAND.description,
+              applicationCategory: 'EntertainmentApplication',
+              operatingSystem: 'Web',
+            },
+          ]}
+        />
         <Providers>
           <AppShell
             user={

@@ -7,7 +7,7 @@ import { Container } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
 import { getListCollaborationInbox } from '@/server/services/lists';
 
-export const metadata: Metadata = { title: 'List collaborations' };
+export const metadata: Metadata = { title: 'List collaborations', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 export default async function ListCollaborationPage() {

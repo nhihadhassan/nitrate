@@ -32,11 +32,17 @@ export async function generateMetadata({
     description: isPrivate
       ? undefined
       : (club.description ?? `${club.name} — a Movie Club on ${BRAND.name}.`),
+    alternates: isPrivate ? undefined : { canonical: `/club/${encodeURIComponent(club.slug)}` },
     // Private clubs must not be indexed or previewed anywhere.
     robots: isPrivate ? { index: false, follow: false } : undefined,
     openGraph: isPrivate
       ? undefined
-      : { title: club.name, description: club.description ?? undefined, type: 'website' },
+      : {
+          title: club.name,
+          description: club.description ?? undefined,
+          type: 'website',
+          url: `/club/${encodeURIComponent(club.slug)}`,
+        },
   };
 }
 
