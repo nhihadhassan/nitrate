@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -8,6 +9,7 @@ import { getCurrentUser } from '@/server/auth/session';
 import { SettingsNav } from './settings-nav';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default async function SettingsLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();

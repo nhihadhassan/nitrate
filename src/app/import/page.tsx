@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   title: 'Import your Letterboxd history',
   description:
     'Bring over your films, diary entries, ratings, reviews, watchlist and lists. Your history arrives intact, matched against the film database, with nothing overwritten.',
+  alternates: { canonical: '/import' },
 };
 export const dynamic = 'force-dynamic';
 /** Matching slices are server actions invoked from this route, and each row

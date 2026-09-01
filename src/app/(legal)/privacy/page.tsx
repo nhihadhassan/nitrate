@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-export const metadata: Metadata = { title: 'Privacy policy' };
+export const metadata: Metadata = {
+  title: 'Privacy policy',
+  description: 'How Nitrate collects, protects and shares account and film activity data.',
+  alternates: { canonical: '/privacy' },
+};
 
 export default function PrivacyPage() {
   return (

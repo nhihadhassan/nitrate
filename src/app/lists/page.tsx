@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getListLibrary, type ListLibrarySort, type ListLibraryView } from '@/server/services/lists';
 
-export const metadata: Metadata = { title: 'List library' };
+export const metadata: Metadata = { title: 'List library', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 const VIEWS: Array<{ key: ListLibraryView; label: string }> = [

@@ -8,7 +8,7 @@ import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getClubPreviewByInvite } from '@/server/services/clubs';
 
-export const metadata: Metadata = { title: 'Club invite' };
+export const metadata: Metadata = { title: 'Club invite', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 /**

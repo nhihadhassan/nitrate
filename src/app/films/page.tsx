@@ -6,8 +6,24 @@ import { Container, EmptyState } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
 import { browseFilms, getGenres } from '@/server/services/explore';
 
-export const metadata: Metadata = { title: 'Browse films' };
 export const dynamic = 'force-dynamic';
+
+type FilmSearchParams = { genre?: string; decade?: string; sort?: string; page?: string };
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<FilmSearchParams>;
+}): Promise<Metadata> {
+  const filters = await searchParams;
+  const filtered = Object.values(filters).some(Boolean);
+  return {
+    title: 'Browse films',
+    description: 'Browse films by genre, decade, popularity, rating or release date on Nitrate.',
+    alternates: { canonical: '/films' },
+    robots: filtered ? { index: false, follow: true } : undefined,
+  };
+}
 
 const DECADES = [2020, 2010, 2000, 1990, 1980, 1970, 1960, 1950, 1940];
 const SORTS = [
@@ -19,7 +35,7 @@ const SORTS = [
 export default async function FilmsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ genre?: string; decade?: string; sort?: string; page?: string }>;
+  searchParams: Promise<FilmSearchParams>;
 }) {
   const { genre, decade, sort, page } = await searchParams;
   const activeSort = (SORTS.find((s) => s.key === sort)?.key ?? 'popularity') as

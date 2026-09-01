@@ -4,6 +4,7 @@ import { BRAND } from '@/lib/brand';
 export const metadata: Metadata = {
   title: 'Community guidelines',
   description: 'How we expect people to behave on Nitrate.',
+  alternates: { canonical: '/guidelines' },
 };
 
 export default function GuidelinesPage() {

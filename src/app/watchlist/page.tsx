@@ -14,7 +14,7 @@ import { countWatchlist, getWatchlist, type WatchlistSort } from '@/server/servi
 import { getMovieRecommendationContext } from '@/server/services/discovery';
 import { getOwnershipMap } from '@/server/services/ownership';
 
-export const metadata: Metadata = { title: 'Watchlist' };
+export const metadata: Metadata = { title: 'Watchlist', robots: { index: false, follow: false } };
 export const dynamic = 'force-dynamic';
 
 const SORTS: { key: WatchlistSort; label: string }[] = [
