@@ -214,3 +214,37 @@ export function resolveClubState(input: ClubStageInput): ClubState {
     next: isAdmin ? 'Choose the next movie to start a round.' : 'Save ideas — an admin will choose the next movie.',
   };
 }
+
+export type ClubDashboardView = {
+  kind: 'join' | 'rate' | 'screening' | 'pick' | 'wheel' | 'vote' | 'schedule' | 'new' | 'waiting';
+  eyebrow: string;
+  title: string;
+  detail: string | null;
+  actionLabel: string | null;
+};
+
+export function deriveClubDashboardView(input: {
+  isMember: boolean;
+  isAdmin: boolean;
+  state: ClubState;
+  roundStatus: ClubStageInput['roundStatus'];
+  roundMode: ClubStageInput['roundMode'];
+  picksReady: boolean;
+  picksRemaining: number;
+  readyMembers: number;
+  memberCount: number;
+  winnerTitle?: string | null;
+  upcomingTitle?: string | null;
+}): ClubDashboardView {
+  if (!input.isMember) return { kind: 'join', eyebrow: 'Movie Club', title: 'Watch with this group', detail: 'Join to see picks, votes and movie nights.', actionLabel: 'Join club' };
+  if (input.state.stage === 'rate') return { kind: 'rate', eyebrow: 'After movie night', title: 'How was it?', detail: 'Rate the film to reveal the group score.', actionLabel: 'Rate the film' };
+  if (input.upcomingTitle) return { kind: 'screening', eyebrow: 'Next movie night', title: input.upcomingTitle, detail: input.state.youNeedTo === 'RSVP' ? 'Let everyone know if you are coming.' : 'The night is set.', actionLabel: input.state.youNeedTo === 'RSVP' ? 'RSVP' : 'Open movie night' };
+  if (input.roundStatus === 'nominations_open') {
+    if (input.roundMode === 'wheel' && input.picksReady) return { kind: 'wheel', eyebrow: 'The picks are in', title: 'Spin the wheel', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: 'Spin the wheel' };
+    if (input.picksRemaining > 0) return { kind: 'pick', eyebrow: 'Your turn', title: 'Pick our next movie', detail: `${input.picksRemaining} ${input.picksRemaining === 1 ? 'pick' : 'picks'} left`, actionLabel: 'Choose a movie' };
+    return { kind: 'waiting', eyebrow: 'Picking movies', title: 'Your pick is in', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: null };
+  }
+  if (input.roundStatus === 'voting_open') return { kind: 'vote', eyebrow: input.state.youNeedTo ? 'Your turn' : 'Voting now', title: 'Time to vote', detail: input.state.youNeedTo ? 'Choose the film you want to watch.' : 'Your vote is in.', actionLabel: input.state.youNeedTo ? 'Vote now' : null };
+  if (input.roundStatus === 'winner_selected') return { kind: 'schedule', eyebrow: 'We have a winner', title: input.winnerTitle ? `We're watching ${input.winnerTitle}` : 'Choose a date', detail: input.isAdmin ? 'Set the night or ask when everyone is free.' : 'An admin is choosing the date.', actionLabel: input.isAdmin ? 'Choose a date' : null };
+  return { kind: 'new', eyebrow: input.memberCount > 1 ? 'Ready when you are' : 'Your club is ready', title: input.memberCount > 1 ? 'Pick the next movie' : 'Invite your movie people', detail: input.isAdmin ? 'Start a round when the group is ready.' : 'Add a Movie Idea while you wait.', actionLabel: input.isAdmin ? 'Start picking' : 'Add a movie idea' };
+}

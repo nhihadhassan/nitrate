@@ -571,6 +571,7 @@ export async function createScreeningPollAction(
       startsAt: parsed.startsAt.map((value) => new Date(value)),
     });
     revalidatePath(`/club/${parsed.clubSlug}`);
+    revalidatePath(`/club/${parsed.clubSlug}/calendar`);
     return { pollId };
   });
 }
@@ -590,6 +591,7 @@ export async function respondToScreeningPollAction(
     const parsed = pollResponseSchema.parse(input);
     await respondToScreeningPoll({ ...parsed, userId: user.id });
     revalidatePath(`/club/${parsed.clubSlug}`);
+    revalidatePath(`/club/${parsed.clubSlug}/calendar`);
     return null;
   });
 }
@@ -603,6 +605,7 @@ export async function cancelScreeningPollAction(input: {
     const parsed = z.object({ pollId: z.string().uuid(), clubSlug: z.string().min(1) }).parse(input);
     await cancelScreeningPoll(parsed.pollId, user.id);
     revalidatePath(`/club/${parsed.clubSlug}`);
+    revalidatePath(`/club/${parsed.clubSlug}/calendar`);
     return null;
   });
 }
@@ -629,6 +632,7 @@ export async function confirmScreeningPollOptionAction(input: {
       dedupeKey: `screening:${screening.id}`,
     });
     revalidatePath(`/club/${parsed.clubSlug}`);
+    revalidatePath(`/club/${parsed.clubSlug}/calendar`);
     return { screeningId: screening.id };
   });
 }
@@ -676,6 +680,7 @@ export async function scheduleScreeningAction(
     });
 
     revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/calendar`);
     revalidatePath(`/club/${club.slug}/screening/${screening.id}`);
     return { screeningId: screening.id };
   });
@@ -698,6 +703,7 @@ export async function updateScreeningAction(input: {
       notes: input.notes,
     });
     revalidatePath(`/club/${input.clubSlug}/screening/${input.screeningId}`);
+    revalidatePath(`/club/${input.clubSlug}/calendar`);
     return null;
   });
 }
@@ -710,6 +716,7 @@ export async function cancelScreeningAction(
     const user = await requireUser();
     await cancelScreening(screeningId, user.id);
     revalidatePath(`/club/${clubSlug}`);
+    revalidatePath(`/club/${clubSlug}/calendar`);
     return null;
   });
 }
@@ -734,6 +741,7 @@ export async function completeScreeningAction(
 
     revalidatePath(`/club/${clubSlug}/screening/${screeningId}`);
     revalidatePath(`/club/${clubSlug}`);
+    revalidatePath(`/club/${clubSlug}/calendar`);
     return null;
   });
 }

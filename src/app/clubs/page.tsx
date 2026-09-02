@@ -3,12 +3,12 @@ import Link from 'next/link';
 
 import { JoinClubForm } from '@/components/club/join-club-form';
 import { ClubLoopPreview } from '@/components/club/club-loop-preview';
+import { ClubSummaryCard } from '@/components/club/club-summary-card';
 import { Button } from '@/components/ui/button';
-import { Badge, Container, EmptyState, SectionHeading } from '@/components/ui/primitives';
-import { formatDateTimeInZone, pluralize } from '@/lib/utils';
-import { ROUND_STATUS_LABELS, type RoundStatus } from '@/lib/types';
+import { Container, EmptyState, SectionHeading } from '@/components/ui/primitives';
+import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
-import { discoverPublicClubs, getUserClubs } from '@/server/services/clubs';
+import { discoverPublicClubs, getClubSummaries } from '@/server/services/clubs';
 
 export const metadata: Metadata = {
   title: 'Movie Clubs',
@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 export default async function ClubsPage() {
   const user = await getCurrentUser();
   const [mine, publicClubs] = await Promise.all([
-    user ? getUserClubs(user.id) : Promise.resolve([]),
+    user ? getClubSummaries(user.id) : Promise.resolve([]),
     discoverPublicClubs(12),
   ]);
 
@@ -29,15 +29,17 @@ export default async function ClubsPage() {
 
   return (
     <Container size="wide" className="py-8 pb-20">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+      <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-xl">
-          <h1 className="text-4xl sm:text-5xl">Movie Clubs</h1>
-          <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">Movie night without the group-chat chaos.</p>
+          <p className="eyebrow text-iris">Movie Clubs</p>
+          <h1 className="mt-1 text-4xl sm:text-5xl">{user ? 'Your Clubs' : 'Movie night, together.'}</h1>
+          {!user ? <p className="mt-3 text-[0.9375rem] leading-relaxed text-muted">Pick, plan and remember films with friends.</p> : null}
         </div>
         {user ? (
-          <Button asChild variant="iris" size="lg">
-            <Link href="/clubs/new">Create a club</Link>
-          </Button>
+          <div className="flex gap-2">
+            <Button asChild variant="outline"><Link href="#join-club">Enter invite</Link></Button>
+            <Button asChild variant="iris"><Link href="/clubs/new">New club</Link></Button>
+          </div>
         ) : (
           <Button asChild variant="iris" size="lg">
             <Link href="/signup">Join to start one</Link>
@@ -45,53 +47,14 @@ export default async function ClubsPage() {
         )}
       </header>
 
-      <section className="mb-14">
-        <p className="eyebrow mb-3 text-iris">How it works</p>
-        <ClubLoopPreview />
-      </section>
+      {!user ? <section className="mb-14"><p className="eyebrow mb-3 text-iris">How it works</p><ClubLoopPreview /></section> : null}
 
       {user ? (
         <section className="mb-14">
-          <SectionHeading title="Your clubs" />
           {mine.length ? (
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {mine.map(({ club, role, nextScreeningAt, activeRoundStatus }) => (
-                <li key={club.id}>
-                  <Link
-                    href={`/club/${club.slug}`}
-                    className="interactive-card club-card flex h-full flex-col rounded-lg border border-line p-4 hover:border-iris/40"
-                    data-pointer-light
-                    data-reveal="card"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="font-display text-xl leading-tight">{club.name}</p>
-                      {role !== 'member' ? <Badge tone="iris">{role}</Badge> : null}
-                    </div>
-                    {club.description ? (
-                      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted">
-                        {club.description}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-auto pt-4">
-                      {activeRoundStatus ? (
-                        <p className="text-xs font-medium text-iris">
-                          {ROUND_STATUS_LABELS[activeRoundStatus as RoundStatus] ?? activeRoundStatus}
-                        </p>
-                      ) : nextScreeningAt ? (
-                        <p className="text-xs text-muted">
-                          Next: {formatDateTimeInZone(new Date(nextScreeningAt), club.timezone)}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-dim">Nothing scheduled</p>
-                      )}
-                      <p className="mt-1 text-xs text-dim">
-                        {pluralize(club.memberCount, 'member')} ·{' '}
-                        {pluralize(club.screeningCount, 'screening')}
-                      </p>
-                    </div>
-                  </Link>
-                </li>
+              {mine.map((summary) => (
+                <li key={summary.club.id}><ClubSummaryCard summary={summary} /></li>
               ))}
             </ul>
           ) : (
@@ -111,14 +74,14 @@ export default async function ClubsPage() {
       ) : null}
 
       {user ? (
-        <section className="mb-14 max-w-md">
-          <SectionHeading title="Have an invite code?" />
+        <section id="join-club" className="mb-14 max-w-md scroll-mt-24">
+          <SectionHeading title="Enter an invite" />
           <JoinClubForm />
         </section>
       ) : null}
 
       {discoverable.length ? (
-        <section>
+        <section className="mb-14">
           <SectionHeading
             title="Public clubs"
             subtitle="Open groups anyone can join. Private clubs stay invisible."
@@ -157,6 +120,13 @@ export default async function ClubsPage() {
             </Button>
           }
         />
+      ) : null}
+
+      {user ? (
+        <details className="border-t border-line pt-5">
+          <summary className="cursor-pointer text-sm text-muted hover:text-text">How Movie Clubs work</summary>
+          <div className="mt-4"><ClubLoopPreview /></div>
+        </details>
       ) : null}
     </Container>
   );

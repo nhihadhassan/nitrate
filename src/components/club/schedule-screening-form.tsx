@@ -95,19 +95,23 @@ export function ScheduleScreeningForm({
         <FilmPicker onPick={setFilm} placeholder="Which film?" />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="When" htmlFor="screening-when" hint={`Shown to members in ${timezone}`}>
-          <DateTimePicker
-            id="screening-when"
-            value={when}
-            onChange={setWhen}
-            accent="iris"
-            required
-            placeholder="Pick a night"
-          />
-        </Field>
+      <Field label="When" htmlFor="screening-when" hint={`Shown to members in ${timezone}`}>
+        <DateTimePicker
+          id="screening-when"
+          value={when}
+          onChange={setWhen}
+          accent="iris"
+          required
+          placeholder="Pick a night"
+        />
+      </Field>
 
-        <Field label="Where" htmlFor="screening-location" optional>
+      <details className="rounded-lg border border-line p-3">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center text-sm font-medium text-muted hover:text-text">
+          Add location, link or notes
+        </summary>
+        <div className="mt-3 space-y-4">
+          <Field label="Where" htmlFor="screening-location" optional>
           <input
             id="screening-location"
             value={location}
@@ -116,32 +120,33 @@ export function ScheduleScreeningForm({
             placeholder="Sam's flat / the Rio / a call"
             className={inputClass}
           />
-        </Field>
-      </div>
+          </Field>
 
-      <Field label="Watch link" htmlFor="screening-link" optional hint="Streaming link, call link, ticket page.">
-        <input
-          id="screening-link"
-          type="url"
-          value={watchLink}
-          onChange={(event) => setWatchLink(event.target.value)}
-          maxLength={500}
-          placeholder="https://"
-          className={inputClass}
-        />
-      </Field>
+          <Field label="Watch link" htmlFor="screening-link" optional hint="Streaming link, call link, ticket page.">
+            <input
+              id="screening-link"
+              type="url"
+              value={watchLink}
+              onChange={(event) => setWatchLink(event.target.value)}
+              maxLength={500}
+              placeholder="https://"
+              className={inputClass}
+            />
+          </Field>
 
-      <Field label="Notes" htmlFor="screening-notes" optional>
-        <textarea
-          id="screening-notes"
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          rows={2}
-          maxLength={1000}
-          placeholder="Bring snacks. Starting on time for once."
-          className={cn(inputClass, 'resize-y')}
-        />
-      </Field>
+          <Field label="Notes" htmlFor="screening-notes" optional>
+            <textarea
+              id="screening-notes"
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={2}
+              maxLength={1000}
+              placeholder="Bring snacks. Starting on time for once."
+              className={cn(inputClass, 'resize-y')}
+            />
+          </Field>
+        </div>
+      </details>
 
       <div className="flex justify-end">
         <Button type="submit" variant="iris" disabled={pending || !film}>

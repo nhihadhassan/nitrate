@@ -302,32 +302,19 @@ function PickMovieSheet({
             </div>
           </div>
           {mode === 'vote' ? (
-            <Field label="Why this one?" htmlFor="pick-pitch" optional>
-              <textarea id="pick-pitch" value={pitch} onChange={(event) => setPitch(event.target.value)} rows={3} maxLength={500} placeholder="A short reason can help when everyone votes." className={inputClass} />
-            </Field>
+            <details className="rounded-lg border border-line p-3">
+              <summary className="cursor-pointer text-sm text-muted hover:text-text">Add a note</summary>
+              <div className="mt-3"><Field label="Why this one?" htmlFor="pick-pitch" optional>
+                <textarea id="pick-pitch" value={pitch} onChange={(event) => setPitch(event.target.value)} rows={3} maxLength={500} placeholder="A short reason for the vote." className={inputClass} />
+              </Field></div>
+            </details>
           ) : null}
           <FormError>{error}</FormError>
         </div>
       ) : (
         <div className="space-y-6">
           {queue.length ? (
-            <section>
-              <p className="eyebrow mb-2">From Movie Ideas</p>
-              <ul className="space-y-1">
-                {queue.slice(0, 6).map((item) => (
-                  <li key={item.movieId}>
-                    <button
-                      type="button"
-                      onClick={() => setFilm({ movieId: item.movieId, title: item.title, year: item.year, posterPath: item.posterPath })}
-                      className="flex min-h-11 w-full items-center rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-surface-hover"
-                    >
-                      <span className="truncate">{item.title}</span>
-                      {item.year ? <span className="ml-1.5 shrink-0 text-xs text-dim tabular">{item.year}</span> : null}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <QuickPickList title="Movie Ideas" items={queue} onPick={setFilm} />
           ) : null}
           {watchlist.length ? (
             <QuickPickList title="From your watchlist" items={watchlist} onPick={setFilm} />
@@ -357,17 +344,18 @@ function QuickPickList({
   return (
     <section>
       <p className="eyebrow mb-2">{title}</p>
-      <ul className="space-y-1">
+      <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {items.slice(0, 6).map((item) => (
           <li key={item.movieId}>
             <button
               type="button"
               onClick={() => onPick({ movieId: item.movieId, title: item.title, year: item.year, posterPath: item.posterPath })}
-              className="flex min-h-11 w-full items-center rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-surface-hover"
+              className="group w-full rounded-md text-left focus-visible:outline-2 focus-visible:outline-iris focus-visible:outline-offset-2"
             >
-              <span className="min-w-0 flex-1 truncate">{item.title}</span>
-              <span className="ml-2 shrink-0 text-xs text-dim tabular">{item.year}</span>
-              {item.reasons?.length ? <span className="ml-2 hidden max-w-32 truncate text-[0.6875rem] text-iris sm:inline">{item.reasons.map(recommendationReasonLabel).join(' · ')}</span> : null}
+              <Poster film={{ slug: item.movieId, title: item.title, year: item.year, posterPath: item.posterPath }} size="sm" linked={false} />
+              <span className="mt-1.5 block truncate text-xs font-medium group-hover:text-iris">{item.title}</span>
+              <span className="block truncate text-[0.6875rem] text-dim">{item.year ?? ''}</span>
+              {item.reasons?.length ? <span className="mt-0.5 hidden truncate text-[0.625rem] text-iris sm:block">{item.reasons.map(recommendationReasonLabel).join(' · ')}</span> : null}
             </button>
           </li>
         ))}

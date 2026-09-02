@@ -6,15 +6,15 @@ import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { PosterRail } from '@/components/film/poster-rail';
 import { LandingPage } from '@/components/marketing/landing';
 import { RightNow } from '@/components/club/right-now';
+import { ClubSummaryCard } from '@/components/club/club-summary-card';
 import { TonightFeature } from '@/components/discovery/tonight-feature';
 import { Button } from '@/components/ui/button';
 import { Container, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { BRAND } from '@/lib/brand';
-import { ROUND_STATUS_LABELS } from '@/lib/types';
-import { pluralize, relativeTime } from '@/lib/utils';
+import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getHomeFeed } from '@/server/services/feed';
-import { getClubAttention, getUserClubs } from '@/server/services/clubs';
+import { getClubSummaries } from '@/server/services/clubs';
 import { getTonightRecommendations } from '@/server/services/discovery';
 import { getWatchlistPreview } from '@/server/services/profile';
 import { resolveWatchRegion } from '@/server/services/region';
@@ -44,15 +44,15 @@ export default async function HomePage({
   const year = now.getFullYear();
   const region = await resolveWatchRegion(user.watchRegion);
 
-  const [feed, clubs, watchlist, attention, anniversaries, tonight, monthStats] = await Promise.all([
+  const [feed, clubs, watchlist, anniversaries, tonight, monthStats] = await Promise.all([
     getHomeFeed(viewer, { scope: feedScope, limit: 30 }),
-    getUserClubs(user.id),
+    getClubSummaries(user.id),
     getWatchlistPreview(user.id, 6),
-    getClubAttention(user.id),
     getDiaryAnniversaries(user.id),
     getTonightRecommendations(user.id, region),
     getPersonalStats(user.id, { kind: 'month', year, month }),
   ]);
+  const attention = clubs.flatMap((summary) => summary.attention ? [summary.attention] : []);
 
   const monthLink = `/u/${encodeURIComponent(user.username)}/stats?scope=month&year=${year}&month=${month}`;
 
@@ -63,7 +63,20 @@ export default async function HomePage({
       <RightNow items={attention} />
 
       {/* Tonight: a real film, not a link explaining a feature exists. */}
-      <TonightFeature suggestions={tonight} />
+      <TonightFeature suggestions={tonight.items} />
+
+      {clubs.length ? (
+        <section className="mb-9 border-b border-line pb-8 lg:hidden">
+          <SectionHeading title="Your Clubs" href="/clubs" linkLabel="All clubs" />
+          <ul className="scroll-rail -mx-4 px-4 pr-10" aria-label="Your Movie Clubs">
+            {clubs.slice(0, 4).map((summary) => (
+              <li key={summary.club.id} className="scroll-rail-item w-[17rem]">
+                <ClubSummaryCard summary={summary} compact />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Your month: a small, honest snapshot — only when there is one. */}
       {monthStats.viewingCount ? (
@@ -211,21 +224,13 @@ export default async function HomePage({
             <p className="eyebrow mb-2.5">Your clubs</p>
             {clubs.length ? (
               <ul className="space-y-2.5">
-                {clubs.slice(0, 6).map((club) => (
-                  <li key={club.club.id}>
-                    <Link href={`/club/${club.club.slug}`} className="group block min-w-0">
+                {clubs.slice(0, 6).map((summary) => (
+                  <li key={summary.club.id}>
+                    <Link href={summary.attention?.href ?? `/club/${summary.club.slug}`} className="group block min-w-0">
                       <span className="block truncate text-sm text-muted transition-colors group-hover:text-ember">
-                        {club.club.name}
+                        {summary.club.name}
                       </span>
-                      {club.nextScreeningAt ? (
-                        <span className="block text-xs text-dim">
-                          Movie night {relativeTime(club.nextScreeningAt)}
-                        </span>
-                      ) : club.activeRoundStatus && club.activeRoundStatus in ROUND_STATUS_LABELS ? (
-                        <span className="block text-xs text-dim">
-                          {ROUND_STATUS_LABELS[club.activeRoundStatus as keyof typeof ROUND_STATUS_LABELS]}
-                        </span>
-                      ) : null}
+                      <span className="block text-xs text-dim">{summary.stateLabel}</span>
                     </Link>
                   </li>
                 ))}

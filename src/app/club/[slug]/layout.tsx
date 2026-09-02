@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ClubTabs } from '@/components/club/club-tabs';
+import { ClubActionsMenu } from '@/components/club/club-actions-menu';
 import { Badge, Container, EmptyState } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
+import { AvatarStack } from '@/components/user/avatar';
 import { BRAND } from '@/lib/brand';
-import { pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getMembership } from '@/server/services/clubs';
+import { getClubBySlug, getClubMembers, getMembership } from '@/server/services/clubs';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,6 +61,7 @@ export default async function ClubLayout({
   const user = await getCurrentUser();
   const membership = await getMembership(club.id, user?.id ?? null);
   const isMember = membership?.status === 'active';
+  const members = await getClubMembers(club.id);
 
   // Private clubs render nothing but a wall to non-members.
   if (club.visibility === 'private' && !isMember) {
@@ -80,16 +82,16 @@ export default async function ClubLayout({
 
   return (
     <div>
-      <header className="border-b border-line bg-canvas-raised/40">
-        <Container size="wide" className="pt-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-md border border-line bg-surface sm:h-20 sm:w-20">
+      <header className="border-b border-line bg-canvas-raised/30">
+        <Container size="wide" className="pt-5 sm:pt-8">
+          <div className="flex items-center gap-3 sm:items-start sm:gap-5">
+            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-line bg-surface sm:h-20 sm:w-20">
               {club.imageAssetId ? (
                 <Image
                   src={`/media/${club.imageAssetId}`}
                   alt=""
                   fill
-                  sizes="80px"
+                  sizes="(max-width: 640px) 48px, 80px"
                   className="object-cover"
                   unoptimized
                 />
@@ -101,26 +103,21 @@ export default async function ClubLayout({
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-3xl leading-tight sm:text-4xl">{club.name}</h1>
-                <Badge tone={club.visibility === 'private' ? 'neutral' : 'iris'}>
-                  {club.visibility}
-                </Badge>
-                {membership && membership.role !== 'member' ? (
-                  <Badge tone="iris">{membership.role}</Badge>
-                ) : null}
+              <div className="flex items-center gap-2">
+                <h1 className="line-clamp-2 text-2xl leading-tight sm:text-4xl">{club.name}</h1>
+                <Badge tone={club.visibility === 'private' ? 'neutral' : 'iris'}>{club.visibility}</Badge>
+              </div>
+              <div className="mt-2 flex items-center gap-3">
+                <AvatarStack users={members} max={5} size="sm" />
+                {membership && membership.role !== 'member' ? <span className="text-xs capitalize text-iris">{membership.role}</span> : null}
               </div>
               {club.description ? (
-                <p className="mt-2 max-w-2xl text-[0.9375rem] leading-relaxed text-muted">
+                <p className="mt-3 hidden max-w-2xl text-[0.9375rem] leading-relaxed text-muted sm:block">
                   {club.description}
                 </p>
               ) : null}
-              <p className="mt-2.5 text-xs text-dim">
-                {pluralize(club.memberCount, 'member')} ·{' '}
-                {pluralize(club.screeningCount, 'screening')} · {club.timezone}
-              </p>
               {club.interests.length ? (
-                <ul className="mt-2.5 flex flex-wrap gap-1.5">
+                <ul className="mt-2.5 hidden flex-wrap gap-1.5 sm:flex">
                   {club.interests.map((interest) => (
                     <li
                       key={interest}
@@ -138,6 +135,14 @@ export default async function ClubLayout({
                 <Link href={`/join/${club.inviteCode}`}>Join club</Link>
               </Button>
             ) : null}
+            <ClubActionsMenu
+              clubId={club.id}
+              clubSlug={club.slug}
+              clubName={club.name}
+              inviteCode={club.inviteCode}
+              role={isMember && membership ? membership.role : null}
+              signedIn={Boolean(user)}
+            />
           </div>
 
           <ClubTabs slug={club.slug} isMember={isMember} isAdmin={membership?.role !== 'member' && isMember} />

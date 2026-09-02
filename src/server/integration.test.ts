@@ -44,6 +44,7 @@ import {
   getActiveRound,
   getClubActivity,
   getClubQueue,
+  getClubSummaries,
   getClubRatings,
   getRoundNominations,
   getScreeningPoll,
@@ -73,6 +74,7 @@ import { createPersonalRecapShare, getPublicShareSnapshot, revokeShareSnapshot }
 import {
   getActiveRecommendationFeedback,
   getMovieRecommendationContext,
+  getTonightRecommendations,
   restoreRecommendationFeedback,
   setRecommendationFeedback,
   setTasteCircleMember,
@@ -284,6 +286,32 @@ suite('nitrate integration', () => {
   /* Privacy                                                                */
   /* ---------------------------------------------------------------------- */
 
+  it('walks one stable Tonight pool without repeating films', async () => {
+    const viewer = await makeUser('tonight');
+    const pool = await Promise.all(Array.from({ length: 10 }, (_, index) => makeMovie(`Tonight ${index}`, 2000 + index)));
+    for (const movie of pool) await updateFilmState(viewer.id, movie.id, { inWatchlist: true });
+
+    const hands = await Promise.all([0, 3, 6, 9].map((offset) => getTonightRecommendations(viewer.id, 'CA', {
+      offset,
+      sessionDate: '2026-09-02',
+    })));
+    expect(hands.map((hand) => hand.items.length)).toEqual([3, 3, 3, 1]);
+    expect(new Set(hands.flatMap((hand) => hand.items.map((item) => item.movie.id))).size).toBe(10);
+    expect(hands[0].totalEligible).toBe(10);
+    expect(hands[3].hasMore).toBe(false);
+
+    const refreshed = await getTonightRecommendations(viewer.id, 'CA', { offset: 3, sessionDate: '2026-09-02' });
+    expect(refreshed.items.map((item) => item.movie.id)).toEqual(hands[1].items.map((item) => item.movie.id));
+
+    await db.update(movies).set({ runtime: 160 }).where(eq(movies.id, pool[0].id));
+    const shorter = await getTonightRecommendations(viewer.id, 'CA', {
+      maxRuntimeMinutes: 120,
+      sessionDate: '2026-09-02',
+    });
+    expect(shorter.totalEligible).toBe(9);
+    expect(shorter.items.some((item) => item.movie.id === pool[0].id)).toBe(false);
+  }, 60_000);
+
   it('never leaks a private diary entry to another viewer', async () => {
     await logFilm({
       userId: alex.id,
@@ -425,6 +453,13 @@ suite('nitrate integration', () => {
     ).rejects.toThrow(/not open/i);
 
     await openVoting(round.id, alex.id);
+
+    const summariesDuringVoting = await getClubSummaries(alex.id);
+    const activeSummary = summariesDuringVoting.find((summary) => summary.club.id === club.id);
+    expect(activeSummary?.role).toBe('owner');
+    expect(activeSummary?.members).toHaveLength(3);
+    expect(activeSummary?.attention?.kind).toBe('vote');
+    expect(activeSummary?.stateLabel).toBe('Time to vote');
 
     const nominationsOpen = await getRoundNominations(round.id, alex.id);
     const heatNomination = nominationsOpen.nominations.find((n) => n.movie.id === heat.id)!;

@@ -6,7 +6,7 @@ import { useState, useTransition } from 'react';
 import { Poster } from '@/components/film/poster';
 import { CheckIcon } from '@/components/ui/icons';
 import { useToast } from '@/components/ui/toast';
-import { UserChip } from '@/components/user/avatar';
+import { Avatar } from '@/components/user/avatar';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import { castVoteAction } from '@/server/actions/clubs';
 
@@ -59,12 +59,11 @@ export function VotingPanel({
   const open = status === 'voting_open';
   const totalVotes = nominations.reduce((sum, n) => sum + n.voteCount, 0);
 
-  function vote(nominationId: string) {
-    if (!open) return;
+  function vote() {
+    if (!open || !selected) return;
     const previous = selected;
-    setSelected(nominationId);
     startTransition(async () => {
-      const result = await castVoteAction({ roundId, nominationId, clubId });
+      const result = await castVoteAction({ roundId, nominationId: selected, clubId });
       if (!result.ok) {
         setSelected(previous);
         toast({ message: result.error, tone: 'error' });
@@ -93,7 +92,7 @@ export function VotingPanel({
         </p>
       </div>
 
-      <ul className="grid gap-3 sm:grid-cols-2">
+      <ul className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Choose a movie">
         {nominations.map((nominee) => {
           const isSelected = selected === nominee.id;
           const isWinner = winnerNominationId === nominee.id;
@@ -101,9 +100,14 @@ export function VotingPanel({
 
           return (
             <li key={nominee.id}>
-              <div
+              <button
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                disabled={!open || pending}
+                onClick={() => setSelected(nominee.id)}
                 className={cn(
-                  'relative flex h-full gap-3 overflow-hidden rounded-lg border p-3 transition-colors',
+                  'relative flex h-full w-full gap-4 overflow-hidden rounded-xl border p-3 text-left transition-[border-color,transform] active:scale-[0.99]',
                   isWinner
                     ? 'border-iris/60 bg-iris/[0.08]'
                     : isSelected
@@ -119,8 +123,8 @@ export function VotingPanel({
                   />
                 ) : null}
 
-                <div className="relative w-14 shrink-0">
-                  <Poster film={nominee.movie} size="xs" />
+                <div className="relative w-24 shrink-0 sm:w-20">
+                  <Poster film={nominee.movie} size="sm" linked={false} />
                 </div>
 
                 <div className="relative min-w-0 flex-1">
@@ -151,23 +155,12 @@ export function VotingPanel({
                   ) : null}
 
                   <div className="mt-2.5 flex items-center justify-between gap-2">
-                    <UserChip user={nominee.nominatedBy} size="xs" />
-                    {open ? (
-                      <button
-                        type="button"
-                        disabled={pending}
-                        onClick={() => vote(nominee.id)}
-                        aria-pressed={isSelected}
-                        className={cn(
-                          'flex min-h-11 shrink-0 touch-manipulation items-center gap-1 rounded-md border px-3 py-1 text-xs font-medium transition-colors sm:min-h-0 sm:px-2.5',
-                          isSelected
-                            ? 'border-iris/50 bg-iris/15 text-iris'
-                            : 'border-line text-muted hover:border-line-strong hover:text-text',
-                        )}
-                      >
-                        {isSelected ? <CheckIcon className="h-3.5 w-3.5" /> : null}
-                        {isSelected ? 'Your vote' : 'Vote'}
-                      </button>
+                    <span className="flex min-w-0 items-center gap-2 text-xs text-muted">
+                      <Avatar user={nominee.nominatedBy} size="xs" />
+                      <span className="truncate">{nominee.nominatedBy.displayName}</span>
+                    </span>
+                    {open && isSelected ? (
+                      <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-iris"><CheckIcon className="h-3.5 w-3.5" />Selected</span>
                     ) : isWinner ? (
                       <span className="shrink-0 rounded-xs bg-iris/15 px-2 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-iris">
                         Winner
@@ -175,11 +168,23 @@ export function VotingPanel({
                     ) : null}
                   </div>
                 </div>
-              </div>
+              </button>
             </li>
           );
         })}
       </ul>
+      {open ? (
+        <div className="sticky bottom-3 z-10 mt-5 flex justify-center">
+          <button
+            type="button"
+            disabled={!selected || pending}
+            onClick={vote}
+            className="min-h-12 rounded-lg bg-iris px-6 text-sm font-medium text-white shadow-pop transition-[filter,transform] hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+          >
+            {pending ? 'Saving vote…' : viewerVoted ? 'Change vote' : 'Cast vote'}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

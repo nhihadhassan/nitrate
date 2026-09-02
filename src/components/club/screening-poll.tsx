@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { FormError, inputClass } from '@/components/ui/primitives';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { FormError } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { cn, formatDateTimeInZone, pluralize } from '@/lib/utils';
 import { bestPollOption } from '@/lib/screening-poll';
@@ -79,30 +80,28 @@ export function ScreeningPoll({
           });
         }}
       >
-        <p className="eyebrow text-iris">Find a time</p>
-        <h3 className="mt-1 text-xl">Ask when everyone is free</h3>
-        <p className="mt-1 text-sm text-muted">
-          Offer a few times first, or schedule the movie night directly below.
-        </p>
+        <h3 className="text-xl">When could movie night work?</h3>
+        <p className="mt-1 text-sm text-muted">Offer a few dates. Everyone can mark each one.</p>
         <FormError>{error}</FormError>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3">
           {times.map((time, index) => (
-            <label key={index} className="text-xs text-muted">
-              Option {index + 1}
-              <input
-                type="datetime-local"
+            <div key={index} className="flex items-end gap-2 rounded-lg border border-line bg-surface/35 p-3">
+              <label className="min-w-0 flex-1 text-xs text-muted" htmlFor={`poll-option-${index}`}>
+                Option {index + 1}
+              <DateTimePicker
+                id={`poll-option-${index}`}
                 value={time}
-                min={localDefault(1).slice(0, 10)}
-                onChange={(event) =>
-                  setTimes((current) => current.map((value, i) => (i === index ? event.target.value : value)))
-                }
-                className={cn(inputClass, 'mt-1')}
+                onChange={(value) => setTimes((current) => current.map((item, i) => (i === index ? value : item)))}
+                accent="iris"
                 required
               />
-            </label>
+              </label>
+              {times.length > 2 ? <Button type="button" variant="ghost" size="sm" onClick={() => setTimes((current) => current.filter((_, i) => i !== index))}>Remove</Button> : null}
+            </div>
           ))}
         </div>
-        <div className="mt-4 flex justify-end">
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <Button type="button" variant="ghost" size="sm" disabled={times.length >= 8} onClick={() => setTimes((current) => [...current, localDefault(current.length + 3)])}>Add another date</Button>
           <Button type="submit" variant="outline" disabled={pending}>
             {pending ? 'Opening…' : 'Open availability poll'}
           </Button>
