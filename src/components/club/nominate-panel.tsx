@@ -301,14 +301,20 @@ function PickMovieSheet({
               </button>
             </div>
           </div>
-          {mode === 'vote' ? (
-            <details className="rounded-lg border border-line p-3">
-              <summary className="cursor-pointer text-sm text-muted hover:text-text">Add a note</summary>
-              <div className="mt-3"><Field label="Why this one?" htmlFor="pick-pitch" optional>
-                <textarea id="pick-pitch" value={pitch} onChange={(event) => setPitch(event.target.value)} rows={3} maxLength={500} placeholder="A short reason for the vote." className={inputClass} />
-              </Field></div>
-            </details>
-          ) : null}
+          <details className="rounded-lg border border-line p-3">
+            <summary className="cursor-pointer text-sm text-muted hover:text-text">Add a note</summary>
+            <div className="mt-3"><Field label="Why this one?" htmlFor="pick-pitch" optional>
+              <textarea
+                id="pick-pitch"
+                value={pitch}
+                onChange={(event) => setPitch(event.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder={mode === 'vote' ? 'A short reason for the vote.' : 'A short reason for the club.'}
+                className={inputClass}
+              />
+            </Field></div>
+          </details>
           <FormError>{error}</FormError>
         </div>
       ) : (

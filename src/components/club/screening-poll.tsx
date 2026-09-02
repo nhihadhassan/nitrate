@@ -126,7 +126,9 @@ export function ScreeningPoll({
                 {formatDateTimeInZone(new Date(option.startsAt), poll.timezone)}
               </p>
               <p className="text-xs text-dim">
-                {pluralize(option.yes, 'yes')} · {pluralize(option.maybe, 'maybe')} · {pluralize(option.no, 'no')}
+                {pluralize(option.yes, 'yes', 'yeses')} ·{' '}
+                {pluralize(option.maybe, 'maybe', 'maybes')} ·{' '}
+                {pluralize(option.no, 'no', 'nos')}
               </p>
             </div>
             {poll.status === 'open' ? (
