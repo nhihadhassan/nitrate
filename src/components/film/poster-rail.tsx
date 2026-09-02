@@ -4,9 +4,25 @@ import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } f
 
 import { Poster, type PosterFilm } from '@/components/film/poster';
 import { RecommendationOptionsMenu } from '@/components/discovery/recommendation-options-menu';
+import { useExploreSession } from '@/components/discovery/explore-session';
 import { ChevronRightIcon } from '@/components/ui/icons';
 import { recommendationReasonLabel, type RecommendationReason } from '@/lib/recommendations';
+import { normalizeExploreIds, type RailContinuation } from '@/lib/explore';
 import { cn } from '@/lib/utils';
+import { loadExploreRailAction } from '@/server/actions/discovery';
+
+type RailFilm = PosterFilm & { id?: string; caption?: string; reason?: RecommendationReason; owned?: boolean };
+
+function appendUniqueRailFilms(current: RailFilm[], incoming: RailFilm[]): RailFilm[] {
+  const seen = new Set(current.map((film) => film.id ?? film.slug));
+  const accepted = incoming.filter((film) => {
+    const key = film.id ?? film.slug;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return accepted.length ? [...current, ...accepted] : current;
+}
 
 /**
  * A horizontal, snap-scrolling poster rail — the mobile-friendly alternative
@@ -23,8 +39,10 @@ export function PosterRail({
   className,
   showReason = true,
   showFeedback = true,
+  continuation,
+  excludedMovieIds = [],
 }: {
-  films: (PosterFilm & { id?: string; caption?: string; reason?: RecommendationReason; owned?: boolean })[];
+  films: RailFilm[];
   /** Accessible name for the rail's implicit list landmark. */
   label: string;
   size?: 'sm' | 'md' | 'lg';
@@ -44,6 +62,10 @@ export function PosterRail({
    * "tune".
    */
   showFeedback?: boolean;
+  /** A constrained server-owned next page for genuinely pageable discovery sources. */
+  continuation?: RailContinuation;
+  /** Canonical films already shown elsewhere in this Explore session. */
+  excludedMovieIds?: string[];
 }) {
   if (!films.length) return null;
 
@@ -57,6 +79,8 @@ export function PosterRail({
       className={className}
       showReason={showReason}
       showFeedback={showFeedback}
+      continuation={continuation}
+      excludedMovieIds={excludedMovieIds}
     />
   );
 }
@@ -70,42 +94,87 @@ function ProgressivePosterRail({
   className,
   showReason,
   showFeedback,
+  continuation: initialContinuation,
+  excludedMovieIds,
 }: Required<Pick<Parameters<typeof PosterRail>[0], 'films' | 'label' | 'size' | 'showReason' | 'showFeedback'>> &
-  Pick<Parameters<typeof PosterRail>[0], 'eager' | 'itemClassName' | 'className'>) {
+  Pick<Parameters<typeof PosterRail>[0], 'eager' | 'itemClassName' | 'className' | 'continuation' | 'excludedMovieIds'>) {
   const railRef = useRef<HTMLUListElement>(null);
   const railId = useId();
   const hintId = `${railId}-hint`;
+  const [loadedFilms, setLoadedFilms] = useState(films);
+  const [nextPage, setNextPage] = useState(initialContinuation);
   const [visibleCount, setVisibleCount] = useState(() => Math.min(12, films.length));
   const [canScrollBack, setCanScrollBack] = useState(false);
-  const [canScrollForward, setCanScrollForward] = useState(films.length > 12);
+  const [canScrollForward, setCanScrollForward] = useState(films.length > 12 || Boolean(initialContinuation));
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const loadingRef = useRef(false);
+  const userNavigatedRef = useRef(false);
+  const exploreSession = useExploreSession();
+
+  const loadProviderPage = useCallback(async () => {
+    if (!nextPage || loadingRef.current) return;
+    loadingRef.current = true;
+    setLoading(true);
+    setLoadError(false);
+    const result = await loadExploreRailAction({
+      continuation: nextPage,
+      excludedMovieIds: normalizeExploreIds([
+        ...(exploreSession?.excludedIds() ?? []),
+        ...(excludedMovieIds ?? []),
+        ...loadedFilms.flatMap((film) => film.id ? [film.id] : []),
+      ]),
+    });
+    loadingRef.current = false;
+    setLoading(false);
+    if (!result.ok) {
+      setLoadError(true);
+      return;
+    }
+    const accepted = exploreSession ? exploreSession.acceptFilms(result.data.films) : result.data.films;
+    setLoadedFilms((current) => appendUniqueRailFilms(current, accepted));
+    setNextPage(result.data.continuation);
+  }, [excludedMovieIds, exploreSession, loadedFilms, nextPage]);
 
   const updatePosition = useCallback(() => {
     const rail = railRef.current;
     if (!rail) return;
     const remaining = rail.scrollWidth - rail.clientWidth - rail.scrollLeft;
     setCanScrollBack(rail.scrollLeft > 8);
-    setCanScrollForward(remaining > 8 || visibleCount < films.length);
+    setCanScrollForward(remaining > 8 || visibleCount < loadedFilms.length || Boolean(nextPage));
 
     // Add another finite batch as the reader approaches the end. This extends
     // discovery without cloning cards or turning the rail into a focus trap.
-    if (remaining < rail.clientWidth * 0.65 && visibleCount < films.length) {
-      setVisibleCount((count) => Math.min(films.length, count + 6));
+    if (remaining < rail.clientWidth * 0.65 && visibleCount < loadedFilms.length) {
+      setVisibleCount((count) => Math.min(loadedFilms.length, count + 6));
     }
-  }, [films.length, visibleCount]);
+    if (userNavigatedRef.current && remaining < rail.clientWidth * 0.8 && visibleCount >= loadedFilms.length - 4 && nextPage) {
+      void loadProviderPage();
+    }
+  }, [loadProviderPage, loadedFilms.length, nextPage, visibleCount]);
 
   useEffect(() => {
-    setVisibleCount((count) => Math.min(Math.max(count, 12), films.length));
-  }, [films.length]);
+    setLoadedFilms((current) => appendUniqueRailFilms(current, films));
+    setNextPage((current) => current ?? initialContinuation);
+  }, [films, initialContinuation]);
+
+  useEffect(() => {
+    setVisibleCount((count) => Math.min(Math.max(count, 12), loadedFilms.length));
+  }, [loadedFilms.length]);
 
   useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
+    const onScroll = () => {
+      userNavigatedRef.current = true;
+      updatePosition();
+    };
     updatePosition();
-    rail.addEventListener('scroll', updatePosition, { passive: true });
+    rail.addEventListener('scroll', onScroll, { passive: true });
     const observer = new ResizeObserver(updatePosition);
     observer.observe(rail);
     return () => {
-      rail.removeEventListener('scroll', updatePosition);
+      rail.removeEventListener('scroll', onScroll);
       observer.disconnect();
     };
   }, [updatePosition]);
@@ -119,12 +188,14 @@ function ProgressivePosterRail({
     (direction: -1 | 1) => {
       const rail = railRef.current;
       if (!rail) return;
-      if (direction === 1 && visibleCount < films.length) {
-        setVisibleCount((count) => Math.min(films.length, count + 6));
+      if (direction === 1 && visibleCount < loadedFilms.length) {
+        setVisibleCount((count) => Math.min(loadedFilms.length, count + 6));
+      } else if (direction === 1 && nextPage) {
+        void loadProviderPage();
       }
       rail.scrollBy({ left: direction * rail.clientWidth * 0.82, behavior: 'smooth' });
     },
-    [films.length, visibleCount],
+    [loadProviderPage, loadedFilms.length, nextPage, visibleCount],
   );
 
   const handleKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
@@ -157,7 +228,7 @@ function ProgressivePosterRail({
           className,
         )}
       >
-        {films.slice(0, visibleCount).map((film, index) => (
+        {loadedFilms.slice(0, visibleCount).map((film, index) => (
           <li
             key={film.id ?? film.slug}
             className={cn(
@@ -190,6 +261,15 @@ function ProgressivePosterRail({
           </li>
         ))}
       </ul>
+
+      <div aria-live="polite" className="mt-1 min-h-4 text-xs text-dim">
+        {loading ? 'Loading more films…' : null}
+        {loadError ? (
+          <button type="button" onClick={() => void loadProviderPage()} className="underline decoration-line-strong underline-offset-2 hover:text-text">
+            More films did not load. Try again
+          </button>
+        ) : null}
+      </div>
 
       <button
         type="button"

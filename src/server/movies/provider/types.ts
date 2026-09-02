@@ -101,8 +101,9 @@ export interface MovieProvider {
   searchMovies(query: string, page?: number): Promise<ProviderPage<ProviderMovieSummary>>;
   searchPeople(query: string, page?: number): Promise<ProviderPage<ProviderPerson>>;
   getMovie(providerId: string): Promise<ProviderMovieDetail | null>;
+  similar(providerId: string, page?: number): Promise<ProviderPage<ProviderMovieSummary>>;
   getPerson(providerId: string): Promise<ProviderPerson | null>;
-  trending(window?: 'day' | 'week'): Promise<ProviderPage<ProviderMovieSummary>>;
+  trending(window?: 'day' | 'week', page?: number): Promise<ProviderPage<ProviderMovieSummary>>;
   popular(page?: number): Promise<ProviderPage<ProviderMovieSummary>>;
   topRated(page?: number): Promise<ProviderPage<ProviderMovieSummary>>;
   nowPlaying(page?: number): Promise<ProviderPage<ProviderMovieSummary>>;

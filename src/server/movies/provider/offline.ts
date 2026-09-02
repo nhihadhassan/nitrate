@@ -135,31 +135,38 @@ export class OfflineProvider implements MovieProvider {
         job: credit.job,
         order: credit.sortOrder,
       })),
-      similar: await this.similarTo(row),
+      similar: (await this.similar(providerId, 1)).results.slice(0, 12),
     };
   }
 
-  private async similarTo(row: MovieRow): Promise<ProviderMovieSummary[]> {
+  async similar(providerId: string, pageNumber = 1): Promise<ProviderPage<ProviderMovieSummary>> {
+    const [row] = await db.select().from(movies).where(eq(movies.providerId, providerId)).limit(1);
+    if (!row) return page([], pageNumber, 0);
     const genreIds = await db
       .select({ id: movieGenres.genreId })
       .from(movieGenres)
       .where(eq(movieGenres.movieId, row.id));
-    if (!genreIds.length) return [];
-    const rows = await db
-      .selectDistinctOn([movies.id])
-      .from(movies)
-      .innerJoin(movieGenres, eq(movieGenres.movieId, movies.id))
-      .where(
-        and(
-          inArray(
-            movieGenres.genreId,
-            genreIds.map((g) => g.id),
-          ),
-          sql`${movies.id} <> ${row.id}`,
-        ),
-      )
-      .limit(12);
-    return rows.map((r) => rowToSummary(r.movies));
+    if (!genreIds.length) return page([], pageNumber, 0);
+    const where = and(
+      inArray(movieGenres.genreId, genreIds.map((genre) => genre.id)),
+      sql`${movies.id} <> ${row.id}`,
+    );
+    const [rows, [count]] = await Promise.all([
+      db
+        .selectDistinctOn([movies.id])
+        .from(movies)
+        .innerJoin(movieGenres, eq(movieGenres.movieId, movies.id))
+        .where(where)
+        .orderBy(movies.id, desc(movies.providerPopularity))
+        .limit(PAGE_SIZE)
+        .offset((pageNumber - 1) * PAGE_SIZE),
+      db
+        .select({ n: sql<number>`count(distinct ${movies.id})::int` })
+        .from(movies)
+        .innerJoin(movieGenres, eq(movieGenres.movieId, movies.id))
+        .where(where),
+    ]);
+    return page(rows.map((result) => rowToSummary(result.movies)), pageNumber, count?.n ?? rows.length);
   }
 
   async getPerson(providerId: string): Promise<ProviderPerson | null> {
@@ -191,8 +198,8 @@ export class OfflineProvider implements MovieProvider {
     return page(rows.map(rowToSummary), pageNumber, rows.length);
   }
 
-  trending() {
-    return this.byPopularity(1);
+  trending(_window: 'day' | 'week' = 'week', pageNumber = 1) {
+    return this.byPopularity(pageNumber);
   }
 
   popular(pageNumber = 1) {

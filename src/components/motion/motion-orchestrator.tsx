@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 /**
  * One lightweight coordinator for the product's ambient motion. It delegates
@@ -10,61 +10,6 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
  */
 export function MotionOrchestrator({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const stageRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const root = stageRef.current;
-    if (!root) return;
-
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const reveal = (element: Element) => element.classList.add('is-revealed');
-    const observer = reduced
-      ? null
-      : new IntersectionObserver(
-          (entries) => {
-            for (const entry of entries) {
-              if (!entry.isIntersecting) continue;
-              reveal(entry.target);
-              observer?.unobserve(entry.target);
-            }
-          },
-          { rootMargin: '0px 0px -6% 0px', threshold: 0.04 },
-        );
-
-    const register = (scope: ParentNode) => {
-      const candidates = new Set<HTMLElement>([
-        ...(scope instanceof HTMLElement &&
-        (scope.matches('[data-reveal]') || scope.matches('section'))
-          ? [scope]
-          : []),
-        ...scope.querySelectorAll<HTMLElement>('[data-reveal]'),
-        ...scope.querySelectorAll<HTMLElement>('section'),
-      ]);
-      for (const element of candidates) {
-        if (!element.dataset.reveal) element.dataset.reveal = 'section';
-        if (element.dataset.motionObserved) continue;
-        element.dataset.motionObserved = 'true';
-        const rect = element.getBoundingClientRect();
-        if (reduced || rect.top < window.innerHeight * 0.94) reveal(element);
-        else observer?.observe(element);
-      }
-    };
-
-    register(root);
-    const mutationObserver = new MutationObserver((records) => {
-      for (const record of records) {
-        for (const node of record.addedNodes) {
-          if (node instanceof HTMLElement) register(node);
-        }
-      }
-    });
-    mutationObserver.observe(root, { childList: true, subtree: true });
-
-    return () => {
-      observer?.disconnect();
-      mutationObserver.disconnect();
-    };
-  }, [pathname]);
 
   useEffect(() => {
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
@@ -175,7 +120,7 @@ export function MotionOrchestrator({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <div key={pathname} ref={stageRef} className="route-stage">
+    <div key={pathname} className="route-stage">
       {children}
     </div>
   );

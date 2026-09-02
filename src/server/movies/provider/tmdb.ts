@@ -308,8 +308,17 @@ export class TmdbProvider implements MovieProvider {
     return { ...toPerson(raw), knownFor };
   }
 
-  async trending(window: 'day' | 'week' = 'week'): Promise<ProviderPage<ProviderMovieSummary>> {
-    const raw = await this.request<TmdbPaged<TmdbMovie>>(`/trending/movie/${window}`, {}, 60 * 60 * 3);
+  async similar(providerId: string, page = 1): Promise<ProviderPage<ProviderMovieSummary>> {
+    const raw = await this.request<TmdbPaged<TmdbMovie>>(
+      `/movie/${encodeURIComponent(providerId)}/recommendations`,
+      { page },
+      60 * 60 * 24,
+    );
+    return toPage(raw ?? {}, toSummary);
+  }
+
+  async trending(window: 'day' | 'week' = 'week', page = 1): Promise<ProviderPage<ProviderMovieSummary>> {
+    const raw = await this.request<TmdbPaged<TmdbMovie>>(`/trending/movie/${window}`, { page }, 60 * 60 * 3);
     return toPage(raw ?? {}, toSummary);
   }
 

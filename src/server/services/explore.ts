@@ -1,8 +1,15 @@
 import 'server-only';
 
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
 
 import type { FilmRef } from '@/lib/types';
+import {
+  EXPLORE_MAX_BATCHES,
+  EXPLORE_MAX_RAIL_PAGE,
+  type ExploreCursor,
+  type ExploreModule,
+  type RailContinuation,
+} from '@/lib/explore';
 import type { RecommendationReason } from '@/lib/recommendations';
 import { COMMUNITY_RANKING, PROVIDER_RANKING, bayesianAverage } from '@/lib/ranking';
 import { db } from '@/server/db';
@@ -217,7 +224,7 @@ export async function getWatchlistRail(userId: string, limit = 12): Promise<Rail
   return rows.map((row) => ({ ...toFilmRef(row.movie), reason: { kind: 'on_watchlist' } }));
 }
 
-export type TasteRail = { seed: FilmRef; films: RailFilm[] };
+export type TasteRail = { seed: FilmRef; films: RailFilm[]; continuation: RailContinuation };
 
 /**
  * "Because you loved X." One highly-rated film from the viewer's own history,
@@ -254,6 +261,7 @@ export async function getBecauseYouLoved(userId: string, limit = 12): Promise<Ta
 
   return {
     seed: toFilmRef(seedRow.movie),
+    continuation: { source: 'similar', providerId: seedRow.movie.providerId, nextPage: 2 },
     films: refs.filter((ref) => !seen.has(ref.id)).map((film) => ({
       ...film,
       reason: { kind: 'similar_to_film', title: seedRow.movie.title },
@@ -436,5 +444,208 @@ export async function browseFilms(params: BrowseParams) {
     page: data.page,
     totalPages: data.totalPages,
     degraded,
+  };
+}
+
+export async function getExploreRailPage(
+  continuation: RailContinuation,
+  excludedIds: Set<string> = new Set(),
+): Promise<{
+  films: RailFilm[];
+  continuation?: RailContinuation;
+  degraded: boolean;
+}> {
+  const page = Math.min(Math.max(continuation.nextPage, 1), EXPLORE_MAX_RAIL_PAGE);
+  if (continuation.source === 'hidden-gems') {
+    const rows = await db
+      .select({ movie: movies })
+      .from(movies)
+      .where(and(
+        eq(movies.adult, false),
+        isNotNull(movies.posterPath),
+        gte(movies.providerVoteAverage, 7.2),
+        gte(movies.providerVoteCount, 200),
+        lte(movies.providerPopularity, 40),
+      ))
+      .orderBy(desc(movies.providerVoteAverage), asc(movies.providerPopularity))
+      .limit(20)
+      .offset((page - 1) * 20);
+    const films = rows.map(({ movie }) => toFilmRef(movie)).filter((film) => !excludedIds.has(film.id));
+    return {
+      films,
+      continuation: rows.length === 20 && page < EXPLORE_MAX_RAIL_PAGE ? { ...continuation, nextPage: page + 1 } : undefined,
+      degraded: false,
+    };
+  }
+  const result = await withProvider((provider) => {
+    switch (continuation.source) {
+      case 'trending': return provider.trending('week', page);
+      case 'popular': return provider.popular(page);
+      case 'top-rated': return provider.topRated(page);
+      case 'now-playing': return provider.nowPlaying(page);
+      case 'upcoming': return provider.upcoming(page);
+      case 'canon': return provider.discover({ sortBy: 'rating', minVotes: 3000, page });
+      case 'genre': return provider.discover({ genreId: continuation.genreId, sortBy: 'popularity', page });
+      case 'decade': return provider.discover({ decade: continuation.decade, sortBy: 'popularity', page });
+      case 'similar': return provider.similar(continuation.providerId ?? '', page);
+      case 'hidden-gems': return provider.discover({ sortBy: 'rating', minVotes: 200, page });
+    }
+  });
+  const usableResults = usable(result.data.results).filter((movie) => !excludedIds.has(movie.providerId));
+  const ingested = await ensureMoviesFromSummaries(usableResults);
+  const films = ingested
+    .map(toFilmRef)
+    .filter((film) => !excludedIds.has(film.id));
+  const maxPage = Math.min(result.data.totalPages, EXPLORE_MAX_RAIL_PAGE);
+  const nextPage = page + 1;
+
+  return {
+    films,
+    continuation: nextPage <= maxPage ? { ...continuation, nextPage } : undefined,
+    degraded: result.degraded,
+  };
+}
+
+function stableNumber(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (Math.imul(hash, 31) + value.charCodeAt(index)) | 0;
+  }
+  return hash >>> 0;
+}
+
+async function moduleFromRail(input: {
+  id: string;
+  title: string;
+  subtitle: string;
+  continuation: RailContinuation;
+  excludedIds: Set<string>;
+}): Promise<ExploreModule | null> {
+  const page = await getExploreRailPage(input.continuation, input.excludedIds);
+  if (page.films.length < 4) return null;
+  page.films.forEach((film) => input.excludedIds.add(film.id));
+  return {
+    id: input.id,
+    type: 'poster_rail',
+    title: input.title,
+    subtitle: input.subtitle,
+    films: page.films,
+    continuation: page.continuation,
+    degraded: page.degraded,
+  };
+}
+
+async function settleExploreModule(
+  recipe: Omit<Parameters<typeof moduleFromRail>[0], 'excludedIds'>,
+  excludedIds: Set<string>,
+): Promise<ExploreModule | null> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const source = moduleFromRail({ ...recipe, excludedIds: new Set(excludedIds) }).catch((error) => {
+      console.warn('[explore] one continuation source failed:', error instanceof Error ? error.message : error);
+      return null;
+    });
+    const timedOut = new Promise<null>((resolve) => {
+      timeout = setTimeout(() => {
+        console.warn(`[explore] continuation source ${recipe.continuation.source} exceeded its time budget.`);
+        resolve(null);
+      }, 4_500);
+    });
+    return await Promise.race([source, timedOut]);
+  } catch (error) {
+    console.warn('[explore] one continuation source failed:', error instanceof Error ? error.message : error);
+    return null;
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+/** A bounded sequence of useful modules, stable for a calendar day. */
+export async function getExploreModuleBatch(input: {
+  userId: string | null;
+  cursor: ExploreCursor;
+  excludedIds: string[];
+}): Promise<{ modules: ExploreModule[]; cursor: ExploreCursor | null; degraded: boolean }> {
+  const batch = Math.min(Math.max(Math.floor(input.cursor.batch), 0), EXPLORE_MAX_BATCHES);
+  if (batch >= EXPLORE_MAX_BATCHES) return { modules: [], cursor: null, degraded: false };
+  const excluded = new Set(input.excludedIds);
+  const genres = await getGenres();
+  const genre = genres.length ? genres[stableNumber(`${input.cursor.seed}:${batch}`) % genres.length] : null;
+  const decade = [2020, 2010, 2000, 1990, 1980, 1970][stableNumber(`${input.cursor.seed}:decade:${batch}`) % 6];
+
+  const recipes: Array<Array<Omit<Parameters<typeof moduleFromRail>[0], 'excludedIds'>>> = [
+    [
+      { id: 'continue-popular-2', title: 'Popular now', subtitle: 'More films people keep coming back to.', continuation: { source: 'popular', nextPage: 2 } },
+      { id: 'continue-hidden-1', title: 'Hidden gems', subtitle: 'Strongly rated films beyond the usual front row.', continuation: { source: 'hidden-gems', nextPage: 1 } },
+    ],
+    [
+      ...(genre ? [{ id: `continue-genre-${genre.providerId}`, title: `${genre.name} to discover`, subtitle: 'A deeper shelf from this genre.', continuation: { source: 'genre' as const, genreId: genre.providerId, nextPage: 1 } }] : []),
+      { id: `continue-decade-${decade}`, title: `${decade}s spotlight`, subtitle: 'Another way into the decade.', continuation: { source: 'decade', decade, nextPage: 1 } },
+    ],
+    [
+      { id: 'continue-top-rated-2', title: 'Acclaimed films', subtitle: 'Highly rated with enough votes to mean it.', continuation: { source: 'top-rated', nextPage: 2 } },
+      { id: 'continue-trending-2', title: 'Still trending', subtitle: 'More of what is moving through film culture this week.', continuation: { source: 'trending', nextPage: 2 } },
+    ],
+    [
+      { id: 'continue-now-playing-2', title: 'More in cinemas', subtitle: 'Current releases beyond the opening shelf.', continuation: { source: 'now-playing', nextPage: 2 } },
+      { id: 'continue-upcoming-1', title: 'Further ahead', subtitle: 'Upcoming releases worth keeping nearby.', continuation: { source: 'upcoming', nextPage: 1 } },
+    ],
+    [
+      ...(genre ? [{ id: `continue-genre-late-${genre.providerId}`, title: `More ${genre.name.toLowerCase()}`, subtitle: 'One last turn through a different corner of the genre.', continuation: { source: 'genre' as const, genreId: genre.providerId, nextPage: 2 } }] : []),
+      { id: 'continue-popular-4', title: 'Keep exploring', subtitle: 'A final broad shelf from the wider catalogue.', continuation: { source: 'popular', nextPage: 4 } },
+    ],
+  ];
+
+  const modules: ExploreModule[] = [];
+  if (batch === 0 && input.userId) {
+    const [personal, clubFilms, friendFilms] = await Promise.all([
+      getFromYourFavouriteGenre(input.userId, 30),
+      getPopularWithClubs(input.userId, 20),
+      getFriendsWantToWatch(input.userId, 20),
+    ]);
+    const films = (personal?.films ?? []).filter((film) => !excluded.has(film.id));
+    if (personal && films.length >= 4) {
+      films.forEach((film) => excluded.add(film.id));
+      modules.push({
+        id: 'continue-favourite-genre',
+        type: 'poster_rail',
+        title: `More ${personal.genre.toLowerCase()} for you`,
+        subtitle: 'Unseen films shaped by what you return to.',
+        films,
+        showReason: false,
+      });
+    } else {
+      const socialSeen = new Set<string>();
+      const socialFilms = [...clubFilms, ...friendFilms]
+        .filter((film) => !excluded.has(film.id) && !socialSeen.has(film.id) && Boolean(socialSeen.add(film.id)))
+        .slice(0, 30);
+      if (socialFilms.length >= 4) {
+        socialFilms.forEach((film) => excluded.add(film.id));
+        modules.push({
+          id: 'continue-circle',
+          type: 'poster_rail',
+          title: 'Around your circle',
+          subtitle: 'Movie Ideas and watchlists from people close to you.',
+          films: socialFilms,
+        });
+      }
+    }
+  }
+
+  const settledModules = await Promise.all(
+    recipes[batch].map((recipe) => settleExploreModule(recipe, excluded)),
+  );
+  for (const feedModule of settledModules) {
+    if (!feedModule || feedModule.type !== 'poster_rail') continue;
+    const films = feedModule.films.filter((film) => !excluded.has(film.id));
+    if (films.length < 4) continue;
+    films.forEach((film) => excluded.add(film.id));
+    modules.push({ ...feedModule, films });
+  }
+
+  return {
+    modules: modules.slice(0, 3),
+    cursor: batch + 1 < EXPLORE_MAX_BATCHES ? { batch: batch + 1, seed: input.cursor.seed } : null,
+    degraded: modules.some((feedModule) => feedModule.type === 'poster_rail' && feedModule.degraded),
   };
 }

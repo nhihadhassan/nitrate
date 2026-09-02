@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { RecommendationOptionsMenu } from '@/components/discovery/recommendation-options-menu';
+import { ExploreFeed } from '@/components/discovery/explore-feed';
+import { ExploreSessionProvider } from '@/components/discovery/explore-session';
 import { Poster } from '@/components/film/poster';
 import { PosterRail } from '@/components/film/poster-rail';
 import { LikeMark, Stars } from '@/components/film/stars';
@@ -12,6 +14,7 @@ import { Container, EmptyState, SectionHeading } from '@/components/ui/primitive
 import { UserChip } from '@/components/user/avatar';
 import { env } from '@/env';
 import { organisePersonalDiscovery, type DiscoveryRow } from '@/lib/explore-rails';
+import type { RailContinuation } from '@/lib/explore';
 import { filmHref, reviewHref } from '@/lib/links';
 import { recommendationReasonLabel } from '@/lib/recommendations';
 import { pluralize } from '@/lib/utils';
@@ -25,11 +28,7 @@ import {
   getEditorialRails,
   getFriendsAreWatching,
   getFriendsLoved,
-  getFriendsWantToWatch,
-  getPopularWithClubs,
-  getFromYourFavouriteGenre,
   getPopularReviews,
-  getWatchlistRail,
   type RailFilm,
 } from '@/server/services/explore';
 
@@ -51,11 +50,7 @@ export default async function ExplorePage() {
     rails,
     friendsWatching,
     friendsLoved,
-    clubPopular,
-    friendsWant,
-    watchlist,
     becauseYouLoved,
-    favouriteGenre,
     communityTop,
     reviews,
     lists,
@@ -64,11 +59,7 @@ export default async function ExplorePage() {
     getEditorialRails(),
     user ? getFriendsAreWatching(user.id, 20) : Promise.resolve([]),
     user ? getFriendsLoved(user.id, 20) : Promise.resolve([]),
-    user ? getPopularWithClubs(user.id, 20) : Promise.resolve([]),
-    user ? getFriendsWantToWatch(user.id, 20) : Promise.resolve([]),
-    user ? getWatchlistRail(user.id, 20) : Promise.resolve([]),
     user ? getBecauseYouLoved(user.id, 20) : Promise.resolve(null),
-    user ? getFromYourFavouriteGenre(user.id, 20) : Promise.resolve(null),
     getCommunityTopFilms(20),
     getPopularReviews(viewer, 4),
     getPopularLists(viewer, 6),
@@ -76,9 +67,8 @@ export default async function ExplorePage() {
   ]);
 
   const allRailFilms = [
-    ...rails.trending, ...rails.nowPlaying, ...rails.canon, ...rails.upcoming,
-    ...friendsWatching, ...friendsLoved, ...clubPopular, ...friendsWant, ...watchlist,
-    ...communityTop, ...(becauseYouLoved?.films ?? []), ...(favouriteGenre?.films ?? []),
+    ...rails.trending, ...rails.nowPlaying, ...rails.canon,
+    ...friendsWatching, ...friendsLoved, ...communityTop, ...(becauseYouLoved?.films ?? []),
   ];
   const ownership = user ? await getOwnershipMap(user.id, Array.from(new Set(allRailFilms.map((film) => film.id)))) : new Map();
   for (const film of allRailFilms) if (ownership.has(film.id)) (film as RailFilm & { owned?: boolean }).owned = true;
@@ -86,9 +76,6 @@ export default async function ExplorePage() {
   const visible = (films: RailFilm[]) => films.filter((film) => !suppressedMovieIds.has(film.id));
   const visibleBecause = becauseYouLoved
     ? { ...becauseYouLoved, films: visible(becauseYouLoved.films) }
-    : null;
-  const visibleFavouriteGenre = favouriteGenre
-    ? { ...favouriteGenre, films: visible(favouriteGenre.films) }
     : null;
 
   const hasSocial = friendsWatching.length > 0 || friendsLoved.length > 0;
@@ -118,47 +105,23 @@ export default async function ExplorePage() {
       priority: 84,
       kind: 'social',
     },
-    {
-      id: 'favourite-genre',
-      title: visibleFavouriteGenre ? `More ${visibleFavouriteGenre.genre.toLowerCase()}` : 'More in your favourite genre',
-      subtitle: 'Your most-watched genre, minus everything you have already seen.',
-      films: visibleFavouriteGenre?.films ?? [],
-      priority: 76,
-      kind: 'personal',
-      showReason: false,
-    },
-    {
-      id: 'club-popular',
-      title: 'Around your clubs',
-      subtitle: 'Movie Ideas your groups are already circling.',
-      films: visible(clubPopular),
-      priority: 70,
-      kind: 'social',
-    },
-    {
-      id: 'friends-want',
-      title: 'Friends want to watch',
-      subtitle: 'Watchlist overlap from friends who share it.',
-      films: visible(friendsWant),
-      priority: 64,
-      kind: 'social',
-    },
-    {
-      id: 'watchlist',
-      title: 'On your watchlist',
-      subtitle: 'You already said you would.',
-      films: visible(watchlist),
-      priority: 46,
-      kind: 'personal',
-      href: '/watchlist',
-      linkLabel: 'Full watchlist',
-      showReason: false,
-      showFeedback: false,
-    },
   ]);
   const leadingPersonal = personalRows.find((row) => !row.compact && row.films.length >= 6) ?? null;
-  const laterPersonal = personalRows.filter((row) => row !== leadingPersonal);
   const firstRail = leadingPersonal?.id ?? 'trending';
+  const initialSeen = new Set<string>();
+  const withoutEarlierFilms = (films: RailFilm[]) => films.filter((film) => {
+    if (initialSeen.has(film.id)) return false;
+    initialSeen.add(film.id);
+    return true;
+  });
+  const displayedPersonal = leadingPersonal
+    ? { ...leadingPersonal, films: withoutEarlierFilms(leadingPersonal.films) }
+    : null;
+  const displayedTrending = withoutEarlierFilms(visible(rails.trending));
+  const displayedNowPlaying = withoutEarlierFilms(visible(rails.nowPlaying));
+  if (reviews[0]) initialSeen.add(reviews[0].film.id);
+  const displayedCommunityTop = withoutEarlierFilms(visible(communityTop));
+  const displayedCanon = withoutEarlierFilms(visible(rails.canon));
 
   return (
     <Container size="wide" className="py-8 pb-20">
@@ -188,6 +151,7 @@ export default async function ExplorePage() {
         </p>
       </header>
 
+      <ExploreSessionProvider initialMovieIds={[...initialSeen]}>
       <div className="space-y-12 sm:space-y-14">
         {rails.degraded ? (
           <p className="rounded-md border border-amber/30 bg-amber/[0.07] px-3 py-2 text-xs text-amber">
@@ -195,15 +159,22 @@ export default async function ExplorePage() {
           </p>
         ) : null}
 
-        {leadingPersonal ? (
-          <PersonalDiscovery row={leadingPersonal} eager={firstRail === leadingPersonal.id} />
+        {displayedPersonal ? (
+          <PersonalDiscovery
+            row={displayedPersonal}
+            eager={firstRail === displayedPersonal.id}
+            continuation={displayedPersonal.id === 'because-you-loved' ? visibleBecause?.continuation : undefined}
+            excludedMovieIds={[...initialSeen]}
+          />
         ) : null}
 
         <Rail
           title="Trending this week"
           subtitle="What the film world is turning over right now."
-          films={rails.trending}
+          films={displayedTrending}
           eager={firstRail === 'trending'}
+          continuation={{ source: 'trending', nextPage: 2 }}
+          excludedMovieIds={[...initialSeen]}
         />
 
         {user && !hasSocial && personalRows.length === 0 ? (
@@ -221,24 +192,22 @@ export default async function ExplorePage() {
           />
         ) : null}
 
-        <Rail title="In cinemas now" films={rails.nowPlaying} />
+        <Rail title="In cinemas now" films={displayedNowPlaying} continuation={{ source: 'now-playing', nextPage: 2 }} excludedMovieIds={[...initialSeen]} />
 
         {reviews[0] ? <ReviewSpotlight review={reviews[0]} /> : null}
-
-        {laterPersonal.map((row) => (
-          <PersonalDiscovery key={row.id} row={row} />
-        ))}
 
         <Rail
           title="Rated highest here"
           subtitle="Member ratings, weighted so one glowing score cannot outrank a crowd."
-          films={visible(communityTop)}
+          films={displayedCommunityTop}
         />
 
         <Rail
           title="The canon"
           subtitle="Highly rated by a lot of people, not just a perfect score from a handful."
-          films={rails.canon}
+          films={displayedCanon}
+          continuation={{ source: 'canon', nextPage: 2 }}
+          excludedMovieIds={[...initialSeen]}
         />
 
         {lists[0] ? (
@@ -260,10 +229,9 @@ export default async function ExplorePage() {
           </section>
         ) : null}
 
-        <Rail
-          title="Coming soon"
-          subtitle="Worth putting on the watchlist early."
-          films={rails.upcoming}
+        <ExploreFeed
+          initialSeenIds={[...initialSeen]}
+          seed={new Date().toISOString().slice(0, 10)}
         />
 
         <div className="space-y-8 border-t border-line pt-10">
@@ -386,6 +354,7 @@ export default async function ExplorePage() {
           />
         ) : null}
       </div>
+      </ExploreSessionProvider>
     </Container>
   );
 }
@@ -393,9 +362,13 @@ export default async function ExplorePage() {
 function PersonalDiscovery({
   row,
   eager,
+  continuation,
+  excludedMovieIds,
 }: {
   row: DiscoveryRow<RailFilm>;
   eager?: boolean;
+  continuation?: RailContinuation;
+  excludedMovieIds?: string[];
 }) {
   if (!row.compact) {
     return (
@@ -408,6 +381,8 @@ function PersonalDiscovery({
         eager={eager}
         showReason={row.showReason}
         showFeedback={row.showFeedback}
+        continuation={continuation}
+        excludedMovieIds={excludedMovieIds}
       />
     );
   }
@@ -483,6 +458,8 @@ function Rail({
   eager,
   showReason = true,
   showFeedback = true,
+  continuation,
+  excludedMovieIds,
 }: {
   title: string;
   subtitle?: string;
@@ -494,6 +471,8 @@ function Rail({
   /** False when the heading already says why — see `PosterRail`. */
   showReason?: boolean;
   showFeedback?: boolean;
+  continuation?: RailContinuation;
+  excludedMovieIds?: string[];
 }) {
   if (!films.length) return null;
   return (
@@ -505,6 +484,8 @@ function Rail({
         eager={eager}
         showReason={showReason}
         showFeedback={showFeedback}
+        continuation={continuation}
+        excludedMovieIds={excludedMovieIds}
       />
     </section>
   );
