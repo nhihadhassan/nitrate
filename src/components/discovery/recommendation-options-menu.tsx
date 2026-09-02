@@ -33,12 +33,15 @@ export function RecommendationOptionsMenu({
   targetId,
   reasonKind,
   includeAlreadyKnow = false,
+  resetBatchOnFeedback = false,
   className,
 }: {
   targetType: 'user' | 'movie' | 'person';
   targetId: string;
   reasonKind?: RecommendationReasonKind;
   includeAlreadyKnow?: boolean;
+  /** Tonight keeps its hand in the URL, so new feedback must begin at the first hand. */
+  resetBatchOnFeedback?: boolean;
   className?: string;
 }) {
   const router = useRouter();
@@ -106,7 +109,13 @@ export function RecommendationOptionsMenu({
               : 'Adjusted for 30 days',
         tone: 'success',
       });
-      router.refresh();
+      const currentUrl = new URL(window.location.href);
+      if (resetBatchOnFeedback && currentUrl.searchParams.has('more')) {
+        currentUrl.searchParams.delete('more');
+        router.push(`${currentUrl.pathname}${currentUrl.search}`, { scroll: false });
+      } else {
+        router.refresh();
+      }
     });
   };
 

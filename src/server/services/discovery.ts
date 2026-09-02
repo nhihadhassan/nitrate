@@ -11,6 +11,7 @@ import {
   type RecommendationReasonKind,
 } from '@/lib/recommendations';
 import { slugify } from '@/lib/utils';
+import { paginateTonightPool } from '@/lib/tonight';
 import { db } from '@/server/db';
 import {
   blocks,
@@ -324,8 +325,17 @@ export type TonightConstraints = {
   genreId?: string | null;
   /** Only films confirmed streamable or free right now, in the given region. */
   onlyAvailable?: boolean;
-  /** Advances the deterministic tie-break order — "show me three more" without full reshuffle. */
-  seed?: number;
+  /** Item offset into one stable, ranked pool. */
+  offset?: number;
+  /** Local calendar date used to keep a decision session stable through refreshes. */
+  sessionDate?: string;
+};
+
+export type TonightRecommendationResult = {
+  items: TonightRecommendation[];
+  offset: number;
+  totalEligible: number;
+  hasMore: boolean;
 };
 
 /** A small, stable, non-cryptographic hash — enough to order ties deterministically per day. */
@@ -337,20 +347,18 @@ function stableHash(value: string): number {
   return hash >>> 0;
 }
 
-const TONIGHT_RESULT_COUNT = 3;
-
 /**
  * A short, honest shortlist — never a grid. Three films, each with its own
  * reasons, ranked by how well-supported those reasons are and then ordered
- * deterministically so a page refresh doesn't reshuffle mid-decision. `seed`
- * is the only thing that moves the order on purpose ("show me three more").
+ * deterministically so a page refresh doesn't reshuffle mid-decision. More
+ * hands advance through that single ranked pool instead of reranking it.
  */
 export async function getTonightRecommendations(
   userId: string,
   region: string,
   constraints: TonightConstraints = {},
-): Promise<TonightRecommendation[]> {
-  const { scope = 'watchlist', maxRuntimeMinutes, genreId, onlyAvailable, seed = 0 } = constraints;
+): Promise<TonightRecommendationResult> {
+  const { scope = 'watchlist', maxRuntimeMinutes, genreId, onlyAvailable, offset = 0, sessionDate } = constraints;
 
   const [watchlistRows, clubRows, watchedIds, suppressed] = await Promise.all([
     db
@@ -428,7 +436,7 @@ export async function getTonightRecommendations(
 
   const [context, availability] = await Promise.all([
     getMovieRecommendationContext(userId, candidates.map((movie) => movie.id)),
-    getAvailabilityForMovies(candidates, region, { limit: 24, concurrency: 4 }),
+    getAvailabilityForMovies(candidates, region, { limit: candidates.length, concurrency: 6 }),
   ]);
   const hasAtHome = (movieId: string) => {
     const item = availability.get(movieId);
@@ -439,15 +447,17 @@ export async function getTonightRecommendations(
     candidates = candidates.filter((movie) => hasAtHome(movie.id));
   }
 
-  const today = new Date().toISOString().slice(0, 10);
-  return candidates
+  const today = sessionDate ?? new Date().toISOString().slice(0, 10);
+  const sessionKey = [userId, today, region, scope, maxRuntimeMinutes ?? 'any', genreId ?? 'any', onlyAvailable ? 'available' : 'all'].join(':');
+  const ranked = candidates
     .map((movie) => ({ movie, reasons: context.get(movie.id) ?? [], availability: availability.get(movie.id) ?? null }))
     .sort((a, b) => {
       const strength = Number(hasAtHome(b.movie.id)) - Number(hasAtHome(a.movie.id)) || b.reasons.length - a.reasons.length;
       if (strength !== 0) return strength;
-      return stableHash(`${a.movie.id}:${today}:${seed}`) - stableHash(`${b.movie.id}:${today}:${seed}`);
-    })
-    .slice(0, TONIGHT_RESULT_COUNT);
+      return stableHash(`${sessionKey}:${a.movie.id}`) - stableHash(`${sessionKey}:${b.movie.id}`);
+    });
+
+  return paginateTonightPool(ranked, offset);
 }
 
 export async function restoreRecommendationFeedback(userId: string, feedbackId: string): Promise<void> {

@@ -2,12 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { RecommendationContext } from '@/components/discovery/recommendation-context';
-import { RecommendationOptionsMenu } from '@/components/discovery/recommendation-options-menu';
-import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { TonightHand } from '@/components/discovery/tonight-hand';
 import { Button } from '@/components/ui/button';
-import { Badge, Container, EmptyState } from '@/components/ui/primitives';
-import { cn, formatRuntime } from '@/lib/utils';
+import { Container, EmptyState } from '@/components/ui/primitives';
+import { normalizeTonightOffset, TONIGHT_BATCH_SIZE } from '@/lib/tonight';
+import { cn } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getTonightRecommendations, type TonightConstraints } from '@/server/services/discovery';
 import { getGenres } from '@/server/services/explore';
@@ -44,7 +43,13 @@ export default async function TonightPage({
   const timeOption = TIME_OPTIONS.find((option) => option.key === (params.time ?? '')) ?? TIME_OPTIONS[0];
   const onlyAvailable = params.available === '1';
   const genreId = params.genre?.trim() || null;
-  const seed = Math.max(0, Number.parseInt(params.more ?? '0', 10) || 0);
+  const offset = normalizeTonightOffset(params.more);
+  const sessionDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: user.timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 
   const region = await resolveWatchRegion(user.watchRegion);
   const [suggestions, genres] = await Promise.all([
@@ -53,11 +58,12 @@ export default async function TonightPage({
       maxRuntimeMinutes: timeOption.minutes,
       genreId,
       onlyAvailable,
-      seed,
+      offset,
+      sessionDate,
     }),
     getGenres(),
   ]);
-  const ownership = await getOwnershipMap(user.id, suggestions.map(({ movie }) => movie.id));
+  const ownership = await getOwnershipMap(user.id, suggestions.items.map(({ movie }) => movie.id));
 
   const queryFor = (patch: Partial<SearchParams>) => {
     const merged = {
@@ -170,48 +176,15 @@ export default async function TonightPage({
         </nav>
       </div>
 
-      {suggestions.length ? (
-        <>
-          <PosterGrid density="shortlist">
-            {suggestions.map(({ movie, reasons, availability }) => {
-              const atHome = availability ? [...availability.stream, ...availability.free] : [];
-              return (
-                <PosterCard
-                  key={movie.id}
-                  film={movie}
-                  size="xl"
-                  overlay={
-                    reasons.length ? (
-                      <RecommendationOptionsMenu
-                        targetType="movie"
-                        targetId={movie.id}
-                        reasonKind={reasons[0].kind}
-                      />
-                    ) : undefined
-                  }
-                  footer={(
-                    <>
-                      <p className="mt-0.5 text-[0.6875rem] text-dim">
-                        {movie.runtime ? formatRuntime(movie.runtime) : 'Runtime unknown'}
-                        {atHome.length ? ` · ${atHome.slice(0, 2).map((provider) => provider.name).join(', ')}` : ''}
-                      </p>
-                      {ownership.has(movie.id) ? <Badge tone="iris">Owned · ready tonight</Badge> : null}
-                      <RecommendationContext reasons={reasons} />
-                    </>
-                  )}
-                />
-              );
-            })}
-          </PosterGrid>
-
-          <div className="mt-8 flex justify-center">
-            <Button asChild variant="outline">
-              <Link href={{ pathname: '/tonight', query: queryFor({ more: String(seed + 1) }) }}>
-                Show me three more
-              </Link>
-            </Button>
-          </div>
-        </>
+      {suggestions.items.length ? (
+        <TonightHand
+          items={suggestions.items}
+          ownedIds={[...ownership.keys()]}
+          nextHref={`/tonight?${new URLSearchParams(queryFor({ more: String(suggestions.offset + TONIGHT_BATCH_SIZE) })).toString()}`}
+          hasMore={suggestions.hasMore}
+          totalEligible={suggestions.totalEligible}
+          offset={suggestions.offset}
+        />
       ) : (
         <EmptyState
           title="Nothing to shortlist yet"
