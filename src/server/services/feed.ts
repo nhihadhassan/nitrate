@@ -11,6 +11,7 @@ import {
   lists,
   movies,
   reviewLikes,
+  selectionRoundReveals,
   users,
   type ActivityEvent,
   type Movie,
@@ -216,6 +217,13 @@ export async function getHomeFeed(
   const entryIds = rows.map((r) => r.entry?.id).filter((id): id is string => Boolean(id));
   const likedByViewer =
     viewer && entryIds.length ? await likedEntryIds(viewer.id, entryIds) : new Set<string>();
+  const selectedRoundIds = rows
+    .filter((row) => row.event.type === 'club_movie_selected')
+    .map((row) => row.event.metadata.roundId)
+    .filter((id): id is string => typeof id === 'string');
+  const revealedRoundIds = viewer && selectedRoundIds.length
+    ? new Set((await db.select({ roundId: selectionRoundReveals.roundId }).from(selectionRoundReveals).where(and(eq(selectionRoundReveals.userId, viewer.id), inArray(selectionRoundReveals.roundId, selectedRoundIds)))).map((row) => row.roundId))
+    : new Set<string>();
 
   const items = rows.map((row) => ({
     id: row.event.id,
@@ -228,7 +236,9 @@ export async function getHomeFeed(
       displayName: row.displayName,
       avatarAssetId: row.avatarAssetId,
     },
-    movie: row.movie,
+    movie: row.event.type === 'club_movie_selected' && viewer
+      ? (revealedRoundIds.has(typeof row.event.metadata.roundId === 'string' ? row.event.metadata.roundId : '') ? row.movie : null)
+      : row.movie,
     entry: toFeedEntry(row.entry, likedByViewer),
     list: row.listId
       ? { id: row.listId, title: row.listTitle!, slug: row.listSlug!, itemCount: row.listItemCount! }

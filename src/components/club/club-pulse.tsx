@@ -18,7 +18,7 @@ function describeChange(prev: ClubPulse, next: ClubPulse): string | null {
   if (prev.round?.status === 'nominations_open' && next.round?.status === 'voting_open') {
     return 'Voting just opened';
   }
-  if (prev.round && !prev.round.winnerNominationId && next.round?.winnerNominationId) {
+  if (prev.round && !prev.round.hasWinner && next.round?.hasWinner) {
     return next.round.status === 'nominations_open' ? 'The wheel just landed on a winner' : 'A winner was just picked';
   }
   if (prev.round && !prev.round.picksClosedAt && next.round?.picksClosedAt) {

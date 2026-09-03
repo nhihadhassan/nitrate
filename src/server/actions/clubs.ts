@@ -16,10 +16,14 @@ import {
   castVote,
   closeVoting,
   closePicks,
+  beginWheelReveal,
+  completeWheelReveal,
   completeScreening,
   confirmScreeningPollOption,
   createScreeningPoll,
   extendPickDeadline,
+  setClubMemberPermissions,
+  setRoundReaction,
   confirmAttendance,
   createClub,
   createInvite,
@@ -37,6 +41,7 @@ import {
   respondToScreeningPoll,
   requireMembership,
   scheduleScreening,
+  setRoundParticipation,
   setMemberRole,
   setRsvp,
   setWeeklyPick,
@@ -324,6 +329,39 @@ export async function nominateAction(
   });
 }
 
+export async function nominateForMemberAction(
+  input: { roundId: string; clubId: string; nominatedForUserId: string; pitch?: string | null } & FilmRefInput,
+): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const movie = await resolveFilm(input);
+    await nominate({ roundId: input.roundId, userId: user.id, nominatedByUserId: input.nominatedForUserId, movieId: movie.id, pitch: input.pitch?.trim() || null });
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}`);
+    return null;
+  });
+}
+
+export async function setClubMemberPermissionsAction(input: { clubId: string; userId: string; permissions: string[] }): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    await setClubMemberPermissions(input.clubId, user.id, input.userId, input.permissions as Parameters<typeof setClubMemberPermissions>[3]);
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}/members`);
+    return null;
+  });
+}
+
+export async function setRoundParticipationAction(input: { roundId: string; clubId: string; userId: string; participating: boolean }): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    await setRoundParticipation(input.roundId, user.id, input.userId, input.participating);
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}`);
+    return null;
+  });
+}
+
 export async function withdrawNominationAction(
   nominationId: string,
   clubSlug: string,
@@ -410,6 +448,13 @@ export async function extendPickDeadlineAction(input: {
     if (Number.isNaN(deadline.getTime())) throw new ValidationError('Choose a valid pick deadline.');
     await extendPickDeadline(input.roundId, user.id, deadline);
     const club = await getClubById(input.clubId);
+    await notifyClub(club.id, {
+      actorId: user.id,
+      type: 'club_pick_deadline_extended',
+      url: `/club/${club.slug}`,
+      body: `${user.displayName} extended this week’s pick deadline`,
+      dedupeKey: `pick_deadline:${input.roundId}:${deadline.toISOString()}`,
+    });
     revalidatePath(`/club/${club.slug}`);
     return null;
   });
@@ -496,8 +541,8 @@ export async function spinWheelAction(
       await notifyClub(club.id, {
         actorId: user.id,
         type: 'club_winner_selected',
-        url: `/club/${club.slug}`,
-        body: `The wheel picked ${result.winner?.movie.title} for ${club.name}`,
+        url: `/club/${club.slug}/reveal/${roundId}`,
+        body: `The wheel is ready to reveal in ${club.name}`,
         dedupeKey: `winner:${roundId}`,
       });
     }
@@ -513,6 +558,38 @@ export async function spinWheelAction(
       contenderCount: result.order.length,
       order: result.order,
     };
+  });
+}
+
+export async function beginWheelRevealAction(roundId: string, clubId: string): Promise<ActionResult<Awaited<ReturnType<typeof beginWheelReveal>>>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const payload = await beginWheelReveal(roundId, user.id);
+    const club = await getClubById(clubId);
+    revalidatePath(`/club/${club.slug}`);
+    return payload;
+  });
+}
+
+export async function completeWheelRevealAction(input: { roundId: string; clubId: string; method: 'animated' | 'skipped' }): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    await completeWheelReveal(input.roundId, user.id, input.method);
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/reveal/${input.roundId}`);
+    return null;
+  });
+}
+
+export async function setRoundReactionAction(input: { roundId: string; clubId: string; reaction: string | null }): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    await setRoundReaction(input.roundId, user.id, input.reaction);
+    const club = await getClubById(input.clubId);
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/reveal/${input.roundId}`);
+    return null;
   });
 }
 

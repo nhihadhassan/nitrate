@@ -1,5 +1,37 @@
 /** Shared client-safe shapes. Server types live next to their schema. */
 
+export type ClubPermission =
+  | 'extend_submission_deadline'
+  | 'start_wheel'
+  | 'submit_picks_for_others'
+  | 'edit_movie_night'
+  | 'invite_members'
+  | 'remove_members'
+  | 'manage_weekly_participation';
+
+export type WheelExperienceState =
+  | 'waiting'
+  | 'picks_open'
+  | 'own_pick_complete'
+  | 'aggregate_progress'
+  | 'wheel_ready'
+  | 'spun_unrevealed'
+  | 'revealed_winner'
+  | 'approaching_movie_night'
+  | 'watched_completed';
+
+export type RoundParticipant = {
+  roundId: string;
+  userId: string;
+  participating: boolean;
+};
+
+export type RoundReaction = {
+  roundId: string;
+  userId: string;
+  reaction: 'love' | 'excited' | 'curious';
+};
+
 /**
  * A film, reduced to what it takes to show and link one.
  *

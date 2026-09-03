@@ -40,6 +40,9 @@ export function RoundControls({
   allMembersPicked,
   picksExpired = false,
   picksClosed = false,
+  isAdmin = false,
+  canExtendDeadline = false,
+  canStartWheel = false,
 }: {
   clubId: string;
   clubSlug: string;
@@ -50,6 +53,9 @@ export function RoundControls({
   allMembersPicked: boolean;
   picksExpired?: boolean;
   picksClosed?: boolean;
+  isAdmin?: boolean;
+  canExtendDeadline?: boolean;
+  canStartWheel?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -76,7 +82,7 @@ export function RoundControls({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {status === 'nominations_open' && picksExpired && !picksClosed ? (
+      {status === 'nominations_open' && picksExpired && !picksClosed && canStartWheel ? (
         <>
           <Button
             variant="iris"
@@ -93,13 +99,32 @@ export function RoundControls({
           >
             Continue with {nominationCount} picks
           </Button>
-          <Button variant="outline" size="sm" disabled={pending} onClick={() => setExtending(true)}>
-            Extend deadline
-          </Button>
         </>
       ) : null}
 
-      {status === 'nominations_open' && mode !== 'wheel' ? (
+      {status === 'nominations_open' && mode === 'wheel' && !picksExpired && !picksClosed && canStartWheel && !allMembersPicked && nominationCount >= 2 ? (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={() => startTransition(async () => {
+            const result = await continueExpiredPicksAction(roundId, clubId);
+            if (!result.ok) return toast({ message: result.error, tone: 'error' });
+            toast({ message: 'Picks closed early. The wheel is ready.', tone: 'success' });
+            router.refresh();
+          })}
+        >
+          Close picks early
+        </Button>
+      ) : null}
+
+      {status === 'nominations_open' && picksExpired && !picksClosed && canExtendDeadline ? (
+        <Button variant="outline" size="sm" disabled={pending} onClick={() => setExtending(true)}>
+          Extend deadline
+        </Button>
+      ) : null}
+
+      {status === 'nominations_open' && mode !== 'wheel' && isAdmin ? (
         <Button
           variant={allMembersPicked || picksClosed ? 'iris' : 'outline'}
           size="sm"
@@ -121,7 +146,7 @@ export function RoundControls({
         </Button>
       ) : null}
 
-      {status === 'voting_open' ? (
+      {status === 'voting_open' && isAdmin ? (
         <Button
           variant="iris"
           size="sm"
@@ -146,7 +171,7 @@ export function RoundControls({
         </Button>
       ) : null}
 
-      {status !== 'completed' && status !== 'cancelled' ? (
+      {status !== 'completed' && status !== 'cancelled' && isAdmin ? (
         <Button
           variant="ghost"
           size="sm"
@@ -210,6 +235,15 @@ export function RoundControls({
             </div>
           }
         >
+          <div className="mb-4 flex flex-wrap gap-2" aria-label="Quick deadline extensions">
+            {[['1 hour', 1], ['3 hours', 3], ['1 day', 24]].map(([label, hours]) => (
+              <Button key={label} type="button" size="sm" variant="outline" onClick={() => {
+                const date = new Date(Date.now() + Number(hours) * 60 * 60 * 1000);
+                const offset = date.getTimezoneOffset() * 60_000;
+                setDeadline(new Date(date.getTime() - offset).toISOString().slice(0, 16));
+              }}>{label}</Button>
+            ))}
+          </div>
           <DateTimePicker id="extend-pick-deadline" value={deadline} onChange={setDeadline} accent="iris" />
         </Sheet>
       ) : null}

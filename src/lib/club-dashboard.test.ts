@@ -18,6 +18,12 @@ describe('club dashboard hero', () => {
   it('shows the viewer their remaining pick', () => {
     expect(deriveClubDashboardView({ ...base, roundStatus: 'nominations_open', roundMode: 'vote', picksRemaining: 1 }).actionLabel).toBe('Choose a movie');
   });
+  it('makes an unviewed wheel result a personal reveal action', () => {
+    expect(deriveClubDashboardView({ ...base, roundStatus: 'winner_selected', roundMode: 'wheel', wheelSpun: true, wheelRevealed: false }).kind).toBe('reveal');
+  });
+  it('moves a revealed wheel result into scheduling', () => {
+    expect(deriveClubDashboardView({ ...base, roundStatus: 'winner_selected', roundMode: 'wheel', wheelSpun: true, wheelRevealed: true, winnerTitle: 'Heat' }).kind).toBe('schedule');
+  });
   it('keeps non-members out of private workflow copy', () => {
     expect(deriveClubDashboardView({ ...base, isMember: false }).kind).toBe('join');
   });

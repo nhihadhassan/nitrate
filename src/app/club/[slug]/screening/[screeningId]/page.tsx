@@ -24,6 +24,7 @@ import {
   getScreeningById,
   getScreeningProvenance,
   getViewerScreeningContext,
+  getWheelRevealState,
   viewerHasSeenScreeningFilm,
 } from '@/server/services/clubs';
 import { getUserMovieState } from '@/server/services/films';
@@ -63,7 +64,24 @@ export default async function ScreeningPage({
     );
   }
 
-  const [movie, attendance, ratings, discussion, context, hasSeen, filmState, provenance] =
+  const provenance = await getScreeningProvenance(screening);
+  const wheelReveal = provenance?.mode === 'wheel' && screening.roundId
+    ? await getWheelRevealState(screening.roundId, user!.id)
+    : null;
+  if (provenance?.mode === 'wheel' && wheelReveal && !wheelReveal.revealed) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-6 py-8">
+        <ClubPulseWatcher clubId={club.id} screeningId={screening.id} />
+        <EmptyState
+          title="Movie night details are waiting for your reveal"
+          description={`The night is planned for ${formatDateTimeInZone(screening.scheduledAt, screening.timezone)}. Reveal the club pick when you’re ready.`}
+          action={screening.roundId ? <Link className="text-iris underline underline-offset-2" href={`/club/${club.slug}/reveal/${screening.roundId}`}>Reveal the movie →</Link> : undefined}
+        />
+      </div>
+    );
+  }
+
+  const [movie, attendance, ratings, discussion, context, hasSeen, filmState] =
     await Promise.all([
       getMovieById(screening.movieId),
       getScreeningAttendance(screening.id),
@@ -72,7 +90,6 @@ export default async function ScreeningPage({
       getViewerScreeningContext(screening, user!.id),
       viewerHasSeenScreeningFilm(screening, user!.id),
       getUserMovieState(user!.id, screening.movieId),
-      getScreeningProvenance(screening),
     ]);
 
   const going = attendance.filter((a) => a.rsvp === 'going');

@@ -14,6 +14,7 @@ import {
   clubDiscussionPosts,
   discussionMentions,
   clubInvites,
+  clubMemberPermissions,
   clubMembers,
   clubQueueItems,
   clubRatings,
@@ -28,6 +29,9 @@ import {
   screeningPolls,
   screenings,
   selectionRounds,
+  selectionRoundParticipants,
+  selectionRoundReveals,
+  selectionRoundReactions,
   userMovieState,
   users,
   votes,
@@ -87,6 +91,86 @@ function assertTransition(from: RoundStatus, to: RoundStatus): void {
 /* -------------------------------------------------------------------------- */
 
 export type Membership = Pick<ClubMember, 'role' | 'status' | 'userId' | 'clubId' | 'notificationsMuted'>;
+
+export const CLUB_PERMISSIONS = [
+  'extend_submission_deadline',
+  'start_wheel',
+  'submit_picks_for_others',
+  'edit_movie_night',
+  'invite_members',
+  'remove_members',
+  'manage_weekly_participation',
+] as const;
+export type ClubPermission = (typeof CLUB_PERMISSIONS)[number];
+
+export async function getClubPermissions(clubId: string, userId: string, tx: DbOrTx = db): Promise<Set<ClubPermission>> {
+  const membership = await getMembership(clubId, userId, tx);
+  if (!membership || membership.status !== 'active') return new Set();
+  if (membership.role === 'owner') return new Set(CLUB_PERMISSIONS);
+  const rows = await tx.select({ permission: clubMemberPermissions.permission })
+    .from(clubMemberPermissions)
+    .where(and(eq(clubMemberPermissions.clubId, clubId), eq(clubMemberPermissions.userId, userId)));
+  return new Set(rows.map((row) => row.permission).filter((permission): permission is ClubPermission => (CLUB_PERMISSIONS as readonly string[]).includes(permission)));
+}
+
+export async function getClubPermissionMap(clubId: string, tx: DbOrTx = db): Promise<Record<string, ClubPermission[]>> {
+  const rows = await tx.select({ userId: clubMemberPermissions.userId, permission: clubMemberPermissions.permission })
+    .from(clubMemberPermissions).where(eq(clubMemberPermissions.clubId, clubId));
+  return rows.reduce<Record<string, ClubPermission[]>>((map, row) => {
+    if ((CLUB_PERMISSIONS as readonly string[]).includes(row.permission)) {
+      (map[row.userId] ??= []).push(row.permission as ClubPermission);
+    }
+    return map;
+  }, {});
+}
+
+export async function getRoundParticipants(roundId: string, tx: DbOrTx = db) {
+  return tx.select({ userId: selectionRoundParticipants.userId, participating: selectionRoundParticipants.participating })
+    .from(selectionRoundParticipants)
+    .where(eq(selectionRoundParticipants.roundId, roundId));
+}
+
+export async function hasClubPermission(clubId: string, userId: string, permission: ClubPermission, tx: DbOrTx = db): Promise<boolean> {
+  return (await getClubPermissions(clubId, userId, tx)).has(permission);
+}
+
+export async function requireClubPermission(clubId: string, userId: string, permission: ClubPermission, tx: DbOrTx = db): Promise<Membership> {
+  const membership = await requireMembership(clubId, userId, 'member', tx);
+  if (!(await hasClubPermission(clubId, userId, permission, tx))) {
+    throw new PermissionError('You do not have permission to do that in this club.');
+  }
+  return membership;
+}
+
+export async function setClubMemberPermissions(clubId: string, actorId: string, userId: string, permissions: ClubPermission[]): Promise<void> {
+  await db.transaction(async (tx) => {
+    await requireMembership(clubId, actorId, 'owner', tx);
+    const member = await getMembership(clubId, userId, tx);
+    if (!member || member.status !== 'active') throw new NotFoundError('That member is no longer active.');
+    if (member.role === 'owner') throw new PermissionError('The owner always has every permission.');
+    await tx.delete(clubMemberPermissions).where(and(eq(clubMemberPermissions.clubId, clubId), eq(clubMemberPermissions.userId, userId)));
+    const unique = [...new Set(permissions)].filter((permission): permission is ClubPermission => (CLUB_PERMISSIONS as readonly string[]).includes(permission));
+    if (unique.length) await tx.insert(clubMemberPermissions).values(unique.map((permission) => ({ clubId, userId, permission, grantedByUserId: actorId })));
+  });
+}
+
+export async function setRoundParticipation(roundId: string, actorId: string, userId: string, participating: boolean): Promise<void> {
+  await db.transaction(async (tx) => {
+    const round = await loadRound(roundId, tx);
+    await requireMembership(round.clubId, actorId, 'member', tx);
+    if (actorId !== userId) await requireClubPermission(round.clubId, actorId, 'manage_weekly_participation', tx);
+    const target = await getMembership(round.clubId, userId, tx);
+    if (!target || target.status !== 'active') throw new NotFoundError('That member is no longer active.');
+    if (round.status !== 'nominations_open') throw new ConflictError('Weekly participation is closed.');
+    if (!participating) {
+      const [{ value: picks }] = await tx.select({ value: sql<number>`count(*)::int` }).from(nominations)
+        .where(and(eq(nominations.roundId, roundId), eq(nominations.nominatedByUserId, userId), isNull(nominations.withdrawnAt)));
+      if (picks > 0) throw new ConflictError('Change or remove this member’s pick before leaving the week.');
+    }
+    await tx.insert(selectionRoundParticipants).values({ roundId, userId, participating, updatedByUserId: actorId, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: [selectionRoundParticipants.roundId, selectionRoundParticipants.userId], set: { participating, updatedByUserId: actorId, updatedAt: new Date() } });
+  });
+}
 
 export async function getMembership(
   clubId: string,
@@ -259,16 +343,13 @@ export async function setMemberRole(
 ): Promise<void> {
   await requireMembership(clubId, actorId, 'owner');
   if (actorId === targetUserId) throw new ValidationError('Transfer ownership instead.');
-  await db
-    .update(clubMembers)
-    .set({ role })
-    .where(
-      and(
-        eq(clubMembers.clubId, clubId),
-        eq(clubMembers.userId, targetUserId),
-        ne(clubMembers.role, 'owner'),
-      ),
-    );
+  await db.transaction(async (tx) => {
+    await tx.update(clubMembers).set({ role }).where(and(eq(clubMembers.clubId, clubId), eq(clubMembers.userId, targetUserId), ne(clubMembers.role, 'owner')));
+    await tx.delete(clubMemberPermissions).where(and(eq(clubMemberPermissions.clubId, clubId), eq(clubMemberPermissions.userId, targetUserId)));
+    if (role === 'admin') {
+      await tx.insert(clubMemberPermissions).values(CLUB_PERMISSIONS.map((permission) => ({ clubId, userId: targetUserId, permission, grantedByUserId: actorId })));
+    }
+  });
 }
 
 export async function removeMember(
@@ -283,7 +364,7 @@ export async function removeMember(
       throw new ValidationError('Transfer ownership before leaving your own club.');
     }
   } else {
-    await requireMembership(clubId, actorId, 'admin');
+    await requireClubPermission(clubId, actorId, 'remove_members');
     const target = await getMembership(clubId, targetUserId);
     if (target?.role === 'owner') throw new PermissionError('The owner cannot be removed.');
   }
@@ -360,7 +441,7 @@ export async function createInvite(input: {
   maxUses?: number | null;
   expiresInDays?: number | null;
 }): Promise<{ code: string }> {
-  await requireMembership(input.clubId, input.createdByUserId, 'member');
+  await requireClubPermission(input.clubId, input.createdByUserId, 'invite_members');
   const code = newCode(8);
   await db.insert(clubInvites).values({
     clubId: input.clubId,
@@ -638,6 +719,19 @@ export async function startRound(input: {
       })
       .returning();
 
+    const activeMembers = await tx
+      .select({ userId: clubMembers.userId })
+      .from(clubMembers)
+      .where(and(eq(clubMembers.clubId, input.clubId), eq(clubMembers.status, 'active')));
+    if (activeMembers.length) {
+      await tx.insert(selectionRoundParticipants).values(activeMembers.map((member) => ({
+        roundId: round.id,
+        userId: member.userId,
+        participating: true,
+        updatedByUserId: input.userId,
+      })));
+    }
+
     return round;
   });
 }
@@ -647,11 +741,23 @@ export async function nominate(input: {
   userId: string;
   movieId: string;
   pitch: string | null;
+  nominatedByUserId?: string;
 }): Promise<void> {
   await db.transaction(async (tx) => {
     const round = await loadRound(input.roundId, tx);
     await requireMembership(round.clubId, input.userId, 'member', tx);
     await assertPickWindow(round);
+    const nominatedByUserId = input.nominatedByUserId ?? input.userId;
+    const [participant] = await tx.select({ participating: selectionRoundParticipants.participating })
+      .from(selectionRoundParticipants)
+      .where(and(eq(selectionRoundParticipants.roundId, input.roundId), eq(selectionRoundParticipants.userId, nominatedByUserId)))
+      .limit(1);
+    if (!participant?.participating) throw new ConflictError('That member is not participating in this week’s round.');
+    if (nominatedByUserId !== input.userId) {
+      await requireClubPermission(round.clubId, input.userId, 'submit_picks_for_others', tx);
+      const target = await getMembership(round.clubId, nominatedByUserId, tx);
+      if (!target || target.status !== 'active') throw new PermissionError('Choose an active club member.');
+    }
 
     const [{ value: mine }] = await tx
       .select({ value: sql<number>`count(*)::int` })
@@ -659,7 +765,7 @@ export async function nominate(input: {
       .where(
         and(
           eq(nominations.roundId, input.roundId),
-          eq(nominations.nominatedByUserId, input.userId),
+          eq(nominations.nominatedByUserId, nominatedByUserId),
           isNull(nominations.withdrawnAt),
         ),
       );
@@ -669,7 +775,7 @@ export async function nominate(input: {
       );
     }
 
-    await insertPick(input, round, tx);
+    await insertPick({ ...input, nominatedByUserId, submittedByUserId: input.userId }, round, tx);
   });
 }
 
@@ -686,7 +792,7 @@ async function assertPickWindow(round: SelectionRound): Promise<void> {
 }
 
 async function insertPick(
-  input: { roundId: string; userId: string; movieId: string; pitch: string | null },
+  input: { roundId: string; userId: string; movieId: string; pitch: string | null; nominatedByUserId?: string; submittedByUserId?: string },
   round: SelectionRound,
   tx: DbOrTx,
 ): Promise<void> {
@@ -724,7 +830,8 @@ async function insertPick(
   await tx.insert(nominations).values({
     roundId: input.roundId,
     movieId: input.movieId,
-    nominatedByUserId: input.userId,
+    nominatedByUserId: input.nominatedByUserId ?? input.userId,
+    submittedByUserId: input.submittedByUserId ?? input.userId,
     pitch: input.pitch,
   });
   await tx.insert(activityEvents).values({
@@ -733,7 +840,8 @@ async function insertPick(
     clubId: round.clubId,
     movieId: input.movieId,
     visibility: 'private',
-    metadata: { roundId: input.roundId },
+    targetUserId: (input.nominatedByUserId && input.nominatedByUserId !== input.userId) ? input.nominatedByUserId : null,
+    metadata: { roundId: input.roundId, attributedUserId: input.nominatedByUserId ?? input.userId },
   });
 }
 
@@ -758,19 +866,21 @@ export async function replaceNomination(input: {
       )
       .limit(1);
     if (!current) throw new NotFoundError('Your current pick is no longer available.');
-    if (current.nominatedByUserId !== input.userId) {
-      throw new PermissionError('You can only change your own pick.');
-    }
-
     const round = await loadRound(input.roundId, tx);
     await requireMembership(round.clubId, input.userId, 'member', tx);
+    if (current.nominatedByUserId !== input.userId && current.submittedByUserId !== input.userId) {
+      throw new PermissionError('You can only change your own pick or a pick you entered for someone else.');
+    }
+    if (current.nominatedByUserId !== input.userId) {
+      await requireClubPermission(round.clubId, input.userId, 'submit_picks_for_others', tx);
+    }
     await assertPickWindow(round);
 
     await tx
       .update(nominations)
       .set({ withdrawnAt: new Date() })
       .where(eq(nominations.id, current.id));
-    await insertPick(input, round, tx);
+    await insertPick({ ...input, nominatedByUserId: current.nominatedByUserId, submittedByUserId: input.userId }, round, tx);
   });
 }
 
@@ -784,8 +894,8 @@ export async function withdrawNomination(nominationId: string, userId: string): 
     if (!nomination) throw new NotFoundError('That pick is already gone.');
     const round = await loadRound(nomination.roundId, tx);
     const membership = await requireMembership(round.clubId, userId, 'member', tx);
-    if (nomination.nominatedByUserId !== userId && membership.role === 'member') {
-      throw new PermissionError('Only the person who picked this movie or an admin can remove it.');
+    if (nomination.nominatedByUserId !== userId && nomination.submittedByUserId !== userId && membership.role === 'member') {
+      throw new PermissionError('Only the person who picked this movie or entered it for someone else can remove it.');
     }
     await assertPickWindow(round);
     await tx.update(nominations).set({ withdrawnAt: new Date() }).where(eq(nominations.id, nominationId));
@@ -795,8 +905,8 @@ export async function withdrawNomination(nominationId: string, userId: string): 
 async function picksAreComplete(round: SelectionRound, tx: DbOrTx): Promise<boolean> {
   const [{ value: members }] = await tx
     .select({ value: sql<number>`count(*)::int` })
-    .from(clubMembers)
-    .where(and(eq(clubMembers.clubId, round.clubId), eq(clubMembers.status, 'active')));
+    .from(selectionRoundParticipants)
+    .where(and(eq(selectionRoundParticipants.roundId, round.id), eq(selectionRoundParticipants.participating, true)));
   const [{ value: picks }] = await tx
     .select({ value: sql<number>`count(*)::int` })
     .from(nominations)
@@ -805,18 +915,20 @@ async function picksAreComplete(round: SelectionRound, tx: DbOrTx): Promise<bool
 }
 
 async function mayAdvanceFromPicks(round: SelectionRound, tx: DbOrTx): Promise<boolean> {
-  return Boolean(round.picksClosedAt) || (await picksAreComplete(round, tx));
+  if (round.picksClosedAt || (round.nominationsCloseAt && round.nominationsCloseAt <= new Date())) {
+    const [{ value: total }] = await tx.select({ value: sql<number>`count(*)::int` }).from(nominations)
+      .where(and(eq(nominations.roundId, round.id), isNull(nominations.withdrawnAt)));
+    return total >= 2;
+  }
+  return await picksAreComplete(round, tx);
 }
 
-/** An expired round only advances when an admin explicitly accepts the picks in. */
+/** A manager with wheel permission can accept an expired or early-close roster. */
 export async function closePicks(roundId: string, userId: string): Promise<SelectionRound> {
   return db.transaction(async (tx) => {
     const round = await loadRound(roundId, tx);
-    await requireMembership(round.clubId, userId, 'admin', tx);
+    await requireClubPermission(round.clubId, userId, 'start_wheel', tx);
     if (round.status !== 'nominations_open') throw new ConflictError('This round is no longer collecting picks.');
-    if (!round.nominationsCloseAt || round.nominationsCloseAt > new Date()) {
-      throw new ConflictError('Picks can only be closed early after their deadline has passed.');
-    }
     const [{ value: total }] = await tx
       .select({ value: sql<number>`count(*)::int` })
       .from(nominations)
@@ -835,13 +947,20 @@ export async function extendPickDeadline(roundId: string, userId: string, deadli
   if (deadline <= new Date()) throw new ValidationError('Choose a future pick deadline.');
   return db.transaction(async (tx) => {
     const round = await loadRound(roundId, tx);
-    await requireMembership(round.clubId, userId, 'admin', tx);
+    await requireClubPermission(round.clubId, userId, 'extend_submission_deadline', tx);
     if (round.status !== 'nominations_open') throw new ConflictError('This round is no longer collecting picks.');
     const [updated] = await tx
       .update(selectionRounds)
       .set({ nominationsCloseAt: deadline, picksClosedAt: null, updatedAt: new Date() })
       .where(eq(selectionRounds.id, roundId))
       .returning();
+    await tx.insert(activityEvents).values({
+      actorId: userId,
+      type: 'club_pick_deadline_extended',
+      clubId: round.clubId,
+      visibility: 'private',
+      metadata: { roundId, deadline: deadline.toISOString() },
+    });
     return updated;
   });
 }
@@ -1000,7 +1119,7 @@ export type SpinResult = RoundResult & {
  * The randomness is server-side and the outcome is committed before the client
  * ever animates, so a spin cannot be re-rolled by refreshing, racing two tabs,
  * or calling the action twice — the second call returns the first result.
- * Any active member may spin; it is a group ritual, not an admin chore.
+ * Only members with the scoped wheel permission may spin; the outcome remains a group ritual.
  */
 export async function spinWheel(roundId: string, userId: string): Promise<SpinResult> {
   return db.transaction(async (tx) => {
@@ -1013,7 +1132,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
       .limit(1);
     if (!locked) throw new NotFoundError('That round no longer exists.');
 
-    await requireMembership(locked.clubId, userId, 'member', tx);
+    await requireClubPermission(locked.clubId, userId, 'start_wheel', tx);
     if (locked.mode !== 'wheel') {
       throw new ConflictError('This round is decided by voting, not the wheel.');
     }
@@ -1096,7 +1215,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
     await queueClubEmail(
       locked.clubId,
       'wheel_winner',
-      `🎬 ${club.name} is watching ${chosen.movie.title}`,
+      `🎬 The wheel is ready in ${club.name}`,
       (member) => ({
         clubName: club.name,
         clubSlug: club.slug,
@@ -1128,6 +1247,75 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
       order,
     };
   });
+}
+
+export type WheelRevealMethod = 'animated' | 'skipped';
+export type WheelRevealPayload = {
+  roundId: string;
+  winnerIndex: number;
+  seed: string;
+  order: { nominationId: string; movie: Pick<Movie, 'slug' | 'title' | 'year' | 'posterPath' | 'backdropPath' | 'runtime'>; nominatedBy: { id: string; displayName: string; username: string; avatarAssetId: string | null } }[];
+  winner: (Pick<Movie, 'slug' | 'title' | 'year' | 'posterPath' | 'backdropPath' | 'runtime'> & { nominationId: string; nominatedBy: { id: string; displayName: string; username: string; avatarAssetId: string | null } }) | null;
+  revealed: boolean;
+  reactions: { reaction: string; count: number; mine: boolean }[];
+};
+
+async function buildWheelRevealPayload(roundId: string, userId: string, tx: DbOrTx = db): Promise<WheelRevealPayload> {
+  const round = await loadRound(roundId, tx);
+  await requireMembership(round.clubId, userId, 'member', tx);
+  if (round.mode !== 'wheel' || !round.winnerNominationId || !round.spinSeed) throw new ConflictError('This wheel is not ready to reveal.');
+  const rows = await tx.select({ nomination: nominations, movie: movies, user: users })
+    .from(nominations)
+    .innerJoin(movies, eq(movies.id, nominations.movieId))
+    .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
+    .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)))
+    .orderBy(asc(nominations.createdAt), asc(nominations.id));
+  const order = rows.map((row) => ({ nominationId: row.nomination.id, movie: { slug: row.movie.slug, title: row.movie.title, year: row.movie.year, posterPath: row.movie.posterPath, backdropPath: row.movie.backdropPath, runtime: row.movie.runtime }, nominatedBy: { id: row.user.id, displayName: row.user.displayName, username: row.user.username, avatarAssetId: row.user.avatarAssetId } }));
+  const winnerIndex = Math.max(order.findIndex((item) => item.nominationId === round.winnerNominationId), 0);
+  const [reveal] = await tx.select().from(selectionRoundReveals).where(and(eq(selectionRoundReveals.roundId, roundId), eq(selectionRoundReveals.userId, userId))).limit(1);
+  const reactionRows = await tx.select({ reaction: selectionRoundReactions.reaction, userId: selectionRoundReactions.userId }).from(selectionRoundReactions).where(eq(selectionRoundReactions.roundId, roundId));
+  const counts = new Map<string, number>();
+  reactionRows.forEach((row) => counts.set(row.reaction, (counts.get(row.reaction) ?? 0) + 1));
+  const reactions = ['love', 'excited', 'curious'].map((reaction) => ({ reaction, count: counts.get(reaction) ?? 0, mine: reactionRows.some((row) => row.userId === userId && row.reaction === reaction) }));
+  const winner = order[winnerIndex] ? { ...order[winnerIndex].movie, nominationId: order[winnerIndex].nominationId, nominatedBy: order[winnerIndex].nominatedBy } : null;
+  return { roundId, winnerIndex, seed: round.spinSeed, order, winner, revealed: Boolean(reveal), reactions };
+}
+
+export async function getWheelRevealState(roundId: string, userId: string): Promise<Pick<WheelRevealPayload, 'roundId' | 'revealed' | 'reactions'> & { spun: boolean; winner: WheelRevealPayload['winner'] }> {
+  const round = await loadRound(roundId);
+  await requireMembership(round.clubId, userId, 'member');
+  const [reveal] = await db.select().from(selectionRoundReveals).where(and(eq(selectionRoundReveals.roundId, roundId), eq(selectionRoundReveals.userId, userId))).limit(1);
+  if (!round.winnerNominationId || !round.spinSeed) return { roundId, spun: false, revealed: false, winner: null, reactions: [] };
+  const payload = await buildWheelRevealPayload(roundId, userId);
+  return { roundId, spun: true, revealed: Boolean(reveal), winner: payload.revealed ? payload.winner : null, reactions: payload.revealed ? payload.reactions : [] };
+}
+
+export async function beginWheelReveal(roundId: string, userId: string): Promise<WheelRevealPayload> {
+  return buildWheelRevealPayload(roundId, userId);
+}
+
+export async function completeWheelReveal(roundId: string, userId: string, method: WheelRevealMethod): Promise<void> {
+  const round = await loadRound(roundId);
+  await requireMembership(round.clubId, userId, 'member');
+  if (round.mode !== 'wheel' || !round.winnerNominationId) throw new ConflictError('This wheel is not ready to reveal.');
+  await db.insert(selectionRoundReveals).values({ roundId, userId, method }).onConflictDoNothing();
+}
+
+export async function setRoundReaction(roundId: string, userId: string, reaction: string | null): Promise<void> {
+  const round = await loadRound(roundId);
+  await requireMembership(round.clubId, userId, 'member');
+  if (!round.winnerNominationId) throw new ConflictError('Reveal the selected movie before reacting.');
+  const [reveal] = await db.select({ userId: selectionRoundReveals.userId })
+    .from(selectionRoundReveals)
+    .where(and(eq(selectionRoundReveals.roundId, roundId), eq(selectionRoundReveals.userId, userId)))
+    .limit(1);
+  if (!reveal) throw new ConflictError('Reveal the selected movie before reacting.');
+  if (reaction === null) {
+    await db.delete(selectionRoundReactions).where(and(eq(selectionRoundReactions.roundId, roundId), eq(selectionRoundReactions.userId, userId)));
+    return;
+  }
+  if (!['love', 'excited', 'curious'].includes(reaction)) throw new ValidationError('Choose a supported reaction.');
+  await db.insert(selectionRoundReactions).values({ roundId, userId, reaction, updatedAt: new Date() }).onConflictDoUpdate({ target: [selectionRoundReactions.roundId, selectionRoundReactions.userId], set: { reaction, updatedAt: new Date() } });
 }
 
 export async function cancelRound(roundId: string, userId: string): Promise<void> {
@@ -1192,9 +1380,9 @@ export async function getRoundNominations(
     .orderBy(totalsVisible ? desc(nominations.voteCount) : asc(nominations.createdAt));
 
   const activeMembers = await db
-    .select({ userId: clubMembers.userId })
-    .from(clubMembers)
-    .where(and(eq(clubMembers.clubId, round.clubId), eq(clubMembers.status, 'active')));
+    .select({ userId: selectionRoundParticipants.userId })
+    .from(selectionRoundParticipants)
+    .where(and(eq(selectionRoundParticipants.roundId, round.id), eq(selectionRoundParticipants.participating, true)));
   const activeMemberIds = new Set(activeMembers.map((member) => member.userId));
   const memberPickCounts = rows.reduce<Record<string, number>>((counts, row) => {
     if (activeMemberIds.has(row.userId)) counts[row.userId] = (counts[row.userId] ?? 0) + 1;
@@ -1320,7 +1508,7 @@ export async function createScreeningPoll(input: {
   timezone: string;
   startsAt: Date[];
 }): Promise<string> {
-  await requireMembership(input.clubId, input.userId, 'admin');
+  await requireClubPermission(input.clubId, input.userId, 'edit_movie_night');
   const round = await loadRound(input.roundId);
   if (round.clubId !== input.clubId || round.status !== 'winner_selected' || !round.winnerNominationId) {
     throw new ConflictError('Choose a winning film before asking for availability.');
@@ -1391,7 +1579,7 @@ export async function respondToScreeningPoll(input: {
 export async function cancelScreeningPoll(pollId: string, userId: string): Promise<void> {
   const [poll] = await db.select().from(screeningPolls).where(eq(screeningPolls.id, pollId)).limit(1);
   if (!poll) throw new NotFoundError('That availability poll no longer exists.');
-  await requireMembership(poll.clubId, userId, 'admin');
+  await requireClubPermission(poll.clubId, userId, 'edit_movie_night');
   await db
     .update(screeningPolls)
     .set({ status: 'cancelled', closedAt: new Date() })
@@ -1414,7 +1602,7 @@ async function scheduleScreeningRecord(
   input: ScheduleScreeningInput,
   tx: DbOrTx,
 ): Promise<Screening> {
-  await requireMembership(input.clubId, input.userId, 'admin', tx);
+  await requireClubPermission(input.clubId, input.userId, 'edit_movie_night', tx);
   if (input.roundId) {
     const round = await loadRound(input.roundId, tx);
     assertTransition(round.status, 'screening_scheduled');
@@ -1470,7 +1658,7 @@ export async function confirmScreeningPollOption(input: {
     .where(and(eq(screeningPolls.id, input.pollId), eq(screeningPollOptions.id, input.optionId)))
     .limit(1);
   if (!candidate) throw new NotFoundError('That time is no longer available.');
-  await requireMembership(candidate.poll.clubId, input.userId, 'admin');
+  await requireClubPermission(candidate.poll.clubId, input.userId, 'edit_movie_night');
 
   return db.transaction(async (tx) => {
     const [claimed] = await tx
@@ -1507,7 +1695,7 @@ export async function updateScreening(
   }>,
 ): Promise<Screening> {
   const screening = await getScreeningById(screeningId);
-  await requireMembership(screening.clubId, userId, 'admin');
+  await requireClubPermission(screening.clubId, userId, 'edit_movie_night');
   const [updated] = await db
     .update(screenings)
     .set(patch)
@@ -1518,7 +1706,7 @@ export async function updateScreening(
 
 export async function cancelScreening(screeningId: string, userId: string): Promise<void> {
   const screening = await getScreeningById(screeningId);
-  await requireMembership(screening.clubId, userId, 'admin');
+  await requireClubPermission(screening.clubId, userId, 'edit_movie_night');
   await db.transaction(async (tx) => {
     await tx
       .update(screenings)
@@ -2132,7 +2320,7 @@ export type ClubPulse = {
     pickCount: number;
     voteCount: number;
     picksClosedAt: string | null;
-    winnerNominationId: string | null;
+    hasWinner: boolean;
   } | null;
   screening: {
     id: string;
@@ -2228,7 +2416,7 @@ export async function getClubPulse(clubId: string, screeningId?: string | null):
           pickCount: Number(pickCountRow?.[0]?.value ?? 0),
           voteCount: Number(voteCountRow?.[0]?.value ?? 0),
           picksClosedAt: round.picksClosedAt?.toISOString() ?? null,
-          winnerNominationId: round.winnerNominationId,
+          hasWinner: Boolean(round.winnerNominationId),
         }
       : null,
     screening: screening
@@ -2981,6 +3169,7 @@ export type ClubActivityItem = {
   type:
     | 'club_member_joined'
     | 'club_movie_picked'
+    | 'club_pick_deadline_extended'
     | 'club_movie_selected'
     | 'club_screening_scheduled'
     | 'club_screening_rsvp'
@@ -2996,13 +3185,11 @@ export type ClubActivityItem = {
 };
 
 /** A deliberately small, member-only pulse of the things that move a club forward. */
-export async function getClubActivity(clubId: string, limit = 8): Promise<ClubActivityItem[]> {
-  const [active] = await db
-    .select()
-    .from(selectionRounds)
-    .where(and(eq(selectionRounds.clubId, clubId), eq(selectionRounds.status, 'nominations_open')))
-    .orderBy(desc(selectionRounds.createdAt))
-    .limit(1);
+export async function getClubActivity(clubId: string, limit = 8, viewerId: string | null = null): Promise<ClubActivityItem[]> {
+  const active = await getActiveRound(clubId);
+  const revealedRoundIds = viewerId
+    ? new Set((await db.select({ roundId: selectionRoundReveals.roundId }).from(selectionRoundReveals).where(eq(selectionRoundReveals.userId, viewerId))).map((row) => row.roundId))
+    : new Set<string>();
   const rows = await db
     .select({ event: activityEvents, username: users.username, displayName: users.displayName, avatarAssetId: users.avatarAssetId, movie: movies, screening: screenings })
     .from(activityEvents)
@@ -3015,6 +3202,7 @@ export async function getClubActivity(clubId: string, limit = 8): Promise<ClubAc
         inArray(activityEvents.type, [
           'club_member_joined',
           'club_movie_picked',
+          'club_pick_deadline_extended',
           'club_movie_selected',
           'club_screening_scheduled',
           'club_screening_rsvp',
@@ -3027,22 +3215,35 @@ export async function getClubActivity(clubId: string, limit = 8): Promise<ClubAc
     .orderBy(desc(activityEvents.createdAt))
     .limit(limit);
 
-  return rows.map((row) => ({
-    id: row.event.id,
-    type: row.event.type as ClubActivityItem['type'],
-    createdAt: row.event.createdAt,
-    actor: { username: row.username, displayName: row.displayName, avatarAssetId: row.avatarAssetId },
-    movie: row.movie ? { slug: row.movie.slug, title: row.movie.title, year: row.movie.year } : null,
-    screeningId: row.event.screeningId,
-    hideMovie:
-      row.event.type === 'club_movie_picked' &&
-      active?.id === row.event.metadata.roundId &&
-      !active.picksClosedAt,
-    finalAverage:
-      row.event.type === 'club_ratings_revealed' && row.screening && row.screening.groupRatingCount
-        ? row.screening.groupRatingSum / row.screening.groupRatingCount
-        : null,
-  }));
+  const attributedIds = [...new Set(rows
+    .filter((row) => row.event.type === 'club_movie_picked' && row.event.targetUserId)
+    .map((row) => row.event.targetUserId as string))];
+  const attributed = attributedIds.length
+    ? await db.select({ id: users.id, username: users.username, displayName: users.displayName, avatarAssetId: users.avatarAssetId })
+      .from(users).where(inArray(users.id, attributedIds))
+    : [];
+  const attributedById = new Map(attributed.map((user) => [user.id, user]));
+
+  return rows.map((row) => {
+    const hideMovie =
+      row.event.type === 'club_movie_picked' && active?.id === row.event.metadata.roundId && !active?.picksClosedAt
+        || row.event.type === 'club_movie_selected' && typeof row.event.metadata.roundId === 'string' && !revealedRoundIds.has(row.event.metadata.roundId);
+    return {
+      id: row.event.id,
+      type: row.event.type as ClubActivityItem['type'],
+      createdAt: row.event.createdAt,
+      actor: row.event.type === 'club_movie_picked' && row.event.targetUserId && attributedById.get(row.event.targetUserId)
+        ? attributedById.get(row.event.targetUserId)!
+        : { username: row.username, displayName: row.displayName, avatarAssetId: row.avatarAssetId },
+      movie: !hideMovie && row.movie ? { slug: row.movie.slug, title: row.movie.title, year: row.movie.year } : null,
+      screeningId: row.event.screeningId,
+      hideMovie,
+      finalAverage:
+        row.event.type === 'club_ratings_revealed' && row.screening && row.screening.groupRatingCount
+          ? row.screening.groupRatingSum / row.screening.groupRatingCount
+          : null,
+    };
+  });
 }
 
 /* -------------------------------------------------------------------------- */

@@ -78,6 +78,13 @@
       "when": 1788150000000,
       "tag": "0010_network",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788420000000,
+      "tag": "0011_movie_club_ritual",
+      "breakpoints": true
     }
   ]
 }

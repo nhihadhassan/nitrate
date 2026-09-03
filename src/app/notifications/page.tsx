@@ -24,6 +24,7 @@ const LABELS: Record<string, string> = {
   club_nominations_opened: 'started choosing the next movie',
   club_voting_opened: 'opened voting',
   club_voting_ending: 'voting is closing soon',
+  club_pick_deadline_extended: 'extended the pick deadline',
   club_winner_selected: 'a film was chosen',
   club_screening_scheduled: 'scheduled a movie night',
   club_screening_reminder: 'movie night is coming up',

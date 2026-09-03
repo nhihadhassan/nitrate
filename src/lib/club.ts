@@ -70,6 +70,10 @@ export type ClubStageInput = {
   hasRespondedToPoll?: boolean;
   /** At least one member has responded to the poll. */
   pollHasResponses?: boolean;
+  /** A wheel outcome exists for this viewer's current round. */
+  wheelSpun?: boolean;
+  /** The viewer has completed their personal wheel reveal. */
+  wheelRevealed?: boolean;
 };
 
 export type ClubState = {
@@ -100,6 +104,8 @@ export function resolveClubState(input: ClubStageInput): ClubState {
     pollStatus = null,
     hasRespondedToPoll = false,
     pollHasResponses = false,
+    wheelSpun = false,
+    wheelRevealed = false,
   } = input;
 
   if (awaitingViewerRating) {
@@ -167,6 +173,14 @@ export function resolveClubState(input: ClubStageInput): ClubState {
         next: 'An admin closes voting to reveal the winner.',
       };
     case 'winner_selected':
+      if (roundMode === 'wheel' && wheelSpun && !wheelRevealed) {
+        return {
+          stage: 'reveal',
+          headline: 'The wheel has been spun. Reveal your club’s pick.',
+          youNeedTo: 'Reveal the result',
+          next: 'Your reveal is personal — the rest of the club can keep planning movie night.',
+        };
+      }
       if (pollStatus === 'open') {
         return {
           stage: 'reveal',
@@ -216,7 +230,7 @@ export function resolveClubState(input: ClubStageInput): ClubState {
 }
 
 export type ClubDashboardView = {
-  kind: 'join' | 'rate' | 'screening' | 'pick' | 'wheel' | 'vote' | 'schedule' | 'new' | 'waiting';
+  kind: 'join' | 'rate' | 'screening' | 'pick' | 'wheel' | 'reveal' | 'vote' | 'schedule' | 'new' | 'waiting';
   eyebrow: string;
   title: string;
   detail: string | null;
@@ -235,6 +249,8 @@ export function deriveClubDashboardView(input: {
   memberCount: number;
   winnerTitle?: string | null;
   upcomingTitle?: string | null;
+  wheelSpun?: boolean;
+  wheelRevealed?: boolean;
 }): ClubDashboardView {
   if (!input.isMember) return { kind: 'join', eyebrow: 'Movie Club', title: 'Watch with this group', detail: 'Join to see picks, votes and movie nights.', actionLabel: 'Join club' };
   if (input.state.stage === 'rate') return { kind: 'rate', eyebrow: 'After movie night', title: 'How was it?', detail: 'Rate the film to reveal the group score.', actionLabel: 'Rate the film' };
@@ -243,6 +259,9 @@ export function deriveClubDashboardView(input: {
     if (input.roundMode === 'wheel' && input.picksReady) return { kind: 'wheel', eyebrow: 'The picks are in', title: 'Spin the wheel', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: 'Spin the wheel' };
     if (input.picksRemaining > 0) return { kind: 'pick', eyebrow: 'Your turn', title: 'Pick our next movie', detail: `${input.picksRemaining} ${input.picksRemaining === 1 ? 'pick' : 'picks'} left`, actionLabel: 'Choose a movie' };
     return { kind: 'waiting', eyebrow: 'Picking movies', title: 'Your pick is in', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: null };
+  }
+  if (input.roundMode === 'wheel' && input.roundStatus === 'winner_selected' && input.wheelSpun && !input.wheelRevealed) {
+    return { kind: 'reveal', eyebrow: 'The wheel has spoken', title: 'Reveal this week’s movie', detail: 'Your reveal is ready when you are.', actionLabel: 'Reveal the movie' };
   }
   if (input.roundStatus === 'voting_open') return { kind: 'vote', eyebrow: input.state.youNeedTo ? 'Your turn' : 'Voting now', title: 'Time to vote', detail: input.state.youNeedTo ? 'Choose the film you want to watch.' : 'Your vote is in.', actionLabel: input.state.youNeedTo ? 'Vote now' : null };
   if (input.roundStatus === 'winner_selected') return { kind: 'schedule', eyebrow: 'We have a winner', title: input.winnerTitle ? `We're watching ${input.winnerTitle}` : 'Choose a date', detail: input.isAdmin ? 'Set the night or ask when everyone is free.' : 'An admin is choosing the date.', actionLabel: input.isAdmin ? 'Choose a date' : null };

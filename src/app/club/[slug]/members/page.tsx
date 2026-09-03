@@ -4,7 +4,7 @@ import { ClubInvitePanel } from '@/components/club/invite-panel';
 import { MemberList } from '@/components/club/member-list';
 import { SectionHeading } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getClubMembers, getMembership } from '@/server/services/clubs';
+import { getClubBySlug, getClubMembers, getClubPermissionMap, getClubPermissions, getMembership } from '@/server/services/clubs';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,13 +17,15 @@ export default async function ClubMembersPage({ params }: { params: Promise<{ sl
   const membership = await getMembership(club.id, user?.id ?? null);
   const isMember = membership?.status === 'active';
   const members = await getClubMembers(club.id);
+  const permissionsByUserId = membership?.role === 'owner' ? await getClubPermissionMap(club.id) : {};
+  const viewerPermissions = user && isMember ? await getClubPermissions(club.id, user.id) : new Set();
 
   return (
     <div className="max-w-2xl space-y-8">
       {isMember ? (
         <section>
           <SectionHeading title="Invite someone" />
-          <ClubInvitePanel clubId={club.id} clubName={club.name} inviteCode={club.inviteCode} />
+          <ClubInvitePanel clubId={club.id} clubName={club.name} inviteCode={club.inviteCode} canInvite={viewerPermissions.has('invite_members')} />
         </section>
       ) : null}
 
@@ -41,6 +43,7 @@ export default async function ClubMembersPage({ params }: { params: Promise<{ sl
             role: member.role,
             filmCount: member.filmCount,
           }))}
+          permissionsByUserId={permissionsByUserId}
         />
       </section>
     </div>

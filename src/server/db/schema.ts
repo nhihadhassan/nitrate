@@ -85,6 +85,7 @@ export const activityType = nitrate.enum('activity_type', [
   'club_created',
   'club_member_joined',
   'club_movie_picked',
+  'club_pick_deadline_extended',
   'club_movie_selected',
   'club_screening_scheduled',
   'club_screening_rsvp',
@@ -104,6 +105,7 @@ export const notificationType = nitrate.enum('notification_type', [
   'club_nominations_opened',
   'club_voting_opened',
   'club_voting_ending',
+  'club_pick_deadline_extended',
   'club_winner_selected',
   'club_screening_scheduled',
   'club_screening_reminder',
@@ -967,6 +969,22 @@ export const clubMembers = nitrate.table(
   ],
 );
 
+/** Fine-grained club controls. The text key keeps future permissions additive. */
+export const clubMemberPermissions = nitrate.table(
+  'club_member_permissions',
+  {
+    clubId: uuid('club_id').notNull().references(() => clubs.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    permission: text('permission').notNull(),
+    grantedByUserId: uuid('granted_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.clubId, t.userId, t.permission] }),
+    index('club_member_permissions_user_idx').on(t.clubId, t.userId),
+  ],
+);
+
 export const clubInvites = nitrate.table(
   'club_invites',
   {
@@ -1069,6 +1087,9 @@ export const nominations = nitrate.table(
     nominatedByUserId: uuid('nominated_by_user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    submittedByUserId: uuid('submitted_by_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
     pitch: text('pitch'),
     voteCount: integer('vote_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1079,6 +1100,43 @@ export const nominations = nitrate.table(
     index('nominations_round_idx').on(t.roundId, t.createdAt),
     index('nominations_user_idx').on(t.nominatedByUserId),
   ],
+);
+
+export const selectionRoundParticipants = nitrate.table(
+  'selection_round_participants',
+  {
+    roundId: uuid('round_id').notNull().references(() => selectionRounds.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    participating: boolean('participating').notNull().default(true),
+    updatedByUserId: uuid('updated_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roundId, t.userId] }),
+    index('round_participants_user_idx').on(t.userId),
+  ],
+);
+
+export const selectionRoundReveals = nitrate.table(
+  'selection_round_reveals',
+  {
+    roundId: uuid('round_id').notNull().references(() => selectionRounds.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    method: text('method').$type<'animated' | 'skipped'>().notNull(),
+    revealedAt: timestamp('revealed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.roundId, t.userId] })],
+);
+
+export const selectionRoundReactions = nitrate.table(
+  'selection_round_reactions',
+  {
+    roundId: uuid('round_id').notNull().references(() => selectionRounds.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+    reaction: text('reaction').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.roundId, t.userId] })],
 );
 
 export const votes = nitrate.table(
@@ -1659,9 +1717,13 @@ export type List = typeof lists.$inferSelect;
 export type ListItem = typeof listItems.$inferSelect;
 export type Club = typeof clubs.$inferSelect;
 export type ClubMember = typeof clubMembers.$inferSelect;
+export type ClubMemberPermission = typeof clubMemberPermissions.$inferSelect;
 export type ClubQueueItem = typeof clubQueueItems.$inferSelect;
 export type SelectionRound = typeof selectionRounds.$inferSelect;
 export type Nomination = typeof nominations.$inferSelect;
+export type SelectionRoundParticipant = typeof selectionRoundParticipants.$inferSelect;
+export type SelectionRoundReveal = typeof selectionRoundReveals.$inferSelect;
+export type SelectionRoundReaction = typeof selectionRoundReactions.$inferSelect;
 export type Vote = typeof votes.$inferSelect;
 export type ScreeningPoll = typeof screeningPolls.$inferSelect;
 export type ScreeningPollOption = typeof screeningPollOptions.$inferSelect;

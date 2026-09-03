@@ -25,14 +25,17 @@ import {
   getClubActivity,
   getClubIntelligence,
   getClubMembers,
+  getClubPermissions,
   getClubQueue,
   getClubStats,
   getMembership,
   getRecentlyCompleted,
   getRoundNominations,
+  getRoundParticipants,
   getScreeningAttendance,
   getScreeningPoll,
   getUpcomingScreening,
+  getWheelRevealState,
 } from '@/server/services/clubs';
 import { getOwnershipMap } from '@/server/services/ownership';
 
@@ -63,16 +66,21 @@ export default async function ClubDashboard({
     getClubStats(club.id, user?.id ?? null),
     getRecentlyCompleted(club.id, 3, user?.id ?? null),
     isMember ? getClubIntelligence(club.id) : Promise.resolve(null),
-    isMember ? getClubActivity(club.id) : Promise.resolve([]),
+    isMember ? getClubActivity(club.id, 8, user?.id ?? null) : Promise.resolve([]),
     isMember && user ? getWatchlistPreview(user.id, 12) : Promise.resolve([]),
   ]);
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
+  const participants = round ? await getRoundParticipants(round.id) : [];
+  const clubPermissions = isMember && user ? await getClubPermissions(club.id, user.id) : new Set();
+  const wheelRevealState = round && isMember && user && round.mode === 'wheel' && round.winnerNominationId
+    ? await getWheelRevealState(round.id, user.id)
+    : null;
   const poll = round && isMember && user ? await getScreeningPoll(round.id, user.id) : null;
   const pickCounts = new Map<string, number>();
   Object.entries(nominations?.memberPickCounts ?? {}).forEach(([memberId, count]) => pickCounts.set(memberId, count));
   const allMembersPicked = Boolean(
-    round && members.length && members.every((member) => (pickCounts.get(member.id) ?? 0) >= round.nominationLimitPerMember),
+    round && participants.some((participant) => participant.participating) && participants.filter((participant) => participant.participating).every((participant) => (pickCounts.get(participant.userId) ?? 0) >= round.nominationLimitPerMember),
   );
   const picksExpired = Boolean(
     round?.status === 'nominations_open' &&
@@ -80,8 +88,8 @@ export default async function ClubDashboard({
       round.nominationsCloseAt.getTime() <= Date.now(),
   );
   const picksClosed = Boolean(round?.picksClosedAt);
-  const canAdvanceFromPicks = allMembersPicked || picksClosed;
-  const readyMembers = members.filter((member) => (pickCounts.get(member.id) ?? 0) >= (round?.nominationLimitPerMember ?? 1)).length;
+  const canAdvanceFromPicks = allMembersPicked || picksClosed || (picksExpired && (nominations?.nominationCount ?? 0) >= 2);
+  const readyMembers = participants.filter((participant) => participant.participating && (pickCounts.get(participant.userId) ?? 0) >= (round?.nominationLimitPerMember ?? 1)).length;
   const currentUserPickCount = nominations?.nominations.filter((nomination) => nomination.nominatedBy.id === user?.id).length ?? 0;
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
@@ -109,8 +117,12 @@ export default async function ClubDashboard({
     pollHasResponses: Boolean(
       poll?.options.some((option) => option.yes + option.maybe + option.no > 0),
     ),
+    wheelSpun: Boolean(round?.mode === 'wheel' && round.winnerNominationId),
+    wheelRevealed: Boolean(wheelRevealState?.revealed),
   });
-  const winner = round?.winnerNominationId
+  const viewerCanSeeWheelWinner = !round || round.mode !== 'wheel' || !round.winnerNominationId || Boolean(wheelRevealState?.revealed) || clubPermissions.has('edit_movie_night');
+  const canEditMovieNight = isMember && clubPermissions.has('edit_movie_night');
+  const winner = viewerCanSeeWheelWinner && round?.winnerNominationId
     ? nominations?.nominations.find((nomination) => nomination.id === round.winnerNominationId) ?? null
     : null;
   const dueRating = completed.find((entry) => !entry.viewerRated) ?? null;
@@ -125,11 +137,15 @@ export default async function ClubDashboard({
     readyMembers,
     memberCount: members.length,
     winnerTitle: winner?.movie.title,
-    upcomingTitle: upcoming?.movie.title,
+    upcomingTitle: viewerCanSeeWheelWinner ? upcoming?.movie.title : null,
+    wheelSpun: Boolean(round?.mode === 'wheel' && round.winnerNominationId),
+    wheelRevealed: Boolean(wheelRevealState?.revealed),
   });
-  const heroMovie = upcoming?.movie ?? winner?.movie ?? dueRating?.movie ?? null;
+  const heroMovie = (viewerCanSeeWheelWinner ? upcoming?.movie : null) ?? winner?.movie ?? dueRating?.movie ?? null;
   const heroActionHref = dashboardView.kind === 'screening' && upcoming
     ? `/club/${club.slug}/screening/${upcoming.screening.id}`
+    : dashboardView.kind === 'reveal' && round
+      ? `/club/${club.slug}/reveal/${round.id}`
     : dashboardView.kind === 'rate' && dueRating
       ? `/club/${club.slug}/screening/${dueRating.screening.id}`
       : dashboardView.kind === 'join'
@@ -146,15 +162,15 @@ export default async function ClubDashboard({
           view={dashboardView}
           movie={heroMovie}
           actionHref={heroActionHref}
-          dateLabel={upcoming ? formatDateTimeInZone(upcoming.screening.scheduledAt, upcoming.screening.timezone) : null}
-          location={upcoming?.screening.location}
+          dateLabel={viewerCanSeeWheelWinner && upcoming ? formatDateTimeInZone(upcoming.screening.scheduledAt, upcoming.screening.timezone) : null}
+          location={viewerCanSeeWheelWinner ? upcoming?.screening.location : null}
           going={going}
         />
 
         {/* Current decision */}
         {round && nominations ? (
           <section id="club-decision" className="scroll-mt-24">
-            {isAdmin ? (
+            {isAdmin || clubPermissions.has('extend_submission_deadline') || clubPermissions.has('start_wheel') ? (
               <div className="mb-4 flex justify-end">
                 <RoundControls
                   clubId={club.id}
@@ -166,6 +182,9 @@ export default async function ClubDashboard({
                   allMembersPicked={allMembersPicked}
                   picksExpired={picksExpired}
                   picksClosed={picksClosed}
+                  isAdmin={isAdmin}
+                  canExtendDeadline={clubPermissions.has('extend_submission_deadline')}
+                  canStartWheel={clubPermissions.has('start_wheel')}
                 />
               </div>
             ) : null}
@@ -177,6 +196,9 @@ export default async function ClubDashboard({
                 roundId={round.id}
                 mode={round.mode}
                 justJoined={welcome === 'joined'}
+                viewerId={user?.id ?? null}
+                canSubmitForOthers={clubPermissions.has('submit_picks_for_others')}
+                participating={participants.find((participant) => participant.userId === user?.id)?.participating ?? true}
                 limit={round.nominationLimitPerMember}
                 nominations={nominations.nominations.map((n) => ({
                   id: n.id,
@@ -231,11 +253,12 @@ export default async function ClubDashboard({
               <div className="mt-6">
                 <WheelPanel
                   clubId={club.id}
+                  clubSlug={club.slug}
                   roundId={round.id}
-                  canSpin={isMember && round.status === 'nominations_open' && canAdvanceFromPicks}
+                  canSpin={clubPermissions.has('start_wheel') && round.status === 'nominations_open' && canAdvanceFromPicks}
                   allMembersPicked={canAdvanceFromPicks}
-                  alreadySpunWinnerId={round.winnerNominationId}
-                  contenders={nominations.nominations.map((n) => ({
+                  spun={Boolean(round.winnerNominationId)}
+                  contenders={(!round.winnerNominationId || viewerCanSeeWheelWinner) ? nominations.nominations.map((n) => ({
                     nominationId: n.id,
                     pitch: n.pitch,
                     nominatedBy: n.nominatedBy,
@@ -246,7 +269,7 @@ export default async function ClubDashboard({
                       posterPath: n.movie.posterPath,
                       runtime: n.movie.runtime,
                     },
-                  }))}
+                  })) : []}
                 />
               </div>
             ) : null}
@@ -281,7 +304,7 @@ export default async function ClubDashboard({
               />
             ) : null}
 
-            {round.status === 'winner_selected' && isAdmin && nominations.nominations.length ? (
+            {round.status === 'winner_selected' && canEditMovieNight && viewerCanSeeWheelWinner && nominations.nominations.length ? (
               <div id="club-schedule" className="mt-6 scroll-mt-24">
                 <ScheduleMovieNightSheet
                   clubId={club.id}
@@ -301,7 +324,7 @@ export default async function ClubDashboard({
                 />
               </div>
             ) : null}
-            {round.status === 'winner_selected' && isMember && !isAdmin && poll ? (
+            {round.status === 'winner_selected' && isMember && !canEditMovieNight && poll ? (
               <div className="mt-6">
                 <ScreeningPoll
                   clubId={club.id}
@@ -418,6 +441,7 @@ export default async function ClubDashboard({
               clubName={club.name}
               inviteCode={club.inviteCode}
               compact
+              canInvite={clubPermissions.has('invite_members')}
             />
           </div>
         ) : null}
@@ -542,6 +566,7 @@ function ClubActivity({
   const verb: Record<(typeof activity)[number]['type'], string> = {
     club_member_joined: 'joined the club',
     club_movie_picked: 'made their pick',
+    club_pick_deadline_extended: 'extended the pick deadline',
     club_movie_selected: 'selected',
     club_screening_scheduled: 'scheduled movie night for',
     club_screening_rsvp: 'is going to',

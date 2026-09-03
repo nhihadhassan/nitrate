@@ -1,13 +1,23 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { Fragment, useState, useTransition } from 'react';
 
 import { Badge } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { UserChip } from '@/components/user/avatar';
 import { pluralize } from '@/lib/utils';
-import { moderateMemberAction } from '@/server/actions/clubs';
+import { moderateMemberAction, setClubMemberPermissionsAction } from '@/server/actions/clubs';
+
+const PERMISSIONS = [
+  ['extend_submission_deadline', 'Extend deadline'],
+  ['start_wheel', 'Start the wheel'],
+  ['submit_picks_for_others', 'Pick for others'],
+  ['edit_movie_night', 'Edit movie night'],
+  ['invite_members', 'Invite members'],
+  ['remove_members', 'Remove members'],
+  ['manage_weekly_participation', 'Manage weekly participation'],
+] as const;
 
 type Member = {
   id: string;
@@ -27,16 +37,19 @@ export function MemberList({
   viewerId,
   viewerRole,
   members,
+  permissionsByUserId = {},
 }: {
   clubId: string;
   viewerId: string | null;
   viewerRole: 'owner' | 'admin' | 'member' | null;
   members: Member[];
+  permissionsByUserId?: Record<string, string[]>;
 }) {
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
   const [openFor, setOpenFor] = useState<string | null>(null);
+  const [permissionsFor, setPermissionsFor] = useState<string | null>(null);
 
   function run(userId: string, action: 'promote' | 'demote' | 'remove' | 'ban' | 'transfer') {
     setOpenFor(null);
@@ -64,7 +77,8 @@ export function MemberList({
               : [];
 
         return (
-          <li key={member.id} className="flex items-center gap-3 px-3 py-2.5">
+          <Fragment key={member.id}>
+          <li className="flex items-center gap-3 px-3 py-2.5">
             <UserChip
               user={member}
               size="md"
@@ -110,7 +124,23 @@ export function MemberList({
                 ) : null}
               </div>
             ) : null}
+            {viewerRole === 'owner' && member.role !== 'owner' ? (
+              <button type="button" className="min-h-11 rounded-md px-2 text-xs text-muted hover:bg-surface-hover hover:text-text" onClick={() => setPermissionsFor(permissionsFor === member.id ? null : member.id)}>
+                Permissions
+              </button>
+            ) : null}
           </li>
+          {permissionsFor === member.id && viewerRole === 'owner' ? (
+            <li className="border-t border-line bg-surface/40 px-3 py-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {PERMISSIONS.map(([permission, label]) => {
+                  const checked = permissionsByUserId[member.id]?.includes(permission) ?? false;
+                  return <label key={permission} className="flex min-h-11 items-center gap-2 text-xs text-muted"><input type="checkbox" defaultChecked={checked} onChange={(event) => { const next = new Set(permissionsByUserId[member.id] ?? []); if (event.target.checked) next.add(permission); else next.delete(permission); startTransition(async () => { const result = await setClubMemberPermissionsAction({ clubId, userId: member.id, permissions: [...next] }); if (!result.ok) toast({ message: result.error, tone: 'error' }); else toast({ message: 'Permissions updated', tone: 'success' }); }); }} className="h-4 w-4 accent-[var(--iris)]" />{label}</label>;
+                })}
+              </div>
+            </li>
+          ) : null}
+          </Fragment>
         );
       })}
     </ul>

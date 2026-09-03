@@ -20,11 +20,13 @@ export function ClubInvitePanel({
   clubName,
   inviteCode,
   compact,
+  canInvite = true,
 }: {
   clubId: string;
   clubName: string;
   inviteCode: string;
   compact?: boolean;
+  canInvite?: boolean;
 }) {
   const toast = useToast();
   const [link, setLink] = useState<string | null>(null);
@@ -37,6 +39,8 @@ export function ClubInvitePanel({
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
   const standingUrl = origin ? `${origin}/join/${inviteCode}` : `/join/${inviteCode}`;
+
+  if (!canInvite) return null;
 
   async function copy(value: string) {
     try {

@@ -15,8 +15,10 @@ import { Avatar, UserChip } from '@/components/user/avatar';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import {
   nominateAction,
+  nominateForMemberAction,
   replaceNominationAction,
   withdrawNominationAction,
+  setRoundParticipationAction,
 } from '@/server/actions/clubs';
 
 type Person = {
@@ -54,6 +56,9 @@ export function NominatePanel({
   suggestions,
   pickingOpen = true,
   showContenders = false,
+  canSubmitForOthers = false,
+  viewerId,
+  participating = true,
 }: {
   clubId: string;
   clubSlug: string;
@@ -68,9 +73,13 @@ export function NominatePanel({
   suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reasons: RecommendationReason[] }[];
   pickingOpen?: boolean;
   showContenders?: boolean;
+  canSubmitForOthers?: boolean;
+  viewerId: string | null;
+  participating?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
+  const [proxyTarget, setProxyTarget] = useState<Person & { pickCount: number } | null>(null);
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
@@ -83,6 +92,7 @@ export function NominatePanel({
 
   function openPicker(replaceId?: string) {
     setReplacingId(replaceId ?? null);
+    setProxyTarget(null);
     setOpen(true);
   }
 
@@ -112,6 +122,22 @@ export function NominatePanel({
                   ? `Everyone gets ${limit === 1 ? 'one pick' : `up to ${limit} picks`}. Once everyone has chosen, ${decision}.`
                   : 'Picks are closed while the club decides what happens next.'}
             </p>
+
+            {viewerId ? (
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => startTransition(async () => {
+                  const result = await setRoundParticipationAction({ roundId, clubId, userId: viewerId, participating: !participating });
+                  if (!result.ok) return toast({ message: result.error, tone: 'error' });
+                  toast({ message: participating ? 'You are out for this week.' : 'You are back in for this week.', tone: 'success' });
+                  router.refresh();
+                })}
+                className="mt-3 min-h-11 text-xs text-muted underline underline-offset-2 hover:text-iris sm:min-h-0"
+              >
+                {participating ? 'Not joining this week?' : 'Join this week'}
+              </button>
+            ) : null}
 
             {mine.length ? (
               <ul className="mt-4 space-y-2">
@@ -154,6 +180,18 @@ export function NominatePanel({
               <Button variant="iris" size="lg" className="mt-4 w-full justify-center sm:w-auto" onClick={() => openPicker()}>
                 {mine.length ? 'Pick another movie' : 'Pick your movie'}
               </Button>
+            ) : null}
+            {canSubmitForOthers && pickingOpen ? (
+              <div className="mt-4 rounded-lg border border-line bg-canvas-raised/50 p-3">
+                <p className="text-xs text-dim">Helping someone join this week?</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {members.filter((member) => member.id !== viewerId && member.pickCount < limit).map((member) => (
+                    <button key={member.id} type="button" className="min-h-11 rounded-full border border-line px-3 text-xs text-muted hover:border-iris hover:text-text" onClick={() => { setProxyTarget(member); setReplacingId(null); setOpen(true); }}>
+                      Add a pick for {member.displayName}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : null}
           </div>
 
@@ -220,6 +258,7 @@ export function NominatePanel({
           queue={queue}
           watchlist={watchlist}
           suggestions={suggestions}
+          nominatedFor={proxyTarget}
           onClose={() => setOpen(false)}
         />
       ) : null}
@@ -235,6 +274,7 @@ function PickMovieSheet({
   queue,
   watchlist,
   suggestions,
+  nominatedFor,
   onClose,
 }: {
   clubId: string;
@@ -244,6 +284,7 @@ function PickMovieSheet({
   queue: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
   watchlist: { movieId: string; title: string; year: number | null; posterPath: string | null }[];
   suggestions: { movieId: string; title: string; year: number | null; posterPath: string | null; reasons: RecommendationReason[] }[];
+  nominatedFor: (Person & { pickCount: number }) | null;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -257,7 +298,7 @@ function PickMovieSheet({
     <Sheet
       open
       onClose={onClose}
-      title={replacingId ? 'Change your pick' : 'Pick your movie'}
+      title={replacingId ? 'Change your pick' : nominatedFor ? `Pick for ${nominatedFor.displayName}` : 'Pick your movie'}
       description="Pick from Movie Ideas, your watchlist, or a film the group already wants."
       footer={film ? (
         <div className="flex justify-end gap-2">
@@ -271,6 +312,8 @@ function PickMovieSheet({
                 const input = { roundId, clubId, movieId: film.movieId, providerId: film.providerId, pitch: pitch.trim() || null };
                 const result = replacingId
                   ? await replaceNominationAction({ ...input, nominationId: replacingId })
+                  : nominatedFor
+                    ? await nominateForMemberAction({ ...input, nominatedForUserId: nominatedFor.id })
                   : await nominateAction(input);
                 if (!result.ok) {
                   setError(result.error);

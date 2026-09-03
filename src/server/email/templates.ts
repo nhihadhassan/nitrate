@@ -85,33 +85,23 @@ export type WheelWinnerPayload = {
 
 export function wheelWinnerEmail(payload: WheelWinnerPayload): OutboundEmail {
   const url = `${env.siteUrl}/club/${payload.clubSlug}`;
-  const yearSuffix = payload.movieYear ? ` (${payload.movieYear})` : '';
-  const title = `${payload.movieTitle}${yearSuffix}`;
-
   const bodyHtml = `
-    <p style="margin:0 0 14px;">The wheel has spoken in <strong style="color:#f4f4f5;">${escapeHtml(payload.clubName)}</strong>.</p>
-    <p style="margin:0 0 14px;">
-      Out of ${payload.contenderCount} picks, this week's film is
-      <strong style="color:#f4f4f5;">${escapeHtml(title)}</strong>${
-        payload.runtime ? ` — ${escapeHtml(payload.runtime)}` : ''
-      }.
-    </p>
-    <p style="margin:0;">Picked by ${escapeHtml(payload.nominatedBy)}. Nobody chose it — the wheel did.</p>`;
+    <p style="margin:0 0 14px;">The wheel has been spun in <strong style="color:#f4f4f5;">${escapeHtml(payload.clubName)}</strong>.</p>
+    <p style="margin:0;">Open Movie Club when you’re ready to reveal this week’s film, chosen from ${payload.contenderCount} picks.</p>`;
 
   const text = [
     `The wheel has spoken in ${payload.clubName}.`,
     ``,
-    `This week's film: ${title}${payload.runtime ? ` — ${payload.runtime}` : ''}`,
-    `Picked by ${payload.nominatedBy}, chosen at random from ${payload.contenderCount} picks.`,
+    `Open Movie Club when you're ready to reveal this week's film, chosen at random from ${payload.contenderCount} picks.`,
     ``,
     `Open the club: ${url}`,
   ].join('\n');
 
   return {
     to: '',
-    subject: `🎬 ${payload.clubName} is watching ${title}`,
+    subject: `🎬 The Movie Club wheel is ready in ${payload.clubName}`,
     html: layout({
-      preheader: `This week's pick is ${title}`,
+      preheader: 'Your Movie Club reveal is ready.',
       heading: 'The wheel has spoken',
       body: bodyHtml,
       ctaLabel: 'Open the club',
