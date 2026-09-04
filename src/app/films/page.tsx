@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
 import { browseFilms, getGenres } from '@/server/services/explore';
@@ -190,7 +191,19 @@ export default async function FilmsPage({
           </nav>
         </>
       ) : (
-        <EmptyState title="Nothing here" description="Try a different decade or genre." />
+        <EmptyState
+          title={result.degraded ? 'Films could not load' : 'No films match these filters'}
+          description={
+            result.degraded
+              ? 'The film database is unavailable and the local catalogue has no results to show.'
+              : 'Clear the filters to return to the popular catalogue.'
+          }
+          action={
+            <Button asChild variant="outline">
+              <Link href="/films">{result.degraded ? 'Try again' : 'Clear filters'}</Link>
+            </Button>
+          }
+        />
       )}
     </Container>
   );

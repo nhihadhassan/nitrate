@@ -813,7 +813,7 @@ select:focus {
 
 /* Hierarchical viewport reveals: the section settles first, then grid items.
    Delays stay tiny, so content never feels queued behind choreography. */
-[data-reveal] {
+[data-motion-ready] [data-reveal] {
   opacity: 0;
   transform: translateY(10px);
   transition:
@@ -821,16 +821,16 @@ select:focus {
     transform 480ms var(--ease-out-expo);
 }
 
-[data-reveal='hero'] {
+[data-motion-ready] [data-reveal='hero'] {
   transform: translateY(7px) scale(0.992);
 }
 
-[data-reveal].is-revealed {
+[data-motion-ready] [data-reveal].is-revealed {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
 
-.poster-grid[data-reveal] > * {
+[data-motion-ready] .poster-grid[data-reveal] > * {
   opacity: 0;
   transform: translateY(10px) scale(0.985);
   transition:
@@ -838,7 +838,7 @@ select:focus {
     transform 440ms var(--ease-out-expo);
 }
 
-.poster-grid[data-reveal].is-revealed > * {
+[data-motion-ready] .poster-grid[data-reveal].is-revealed > * {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
@@ -1024,12 +1024,12 @@ select:focus {
     pointer-events: none;
   }
 
-  [data-reveal] {
+  [data-motion-ready] [data-reveal] {
     transform: translateY(6px);
     transition-duration: 300ms, 340ms;
   }
 
-  .poster-grid[data-reveal] > * {
+  [data-motion-ready] .poster-grid[data-reveal] > * {
     transform: translateY(6px);
     transition-duration: 260ms, 320ms;
   }

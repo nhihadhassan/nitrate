@@ -208,13 +208,16 @@ export default async function HomePage({
                 ))}
               </PosterGrid>
             ) : (
-              <p className="text-sm text-dim">
-                Nothing saved yet.{' '}
-                <Link href="/explore" className="underline underline-offset-2 hover:text-ember">
-                  Find something
-                </Link>
-                .
-              </p>
+              <EmptyState
+                title="Nothing saved yet"
+                description="Films you save will stay close at hand here."
+                className="px-3 py-6 sm:py-7"
+                action={
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/explore">Find a film</Link>
+                  </Button>
+                }
+              />
             )}
           </section>
 
