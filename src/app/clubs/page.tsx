@@ -123,10 +123,10 @@ export default async function ClubsPage() {
       ) : null}
 
       {user ? (
-        <details className="border-t border-line pt-5">
-          <summary className="cursor-pointer text-sm text-muted hover:text-text">How Movie Clubs work</summary>
+        <section className="border-t border-line pt-5" aria-labelledby="club-loop-heading">
+          <h2 id="club-loop-heading" className="text-sm text-muted">How Movie Clubs work</h2>
           <div className="mt-4"><ClubLoopPreview /></div>
-        </details>
+        </section>
       ) : null}
     </Container>
   );

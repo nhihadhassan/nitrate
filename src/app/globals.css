@@ -811,48 +811,26 @@ select:focus {
   animation: nitrate-route-in 260ms var(--ease-out-expo) both;
 }
 
-/* Hierarchical viewport reveals: the section settles first, then grid items.
-   Delays stay tiny, so content never feels queued behind choreography. */
-[data-motion-ready] [data-reveal] {
-  opacity: 0;
-  transform: translateY(10px);
-  transition:
-    opacity 420ms ease,
-    transform 480ms var(--ease-out-expo);
+/* Self-completing entrance treatment. This never relies on JavaScript to make
+   content visible, so a failed observer cannot strand cards at opacity zero. */
+[data-reveal] {
+  animation: nitrate-reveal 420ms var(--ease-out-expo) both;
 }
 
-[data-motion-ready] [data-reveal='hero'] {
-  transform: translateY(7px) scale(0.992);
+.poster-grid[data-reveal] > * {
+  animation: nitrate-reveal 360ms var(--ease-out-expo) both;
 }
 
-[data-motion-ready] [data-reveal].is-revealed {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-[data-motion-ready] .poster-grid[data-reveal] > * {
-  opacity: 0;
-  transform: translateY(10px) scale(0.985);
-  transition:
-    opacity 360ms ease,
-    transform 440ms var(--ease-out-expo);
-}
-
-[data-motion-ready] .poster-grid[data-reveal].is-revealed > * {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.poster-grid.is-revealed > :nth-child(2),
-.poster-grid.is-revealed > :nth-child(7) { transition-delay: 35ms; }
-.poster-grid.is-revealed > :nth-child(3),
-.poster-grid.is-revealed > :nth-child(8) { transition-delay: 65ms; }
-.poster-grid.is-revealed > :nth-child(4),
-.poster-grid.is-revealed > :nth-child(9) { transition-delay: 95ms; }
-.poster-grid.is-revealed > :nth-child(5),
-.poster-grid.is-revealed > :nth-child(10) { transition-delay: 125ms; }
-.poster-grid.is-revealed > :nth-child(6),
-.poster-grid.is-revealed > :nth-child(11) { transition-delay: 155ms; }
+.poster-grid[data-reveal] > :nth-child(2),
+.poster-grid[data-reveal] > :nth-child(7) { animation-delay: 35ms; }
+.poster-grid[data-reveal] > :nth-child(3),
+.poster-grid[data-reveal] > :nth-child(8) { animation-delay: 65ms; }
+.poster-grid[data-reveal] > :nth-child(4),
+.poster-grid[data-reveal] > :nth-child(9) { animation-delay: 95ms; }
+.poster-grid[data-reveal] > :nth-child(5),
+.poster-grid[data-reveal] > :nth-child(10) { animation-delay: 125ms; }
+.poster-grid[data-reveal] > :nth-child(6),
+.poster-grid[data-reveal] > :nth-child(11) { animation-delay: 155ms; }
 
 .rating-star {
   transition:
@@ -1022,16 +1000,6 @@ select:focus {
   html[data-keyboard-open] .mobile-bottom-nav {
     visibility: hidden;
     pointer-events: none;
-  }
-
-  [data-motion-ready] [data-reveal] {
-    transform: translateY(6px);
-    transition-duration: 300ms, 340ms;
-  }
-
-  [data-motion-ready] .poster-grid[data-reveal] > * {
-    transform: translateY(6px);
-    transition-duration: 260ms, 320ms;
   }
 
   .premium-poster,

@@ -1,90 +1,14 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 
 /**
  * One lightweight coordinator for the product's ambient motion. It delegates
- * pointer work instead of installing listeners on every poster and observes
- * streamed route content as it arrives.
+ * pointer work instead of installing listeners on every poster.
  */
 export function MotionOrchestrator({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const stageRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const root = stageRef.current;
-    if (!root) return;
-    const observed = new WeakSet<HTMLElement>();
-    let observer: IntersectionObserver | null = null;
-    let mutationObserver: MutationObserver | null = null;
-    let firstFrame = 0;
-    let secondFrame = 0;
-    let cancelled = false;
-
-    const start = () => {
-      if (cancelled) return;
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const reveal = (element: Element) => element.classList.add('is-revealed');
-      observer = reduced
-        ? null
-        : new IntersectionObserver(
-            (entries) => {
-              for (const entry of entries) {
-                if (!entry.isIntersecting) continue;
-                reveal(entry.target);
-                observer?.unobserve(entry.target);
-              }
-            },
-            { rootMargin: '0px 0px -6% 0px', threshold: 0.04 },
-          );
-
-      const register = (scope: ParentNode) => {
-        const candidates = new Set<HTMLElement>([
-          ...(scope instanceof HTMLElement && scope.matches('[data-reveal]') ? [scope] : []),
-          ...scope.querySelectorAll<HTMLElement>('[data-reveal]'),
-        ]);
-        for (const element of candidates) {
-          if (observed.has(element)) continue;
-          observed.add(element);
-          const rect = element.getBoundingClientRect();
-          if (reduced || rect.top < window.innerHeight * 0.94) reveal(element);
-          else observer?.observe(element);
-        }
-      };
-
-      // Motion is progressive enhancement: content only becomes reveal-managed
-      // after every current target has either been shown or observed. If this
-      // coordinator ever fails to run, server-rendered content remains visible.
-      register(root);
-      root.dataset.motionReady = 'true';
-
-      mutationObserver = new MutationObserver((records) => {
-        for (const record of records) {
-          for (const node of record.addedNodes) {
-            if (node instanceof HTMLElement) register(node);
-          }
-        }
-      });
-      mutationObserver.observe(root, { childList: true, subtree: true });
-    };
-
-    // Let streamed children finish hydrating before motion mutates their
-    // attributes. This avoids React treating harmless reveal bookkeeping as a
-    // hydration mismatch.
-    firstFrame = requestAnimationFrame(() => {
-      secondFrame = requestAnimationFrame(start);
-    });
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
-      delete root.dataset.motionReady;
-      observer?.disconnect();
-      mutationObserver?.disconnect();
-    };
-  }, [pathname]);
 
   useEffect(() => {
     const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
@@ -195,7 +119,7 @@ export function MotionOrchestrator({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <div key={pathname} ref={stageRef} className="route-stage">
+    <div key={pathname} className="route-stage">
       {children}
     </div>
   );
