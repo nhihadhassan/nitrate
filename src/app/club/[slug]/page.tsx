@@ -153,6 +153,7 @@ export default async function ClubDashboard({
     wheelSpun: Boolean(round?.mode === 'wheel' && round.winnerNominationId),
     wheelRevealed: Boolean(wheelRevealState?.revealed),
     selectionMovieLabel: selectionMovieLabel ?? undefined,
+    selectionRoundLabel: selectionLabel ?? undefined,
     nextSelectionLabel: nextSelectionLabel ?? undefined,
   });
   const heroMovie = (viewerCanSeeWheelWinner ? upcoming?.movie : null) ?? winner?.movie ?? dueRating?.movie ?? null;

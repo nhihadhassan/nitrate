@@ -252,15 +252,16 @@ export function deriveClubDashboardView(input: {
   wheelSpun?: boolean;
   wheelRevealed?: boolean;
   selectionMovieLabel?: string;
+  selectionRoundLabel?: string;
   nextSelectionLabel?: string;
 }): ClubDashboardView {
   if (!input.isMember) return { kind: 'join', eyebrow: 'Movie Club', title: 'Watch with this group', detail: 'Join to see picks, votes and movie nights.', actionLabel: 'Join club' };
   if (input.state.stage === 'rate') return { kind: 'rate', eyebrow: 'After movie night', title: 'How was it?', detail: 'Rate the film to reveal the group score.', actionLabel: 'Rate the film' };
   if (input.upcomingTitle) return { kind: 'screening', eyebrow: 'Next movie night', title: input.upcomingTitle, detail: input.state.youNeedTo === 'RSVP' ? 'Let everyone know if you are coming.' : 'The night is set.', actionLabel: input.state.youNeedTo === 'RSVP' ? 'RSVP' : 'Open movie night' };
   if (input.roundStatus === 'nominations_open') {
-    if (input.roundMode === 'wheel' && input.picksReady) return { kind: 'wheel', eyebrow: 'The picks are in', title: 'Spin the wheel', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: 'Spin the wheel' };
-    if (input.picksRemaining > 0) return { kind: 'pick', eyebrow: 'Your turn', title: 'Pick our next movie', detail: `${input.picksRemaining} ${input.picksRemaining === 1 ? 'pick' : 'picks'} left`, actionLabel: 'Choose a movie' };
-    return { kind: 'waiting', eyebrow: 'Picking movies', title: 'Your pick is in', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: null };
+    if (input.roundMode === 'wheel' && input.picksReady) return { kind: 'wheel', eyebrow: input.selectionRoundLabel ?? 'The picks are in', title: 'Spin the wheel', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: 'Spin the wheel' };
+    if (input.picksRemaining > 0) return { kind: 'pick', eyebrow: input.selectionRoundLabel ?? 'Your turn', title: 'Pick our next movie', detail: `${input.picksRemaining} ${input.picksRemaining === 1 ? 'pick' : 'picks'} left`, actionLabel: 'Choose a movie' };
+    return { kind: 'waiting', eyebrow: input.selectionRoundLabel ?? 'Picking movies', title: 'Your pick is in', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: null };
   }
   if (input.roundMode === 'wheel' && input.roundStatus === 'winner_selected' && input.wheelSpun && !input.wheelRevealed) {
     const selection = input.selectionMovieLabel ?? 'this selection’s movie';

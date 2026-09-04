@@ -18,6 +18,9 @@ describe('club dashboard hero', () => {
   it('shows the viewer their remaining pick', () => {
     expect(deriveClubDashboardView({ ...base, roundStatus: 'nominations_open', roundMode: 'vote', picksRemaining: 1 }).actionLabel).toBe('Choose a movie');
   });
+  it('surfaces the cadence period while picks are open', () => {
+    expect(deriveClubDashboardView({ ...base, roundStatus: 'nominations_open', roundMode: 'vote', picksRemaining: 1, selectionRoundLabel: 'September movie' }).eyebrow).toBe('September movie');
+  });
   it('makes an unviewed wheel result a personal reveal action', () => {
     expect(deriveClubDashboardView({ ...base, roundStatus: 'winner_selected', roundMode: 'wheel', wheelSpun: true, wheelRevealed: false }).kind).toBe('reveal');
   });

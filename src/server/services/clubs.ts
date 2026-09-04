@@ -2485,6 +2485,12 @@ export async function getUserClubs(userId: string) {
           and r.status in ('nominations_open','voting_open','winner_selected')
         order by r.created_at desc limit 1
       )`,
+      activeRoundDeadline: sql<Date | null>`(
+        select r.nominations_close_at from nitrate.selection_rounds r
+        where r.club_id = ${clubs.id}
+          and r.status = 'nominations_open'
+        order by r.created_at desc limit 1
+      )`,
       latestRoundStartAt: sql<Date | null>`(
         select coalesce(r.round_start_at, r.created_at) from nitrate.selection_rounds r
         where r.club_id = ${clubs.id}
@@ -2555,7 +2561,7 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
     membersByClub.set(member.clubId, group);
   }
 
-  const summaries = memberships.map(({ club, role, activeRoundStatus, latestRoundStartAt }) => {
+  const summaries = memberships.map(({ club, role, activeRoundStatus, activeRoundDeadline, latestRoundStartAt }) => {
     const action = attentionByClub.get(club.id) ?? null;
     const screening = screeningByClub.get(club.id);
     let stateLabel = club.screeningCount === 0
@@ -2586,7 +2592,9 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
       stateLabel = latestRoundStartAt
         ? roundSelectionLabel(club.selectionCadence, latestRoundStartAt, club.timezone)
         : 'Picking movies';
-      stateDetail = 'Picks are open';
+      stateDetail = activeRoundDeadline
+        ? `Picks close ${formatDateTimeInZone(activeRoundDeadline, club.timezone)}`
+        : 'Picks are open';
     } else if (activeRoundStatus === 'winner_selected') {
       stateLabel = 'Winner selected';
     }
