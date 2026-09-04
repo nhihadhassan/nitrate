@@ -8,6 +8,8 @@ import { ImageUpload } from '@/components/media/image-upload';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
+import { CLUB_CADENCE_OPTIONS } from '@/lib/club-cadence';
+import type { ClubCadence } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { deleteClubAction, leaveClubAction, updateClubAction } from '@/server/actions/clubs';
 
@@ -25,6 +27,8 @@ export function ClubSettingsForm({
     interests: string[];
     imageAssetId: string | null;
     blindRatingsEnabled: boolean;
+    selectionCadence: ClubCadence;
+    customCadenceDays: number | null;
     weeklyPickEnabled: boolean;
     weeklyPickDay: number;
     weeklyPickHour: number;
@@ -40,6 +44,8 @@ export function ClubSettingsForm({
   const [interests, setInterests] = useState(club.interests.join(', '));
   const [imageAssetId, setImageAssetId] = useState(club.imageAssetId);
   const [blindRatings, setBlindRatings] = useState(club.blindRatingsEnabled);
+  const [selectionCadence, setSelectionCadence] = useState(club.selectionCadence);
+  const [customCadenceDays, setCustomCadenceDays] = useState(club.customCadenceDays ?? 30);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -65,6 +71,8 @@ export function ClubSettingsForm({
                 .slice(0, 8),
               imageAssetId,
               blindRatingsEnabled: blindRatings,
+              selectionCadence,
+              customCadenceDays: selectionCadence === 'custom' ? customCadenceDays : null,
             });
             if (!result.ok) {
               setError(result.error);
@@ -104,6 +112,48 @@ export function ClubSettingsForm({
             className={cn(inputClass, 'resize-y')}
           />
         </Field>
+
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium">Movie selection frequency</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {CLUB_CADENCE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSelectionCadence(option.value)}
+                aria-pressed={selectionCadence === option.value}
+                className={cn(
+                  'min-h-14 rounded-md border px-3 py-2 text-left transition-colors',
+                  selectionCadence === option.value
+                    ? 'border-iris/50 bg-iris/12 text-text'
+                    : 'border-line text-muted hover:border-iris/30 hover:text-text',
+                )}
+              >
+                <span className="block text-sm font-medium">{option.label}</span>
+                <span className="mt-0.5 block text-xs text-dim">{option.detail}</span>
+              </button>
+            ))}
+          </div>
+          {selectionCadence === 'custom' ? (
+            <div className="mt-3 max-w-xs">
+              <Field label="Days between selections" htmlFor="custom-cadence-days" hint="Between 2 and 365 days.">
+                <input
+                  id="custom-cadence-days"
+                  type="number"
+                  min={2}
+                  max={365}
+                  required
+                  value={customCadenceDays}
+                  onChange={(event) => setCustomCadenceDays(Number(event.target.value))}
+                  className={inputClass}
+                />
+              </Field>
+            </div>
+          ) : null}
+          <p className="mt-2 text-xs leading-relaxed text-dim">
+            Frequency gives each selection its place in the club calendar. Pick deadlines and movie-night dates remain separate.
+          </p>
+        </fieldset>
 
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium">Visibility</legend>
@@ -176,15 +226,17 @@ export function ClubSettingsForm({
         </div>
       </form>
 
-      <WeeklyPickSettings
-        clubId={club.id}
-        timezone={club.timezone}
-        initial={{
-          enabled: club.weeklyPickEnabled,
-          day: club.weeklyPickDay,
-          hour: club.weeklyPickHour,
-        }}
-      />
+      {club.selectionCadence === 'weekly' ? (
+        <WeeklyPickSettings
+          clubId={club.id}
+          timezone={club.timezone}
+          initial={{
+            enabled: club.weeklyPickEnabled,
+            day: club.weeklyPickDay,
+            hour: club.weeklyPickHour,
+          }}
+        />
+      ) : null}
 
       <section className="rounded-lg border border-rose/25 p-4">
         <h2 className="text-lg text-rose">Danger zone</h2>

@@ -7,7 +7,10 @@ export type ClubPermission =
   | 'edit_movie_night'
   | 'invite_members'
   | 'remove_members'
-  | 'manage_weekly_participation';
+  | 'manage_weekly_participation'
+  | 'manage_club_settings';
+
+export type ClubCadence = 'weekly' | 'biweekly' | 'monthly' | 'custom';
 
 export type WheelExperienceState =
   | 'waiting'

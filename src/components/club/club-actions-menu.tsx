@@ -17,6 +17,7 @@ export function ClubActionsMenu({
   clubName,
   inviteCode,
   role,
+  canManageSettings,
   signedIn,
 }: {
   clubId: string;
@@ -24,6 +25,7 @@ export function ClubActionsMenu({
   clubName: string;
   inviteCode: string;
   role: 'owner' | 'admin' | 'member' | null;
+  canManageSettings: boolean;
   signedIn: boolean;
 }) {
   const router = useRouter();
@@ -53,7 +55,7 @@ export function ClubActionsMenu({
             <>
               <Button asChild variant="ghost" className="justify-start"><Link href={`${base}/members`}>Members</Link></Button>
               <Button variant="ghost" className="justify-start" onClick={() => void copyInvite()}>Copy invite link</Button>
-              {role !== 'member' ? <Button asChild variant="ghost" className="justify-start"><Link href={`${base}/settings`}>Club settings</Link></Button> : null}
+              {canManageSettings ? <Button asChild variant="ghost" className="justify-start"><Link href={`${base}/settings`}>Club settings</Link></Button> : null}
               {role !== 'owner' ? (
                 <Button
                   variant="danger"

@@ -29,9 +29,9 @@ export function WeeklyPickSettings({
 
   return (
     <section className="rounded-lg border border-line p-4">
-      <h2 className="text-xl">Weekly pick</h2>
+      <h2 className="text-xl">Automatic selections</h2>
       <p className="mt-1.5 text-sm leading-relaxed text-muted">
-        Start choosing automatically once a week and email everyone to pick a movie. When
+        Start a selection automatically each week and email everyone to pick a movie. When
         the club is ready, anyone can spin the wheel.
       </p>
 
@@ -43,7 +43,7 @@ export function WeeklyPickSettings({
           className="mt-0.5 h-4 w-4 accent-[var(--iris)]"
         />
         <span className="text-sm">
-          Run this club on a weekly cycle
+          Open the weekly selection automatically
           <span className="mt-0.5 block text-xs text-dim">
             Skipped automatically if a round is already in progress.
           </span>
@@ -86,14 +86,14 @@ export function WeeklyPickSettings({
                 return;
               }
               toast({
-                message: enabled ? 'Weekly pick is on' : 'Weekly pick is off',
+                message: enabled ? 'Automatic selections are on' : 'Automatic selections are off',
                 tone: 'success',
               });
               router.refresh();
             })
           }
         >
-          {pending ? 'Saving…' : 'Save weekly pick'}
+          {pending ? 'Saving…' : 'Save automation'}
         </Button>
       </div>
     </section>

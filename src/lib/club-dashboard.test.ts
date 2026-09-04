@@ -21,6 +21,12 @@ describe('club dashboard hero', () => {
   it('makes an unviewed wheel result a personal reveal action', () => {
     expect(deriveClubDashboardView({ ...base, roundStatus: 'winner_selected', roundMode: 'wheel', wheelSpun: true, wheelRevealed: false }).kind).toBe('reveal');
   });
+  it('uses the club cadence for a personal reveal', () => {
+    expect(deriveClubDashboardView({ ...base, roundStatus: 'winner_selected', roundMode: 'wheel', wheelSpun: true, wheelRevealed: false, selectionMovieLabel: 'September’s movie' }).title).toBe('Reveal September’s movie');
+  });
+  it('uses the cadence due date when no round is active', () => {
+    expect(deriveClubDashboardView({ ...base, nextSelectionLabel: 'Next movie selection in 12 days' }).title).toBe('Next movie selection in 12 days');
+  });
   it('moves a revealed wheel result into scheduling', () => {
     expect(deriveClubDashboardView({ ...base, roundStatus: 'winner_selected', roundMode: 'wheel', wheelSpun: true, wheelRevealed: true, winnerTitle: 'Heat' }).kind).toBe('schedule');
   });

@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { filmHref } from '@/lib/links';
 import { deriveClubDashboardView, resolveClubState } from '@/lib/club';
+import { nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
 import { cn, formatDateTimeInZone, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getWatchlistPreview } from '@/server/services/profile';
@@ -26,6 +27,7 @@ import {
   getClubIntelligence,
   getClubMembers,
   getClubPermissions,
+  getLatestRoundStart,
   getClubQueue,
   getClubStats,
   getMembership,
@@ -58,7 +60,7 @@ export default async function ClubDashboard({
   const isMember = membership?.status === 'active';
   const isAdmin = isMember && membership.role !== 'member';
 
-  const [round, upcoming, members, queue, stats, completed, intelligence, activity, watchlist] = await Promise.all([
+  const [round, upcoming, members, queue, stats, completed, intelligence, activity, watchlist, latestRoundStart] = await Promise.all([
     getActiveRound(club.id),
     getUpcomingScreening(club.id),
     getClubMembers(club.id),
@@ -68,6 +70,7 @@ export default async function ClubDashboard({
     isMember ? getClubIntelligence(club.id) : Promise.resolve(null),
     isMember ? getClubActivity(club.id, 8, user?.id ?? null) : Promise.resolve([]),
     isMember && user ? getWatchlistPreview(user.id, 12) : Promise.resolve([]),
+    getLatestRoundStart(club.id),
   ]);
 
   const nominations = round ? await getRoundNominations(round.id, user?.id ?? null) : null;
@@ -93,6 +96,15 @@ export default async function ClubDashboard({
   const currentUserPickCount = nominations?.nominations.filter((nomination) => nomination.nominatedBy.id === user?.id).length ?? 0;
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
+  const selectionMovieLabel = round
+    ? roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone)
+    : null;
+  const selectionLabel = round
+    ? roundSelectionLabel(club.selectionCadence, round.roundStartAt, club.timezone)
+    : null;
+  const nextSelectionLabel = latestRoundStart
+    ? nextSelectionCopy(nextSelectionAt(club.selectionCadence, latestRoundStart, club.customCadenceDays))
+    : null;
   const myAttendance = attendance.find((a) => a.userId === user?.id);
   const shortlistOwnership = user && intelligence
     ? await getOwnershipMap(user.id, intelligence.shortlist.map((item) => item.movie.id))
@@ -140,6 +152,8 @@ export default async function ClubDashboard({
     upcomingTitle: viewerCanSeeWheelWinner ? upcoming?.movie.title : null,
     wheelSpun: Boolean(round?.mode === 'wheel' && round.winnerNominationId),
     wheelRevealed: Boolean(wheelRevealState?.revealed),
+    selectionMovieLabel: selectionMovieLabel ?? undefined,
+    nextSelectionLabel: nextSelectionLabel ?? undefined,
   });
   const heroMovie = (viewerCanSeeWheelWinner ? upcoming?.movie : null) ?? winner?.movie ?? dueRating?.movie ?? null;
   const heroActionHref = dashboardView.kind === 'screening' && upcoming
@@ -258,6 +272,7 @@ export default async function ClubDashboard({
                   canSpin={clubPermissions.has('start_wheel') && round.status === 'nominations_open' && canAdvanceFromPicks}
                   allMembersPicked={canAdvanceFromPicks}
                   spun={Boolean(round.winnerNominationId)}
+                  selectionMovieLabel={selectionMovieLabel ?? selectionLabel ?? 'This selection’s movie'}
                   contenders={(!round.winnerNominationId || viewerCanSeeWheelWinner) ? nominations.nominations.map((n) => ({
                     nominationId: n.id,
                     pitch: n.pitch,

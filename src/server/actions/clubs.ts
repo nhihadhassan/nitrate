@@ -75,6 +75,8 @@ const createClubSchema = z.object({
   timezone: z.string().trim().min(1).max(64),
   interests: z.array(z.string().trim().max(30)).max(8),
   imageAssetId: z.string().uuid().nullable().optional(),
+  selectionCadence: z.enum(['weekly', 'biweekly', 'monthly', 'custom']).default('monthly'),
+  customCadenceDays: z.number().int().min(2).max(365).nullable().optional(),
 });
 
 export async function createClubAction(
@@ -93,6 +95,8 @@ export async function createClubAction(
       timezone: parsed.timezone,
       interests: parsed.interests,
       imageAssetId: parsed.imageAssetId ?? null,
+      selectionCadence: parsed.selectionCadence,
+      customCadenceDays: parsed.selectionCadence === 'custom' ? parsed.customCadenceDays ?? 30 : null,
     });
 
     await track('club_created', user.id, { clubId: club.id, visibility: club.visibility });
@@ -101,19 +105,23 @@ export async function createClubAction(
   });
 }
 
-export async function updateClubAction(input: {
-  clubId: string;
-  name?: string;
-  description?: string | null;
-  visibility?: 'private' | 'public';
-  timezone?: string;
-  interests?: string[];
-  imageAssetId?: string | null;
-  blindRatingsEnabled?: boolean;
-}): Promise<ActionResult<{ slug: string }>> {
+const updateClubSchema = z.object({
+  clubId: z.string().uuid(),
+  name: z.string().trim().min(2).max(60).optional(),
+  description: z.string().trim().max(600).nullable().optional(),
+  visibility: z.enum(['private', 'public']).optional(),
+  timezone: z.string().trim().min(1).max(64).optional(),
+  interests: z.array(z.string().trim().max(30)).max(8).optional(),
+  imageAssetId: z.string().uuid().nullable().optional(),
+  blindRatingsEnabled: z.boolean().optional(),
+  selectionCadence: z.enum(['weekly', 'biweekly', 'monthly', 'custom']).optional(),
+  customCadenceDays: z.number().int().min(2).max(365).nullable().optional(),
+});
+
+export async function updateClubAction(input: z.infer<typeof updateClubSchema>): Promise<ActionResult<{ slug: string }>> {
   return actionGuard(async () => {
     const user = await requireUser();
-    const { clubId, ...patch } = input;
+    const { clubId, ...patch } = updateClubSchema.parse(input);
     const club = await updateClub(clubId, user.id, patch);
     revalidatePath(`/club/${club.slug}`);
     return { slug: club.slug };
@@ -452,7 +460,7 @@ export async function extendPickDeadlineAction(input: {
       actorId: user.id,
       type: 'club_pick_deadline_extended',
       url: `/club/${club.slug}`,
-      body: `${user.displayName} extended this week’s pick deadline`,
+      body: `${user.displayName} extended the current pick deadline`,
       dedupeKey: `pick_deadline:${input.roundId}:${deadline.toISOString()}`,
     });
     revalidatePath(`/club/${club.slug}`);

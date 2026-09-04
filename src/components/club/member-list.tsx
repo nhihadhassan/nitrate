@@ -16,7 +16,8 @@ const PERMISSIONS = [
   ['edit_movie_night', 'Edit movie night'],
   ['invite_members', 'Invite members'],
   ['remove_members', 'Remove members'],
-  ['manage_weekly_participation', 'Manage weekly participation'],
+  ['manage_weekly_participation', 'Manage round participation'],
+  ['manage_club_settings', 'Change club settings'],
 ] as const;
 
 type Member = {

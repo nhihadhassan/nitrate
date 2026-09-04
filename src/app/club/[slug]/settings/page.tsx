@@ -4,7 +4,7 @@ import { ClubSettingsForm } from '@/components/club/club-settings-form';
 import { PublicJoinSettings } from '@/components/club/public-join-settings';
 import { EmptyState } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getMembership } from '@/server/services/clubs';
+import { getClubBySlug, getClubPermissions, getMembership } from '@/server/services/clubs';
 import { listPendingClubJoinRequests } from '@/server/services/network-clubs';
 
 export const dynamic = 'force-dynamic';
@@ -16,12 +16,16 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
 
   const user = await getCurrentUser();
   const membership = await getMembership(club.id, user?.id ?? null);
-  if (!membership || membership.status !== 'active' || membership.role === 'member') {
+  const permissions = user && membership?.status === 'active'
+    ? await getClubPermissions(club.id, user.id)
+    : new Set();
+  if (!membership || membership.status !== 'active' || !permissions.has('manage_club_settings')) {
     return (
-      <EmptyState title="Admins only" description="Only club admins can change these settings." />
+      <EmptyState title="Settings permission required" description="The club owner can choose who may change these settings." />
     );
   }
-  const requests = club.visibility === 'public' && user ? await listPendingClubJoinRequests(club.id,user.id):[];
+  const canManageJoining = membership.role !== 'member';
+  const requests = club.visibility === 'public' && user && canManageJoining ? await listPendingClubJoinRequests(club.id,user.id):[];
 
   return (
     <div className="max-w-2xl">
@@ -36,13 +40,15 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
           interests: club.interests,
           imageAssetId: club.imageAssetId,
           blindRatingsEnabled: club.blindRatingsEnabled,
+          selectionCadence: club.selectionCadence,
+          customCadenceDays: club.customCadenceDays,
           weeklyPickEnabled: club.weeklyPickEnabled,
           weeklyPickDay: club.weeklyPickDay,
           weeklyPickHour: club.weeklyPickHour,
         }}
         isOwner={membership.role === 'owner'}
       />
-      <PublicJoinSettings clubId={club.id} visibility={club.visibility} initialPolicy={club.joinPolicy} requests={requests.map(({request,user})=>({id:request.id,username:user.username,displayName:user.displayName,message:request.message,createdAt:request.createdAt.toISOString()}))}/>
+      {canManageJoining ? <PublicJoinSettings clubId={club.id} visibility={club.visibility} initialPolicy={club.joinPolicy} requests={requests.map(({request,user})=>({id:request.id,username:user.username,displayName:user.displayName,message:request.message,createdAt:request.createdAt.toISOString()}))}/> : null}
     </div>
   );
 }

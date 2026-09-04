@@ -2,6 +2,7 @@ import 'server-only';
 
 import { BRAND } from '@/lib/brand';
 import { env } from '@/env';
+import { inlineSelectionLabel } from '@/lib/club-cadence';
 
 import type { OutboundEmail } from './types';
 
@@ -81,18 +82,19 @@ export type WheelWinnerPayload = {
   nominatedBy: string;
   contenderCount: number;
   recipientName: string;
+  selectionMovieLabel?: string;
 };
 
 export function wheelWinnerEmail(payload: WheelWinnerPayload): OutboundEmail {
   const url = `${env.siteUrl}/club/${payload.clubSlug}`;
   const bodyHtml = `
     <p style="margin:0 0 14px;">The wheel has been spun in <strong style="color:#f4f4f5;">${escapeHtml(payload.clubName)}</strong>.</p>
-    <p style="margin:0;">Open Movie Club when you’re ready to reveal this week’s film, chosen from ${payload.contenderCount} picks.</p>`;
+    <p style="margin:0;">Open Movie Club when you’re ready to reveal ${escapeHtml(inlineSelectionLabel(payload.selectionMovieLabel ?? 'this selection’s movie'))}, chosen from ${payload.contenderCount} picks.</p>`;
 
   const text = [
     `The wheel has spoken in ${payload.clubName}.`,
     ``,
-    `Open Movie Club when you're ready to reveal this week's film, chosen at random from ${payload.contenderCount} picks.`,
+    `Open Movie Club when you're ready to reveal ${inlineSelectionLabel(payload.selectionMovieLabel ?? 'this selection’s movie')}, chosen at random from ${payload.contenderCount} picks.`,
     ``,
     `Open the club: ${url}`,
   ].join('\n');
@@ -117,6 +119,7 @@ export type SubmissionsOpenPayload = {
   clubSlug: string;
   closesAt: string | null;
   recipientName: string;
+  selectionMovieLabel?: string;
 };
 
 export function submissionsOpenEmail(payload: SubmissionsOpenPayload): OutboundEmail {
@@ -129,7 +132,7 @@ export function submissionsOpenEmail(payload: SubmissionsOpenPayload): OutboundE
 
   return {
     to: '',
-    subject: `What should ${payload.clubName} watch this week?`,
+    subject: `What should ${payload.clubName} choose for ${inlineSelectionLabel(payload.selectionMovieLabel ?? 'this selection')}?`,
     html: layout({
       preheader: 'Pick your movie before the wheel spins.',
       heading: 'Pick your movie',

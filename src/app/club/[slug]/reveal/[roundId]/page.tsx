@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { WheelExperience } from '@/components/club/wheel-experience';
 import { Container, EmptyState } from '@/components/ui/primitives';
+import { roundMovieLabel } from '@/lib/club-cadence';
 import { getCurrentUser } from '@/server/auth/session';
 import {
   getActiveRound,
@@ -24,7 +25,7 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
   const membership = await getMembership(club.id, user?.id ?? null);
   if (!user || !membership || membership.status !== 'active') redirect(`/login?next=/club/${encodeURIComponent(slug)}/reveal/${roundId}`);
   const round = await getActiveRound(club.id);
-  if (!round || round.id !== roundId || round.mode !== 'wheel') return <Container size="narrow" className="py-16"><EmptyState title="That wheel is no longer active" description="Return to the club to see the current week." /></Container>;
+  if (!round || round.id !== roundId || round.mode !== 'wheel') return <Container size="narrow" className="py-16"><EmptyState title="That wheel is no longer active" description="Return to the club to see the current selection." /></Container>;
 
   const [nominations, revealState, permissions, participants] = await Promise.all([
     getRoundNominations(round.id, user.id),
@@ -62,6 +63,7 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         spun={revealState.spun}
         revealed={revealState.revealed}
         initialPayload={initialPayload}
+        selectionMovieLabel={roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone)}
       />
     </Container>
   );

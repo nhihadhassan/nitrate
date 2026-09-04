@@ -5,6 +5,8 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import { clubHref, screeningHref } from '@/lib/links';
+import { inlineSelectionLabel, nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
+import type { ClubCadence } from '@/lib/types';
 import type { RecommendationReason } from '@/lib/recommendations';
 import { formatDateTimeInZone, formatRuntime, slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
@@ -100,6 +102,7 @@ export const CLUB_PERMISSIONS = [
   'invite_members',
   'remove_members',
   'manage_weekly_participation',
+  'manage_club_settings',
 ] as const;
 export type ClubPermission = (typeof CLUB_PERMISSIONS)[number];
 
@@ -161,11 +164,11 @@ export async function setRoundParticipation(roundId: string, actorId: string, us
     if (actorId !== userId) await requireClubPermission(round.clubId, actorId, 'manage_weekly_participation', tx);
     const target = await getMembership(round.clubId, userId, tx);
     if (!target || target.status !== 'active') throw new NotFoundError('That member is no longer active.');
-    if (round.status !== 'nominations_open') throw new ConflictError('Weekly participation is closed.');
+    if (round.status !== 'nominations_open') throw new ConflictError('Participation is closed for this selection.');
     if (!participating) {
       const [{ value: picks }] = await tx.select({ value: sql<number>`count(*)::int` }).from(nominations)
         .where(and(eq(nominations.roundId, roundId), eq(nominations.nominatedByUserId, userId), isNull(nominations.withdrawnAt)));
-      if (picks > 0) throw new ConflictError('Change or remove this member’s pick before leaving the week.');
+      if (picks > 0) throw new ConflictError('Change or remove this member’s pick before leaving this selection.');
     }
     await tx.insert(selectionRoundParticipants).values({ roundId, userId, participating, updatedByUserId: actorId, updatedAt: new Date() })
       .onConflictDoUpdate({ target: [selectionRoundParticipants.roundId, selectionRoundParticipants.userId], set: { participating, updatedByUserId: actorId, updatedAt: new Date() } });
@@ -262,6 +265,8 @@ export async function createClub(input: {
   timezone: string;
   interests: string[];
   imageAssetId: string | null;
+  selectionCadence?: ClubCadence;
+  customCadenceDays?: number | null;
 }): Promise<Club> {
   return db.transaction(async (tx) => {
     const slug = await uniqueClubSlug(input.name, tx);
@@ -275,6 +280,8 @@ export async function createClub(input: {
         timezone: input.timezone,
         interests: input.interests,
         imageAssetId: input.imageAssetId,
+        selectionCadence: input.selectionCadence ?? 'monthly',
+        customCadenceDays: input.selectionCadence === 'custom' ? input.customCadenceDays ?? 30 : null,
         ownerId: input.ownerId,
         inviteCode: newCode(),
         memberCount: 1,
@@ -305,12 +312,30 @@ export async function updateClub(
     interests: string[];
     imageAssetId: string | null;
     blindRatingsEnabled: boolean;
+    selectionCadence: ClubCadence;
+    customCadenceDays: number | null;
   }>,
 ): Promise<Club> {
-  await requireMembership(clubId, userId, 'admin');
+  await requireClubPermission(clubId, userId, 'manage_club_settings');
+  if (patch.selectionCadence && !['weekly', 'biweekly', 'monthly', 'custom'].includes(patch.selectionCadence)) {
+    throw new ValidationError('Choose a valid selection frequency.');
+  }
+  if (patch.selectionCadence === 'custom') {
+    const days = patch.customCadenceDays;
+    if (!days || !Number.isInteger(days) || days < 2 || days > 365) {
+      throw new ValidationError('Custom frequency must be between 2 and 365 days.');
+    }
+  }
+  const cadencePatch = patch.selectionCadence && patch.selectionCadence !== 'custom'
+    ? { ...patch, customCadenceDays: null }
+    : patch;
   const [club] = await db
     .update(clubs)
-    .set({ ...patch, updatedAt: new Date() })
+    .set({
+      ...cadencePatch,
+      ...(patch.selectionCadence && patch.selectionCadence !== 'weekly' ? { weeklyPickEnabled: false } : {}),
+      updatedAt: new Date(),
+    })
     .where(eq(clubs.id, clubId))
     .returning();
   return club;
@@ -673,6 +698,16 @@ export async function getActiveRound(clubId: string): Promise<SelectionRound | n
   return row ?? null;
 }
 
+export async function getLatestRoundStart(clubId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ roundStartAt: selectionRounds.roundStartAt })
+    .from(selectionRounds)
+    .where(eq(selectionRounds.clubId, clubId))
+    .orderBy(desc(selectionRounds.roundStartAt))
+    .limit(1);
+  return row?.roundStartAt ?? null;
+}
+
 export async function startRound(input: {
   clubId: string;
   userId: string;
@@ -716,6 +751,7 @@ export async function startRound(input: {
         nominationsCloseAt: input.nominationsCloseAt,
         votingCloseAt: input.votingCloseAt,
         createdByUserId: input.userId,
+        roundStartAt: new Date(),
       })
       .returning();
 
@@ -752,7 +788,7 @@ export async function nominate(input: {
       .from(selectionRoundParticipants)
       .where(and(eq(selectionRoundParticipants.roundId, input.roundId), eq(selectionRoundParticipants.userId, nominatedByUserId)))
       .limit(1);
-    if (!participant?.participating) throw new ConflictError('That member is not participating in this week’s round.');
+    if (!participant?.participating) throw new ConflictError('That member is not participating in this selection.');
     if (nominatedByUserId !== input.userId) {
       await requireClubPermission(round.clubId, input.userId, 'submit_picks_for_others', tx);
       const target = await getMembership(round.clubId, nominatedByUserId, tx);
@@ -1226,6 +1262,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
         nominatedBy: chosen.by,
         contenderCount: contenders.length,
         recipientName: member.displayName,
+        selectionMovieLabel: roundMovieLabel(club.selectionCadence, locked.roundStartAt, club.timezone),
       }),
       // One winner email per member per round, however many times this is called.
       { dedupePrefix: `wheel:${roundId}`, preference: 'winnerSelected' },
@@ -2448,6 +2485,11 @@ export async function getUserClubs(userId: string) {
           and r.status in ('nominations_open','voting_open','winner_selected')
         order by r.created_at desc limit 1
       )`,
+      latestRoundStartAt: sql<Date | null>`(
+        select coalesce(r.round_start_at, r.created_at) from nitrate.selection_rounds r
+        where r.club_id = ${clubs.id}
+        order by coalesce(r.round_start_at, r.created_at) desc limit 1
+      )`,
     })
     .from(clubMembers)
     .innerJoin(clubs, eq(clubs.id, clubMembers.clubId))
@@ -2513,10 +2555,14 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
     membersByClub.set(member.clubId, group);
   }
 
-  const summaries = memberships.map(({ club, role, activeRoundStatus }) => {
+  const summaries = memberships.map(({ club, role, activeRoundStatus, latestRoundStartAt }) => {
     const action = attentionByClub.get(club.id) ?? null;
     const screening = screeningByClub.get(club.id);
-    let stateLabel = club.screeningCount === 0 ? 'Pick your first movie' : 'Ready for the next movie';
+    let stateLabel = club.screeningCount === 0
+      ? 'Pick your first movie'
+      : latestRoundStartAt
+        ? nextSelectionCopy(nextSelectionAt(club.selectionCadence, latestRoundStartAt, club.customCadenceDays))
+        : 'Ready for the next movie';
     let stateDetail: string | null = null;
     if (action) {
       const labels: Record<ClubAttentionKind, string> = {
@@ -2537,7 +2583,10 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
     } else if (activeRoundStatus === 'voting_open') {
       stateLabel = 'Voting now';
     } else if (activeRoundStatus === 'nominations_open') {
-      stateLabel = 'Picking movies';
+      stateLabel = latestRoundStartAt
+        ? roundSelectionLabel(club.selectionCadence, latestRoundStartAt, club.timezone)
+        : 'Picking movies';
+      stateDetail = 'Picks are open';
     } else if (activeRoundStatus === 'winner_selected') {
       stateLabel = 'Winner selected';
     }
@@ -3324,7 +3373,7 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
   const candidates = await db
     .select()
     .from(clubs)
-    .where(and(eq(clubs.weeklyPickEnabled, true), isNull(clubs.deletedAt)));
+    .where(and(eq(clubs.weeklyPickEnabled, true), eq(clubs.selectionCadence, 'weekly'), isNull(clubs.deletedAt)));
 
   const opened: WeeklyOpenResult = [];
 
@@ -3371,12 +3420,13 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
       await queueClubEmail(
         club.id,
         'submissions_open',
-        `What should ${club.name} watch this week?`,
+        `What should ${club.name} choose for ${inlineSelectionLabel(roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone))}?`,
         (member) => ({
           clubName: club.name,
           clubSlug: club.slug,
           closesAt: null,
           recipientName: member.displayName,
+          selectionMovieLabel: roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone),
         }),
         { dedupePrefix: `submissions:${round.id}`, preference: 'picksAndVoting' },
       );
@@ -3395,7 +3445,11 @@ export async function setWeeklyPick(
   userId: string,
   settings: { enabled: boolean; day: number; hour: number },
 ): Promise<void> {
-  await requireMembership(clubId, userId, 'admin');
+  await requireClubPermission(clubId, userId, 'manage_club_settings');
+  const club = await getClubById(clubId);
+  if (settings.enabled && club.selectionCadence !== 'weekly') {
+    throw new ValidationError('Automatic weekly opening is available only for weekly clubs.');
+  }
   await db
     .update(clubs)
     .set({

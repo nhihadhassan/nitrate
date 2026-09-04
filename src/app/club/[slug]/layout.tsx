@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { AvatarStack } from '@/components/user/avatar';
 import { BRAND } from '@/lib/brand';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getClubMembers, getMembership } from '@/server/services/clubs';
+import { getClubBySlug, getClubMembers, getClubPermissions, getMembership } from '@/server/services/clubs';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +62,7 @@ export default async function ClubLayout({
   const membership = await getMembership(club.id, user?.id ?? null);
   const isMember = membership?.status === 'active';
   const members = await getClubMembers(club.id);
+  const permissions = isMember && user ? await getClubPermissions(club.id, user.id) : new Set();
 
   // Private clubs render nothing but a wall to non-members.
   if (club.visibility === 'private' && !isMember) {
@@ -141,6 +142,7 @@ export default async function ClubLayout({
               clubName={club.name}
               inviteCode={club.inviteCode}
               role={isMember && membership ? membership.role : null}
+              canManageSettings={permissions.has('manage_club_settings')}
               signedIn={Boolean(user)}
             />
           </div>

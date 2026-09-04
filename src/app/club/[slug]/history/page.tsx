@@ -5,6 +5,7 @@ import { Poster } from '@/components/film/poster';
 import { RatingNumber } from '@/components/film/stars';
 import { Badge, EmptyState } from '@/components/ui/primitives';
 import { filmHref, screeningHref } from '@/lib/links';
+import { roundPeriodLabel } from '@/lib/club-cadence';
 import { formatDateTimeInZone, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getClubBySlug, getClubHistory, getClubStats, getMembership } from '@/server/services/clubs';
@@ -97,6 +98,11 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
                 />
               </div>
               <div className="min-w-0 flex-1">
+                {round ? (
+                  <p className="mb-0.5 text-[0.6875rem] uppercase tracking-wide text-iris">
+                    {roundPeriodLabel(club.selectionCadence, round.roundStartAt, club.timezone)}
+                  </p>
+                ) : null}
                 <p className="truncate font-medium">
                   {movie.title}
                   {movie.year ? (
@@ -115,7 +121,7 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
                   ) : null}
                   {round ? (
                     <Badge tone="neutral">
-                      {round.mode === 'wheel' ? 'Wheel' : 'Vote'} · round {round.roundNumber}
+                      {round.mode === 'wheel' ? 'Wheel' : 'Vote'}
                     </Badge>
                   ) : null}
                 </p>

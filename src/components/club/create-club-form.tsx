@@ -6,6 +6,8 @@ import { useEffect, useState, useTransition } from 'react';
 import { ImageUpload } from '@/components/media/image-upload';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
+import { CLUB_CADENCE_OPTIONS } from '@/lib/club-cadence';
+import type { ClubCadence } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { createClubAction } from '@/server/actions/clubs';
 
@@ -29,6 +31,8 @@ export function CreateClubForm({ defaultTimezone }: { defaultTimezone: string })
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'private' | 'public'>('private');
+  const [selectionCadence, setSelectionCadence] = useState<ClubCadence>('monthly');
+  const [customCadenceDays, setCustomCadenceDays] = useState(30);
   const [timezone, setTimezone] = useState(defaultTimezone);
   const [interests, setInterests] = useState<string[]>([]);
   const [imageAssetId, setImageAssetId] = useState<string | null>(null);
@@ -60,6 +64,8 @@ export function CreateClubForm({ defaultTimezone }: { defaultTimezone: string })
             timezone,
             interests,
             imageAssetId,
+            selectionCadence,
+            customCadenceDays: selectionCadence === 'custom' ? customCadenceDays : null,
           });
           if (!result.ok) {
             setError(result.error);
@@ -97,10 +103,49 @@ export function CreateClubForm({ defaultTimezone }: { defaultTimezone: string })
           onChange={(event) => setDescription(event.target.value)}
           rows={3}
           maxLength={600}
-          placeholder="Four of us, one horror film a week, strong opinions."
+          placeholder="Four of us, one horror film a month, strong opinions."
           className={cn(inputClass, 'resize-y')}
         />
       </Field>
+
+      <fieldset>
+        <legend className="mb-1.5 text-sm font-medium">How often will you choose a movie?</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {CLUB_CADENCE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selectionCadence === option.value}
+              onClick={() => setSelectionCadence(option.value)}
+              className={cn(
+                'min-h-14 rounded-md border px-3 py-2 text-left transition-colors',
+                selectionCadence === option.value
+                  ? 'border-iris/50 bg-iris/[0.08]'
+                  : 'border-line hover:border-line-strong',
+              )}
+            >
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="mt-0.5 block text-xs leading-relaxed text-dim">{option.detail}</span>
+            </button>
+          ))}
+        </div>
+        {selectionCadence === 'custom' ? (
+          <div className="mt-3 max-w-xs">
+            <Field label="Days between selections" htmlFor="new-club-custom-cadence" hint="Between 2 and 365 days.">
+              <input
+                id="new-club-custom-cadence"
+                type="number"
+                min={2}
+                max={365}
+                required
+                value={customCadenceDays}
+                onChange={(event) => setCustomCadenceDays(Number(event.target.value))}
+                className={inputClass}
+              />
+            </Field>
+          </div>
+        ) : null}
+      </fieldset>
 
       <fieldset>
         <legend className="mb-1.5 text-sm font-medium">Who can find it</legend>

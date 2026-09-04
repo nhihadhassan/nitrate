@@ -897,6 +897,13 @@ export const clubs = nitrate.table(
       .references(() => users.id, { onDelete: 'restrict' }),
     inviteCode: text('invite_code').notNull(),
 
+    /** How often this club expects to choose a new movie. Deadlines stay round-specific. */
+    selectionCadence: text('selection_cadence')
+      .$type<'weekly' | 'biweekly' | 'monthly' | 'custom'>()
+      .notNull()
+      .default('monthly'),
+    customCadenceDays: smallint('custom_cadence_days'),
+
     /**
      * Optional weekly ritual: open a submissions round automatically, then let
      * the club spin for a winner. Day is 0=Sunday, hour is in the club timezone.
@@ -1063,6 +1070,8 @@ export const selectionRounds = nitrate.table(
     createdByUserId: uuid('created_by_user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    /** The cadence anchor. This is distinct from the nomination deadline and movie night. */
+    roundStartAt: timestamp('round_start_at', { withTimezone: true }).notNull().defaultNow(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp('completed_at', { withTimezone: true }),

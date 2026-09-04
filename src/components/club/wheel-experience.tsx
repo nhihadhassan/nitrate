@@ -8,6 +8,7 @@ import { Poster } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { filmHref } from '@/lib/links';
+import { inlineSelectionLabel } from '@/lib/club-cadence';
 import { formatRuntime } from '@/lib/utils';
 import {
   beginWheelRevealAction,
@@ -29,6 +30,7 @@ export function WheelExperience({
   spun,
   revealed,
   initialPayload,
+  selectionMovieLabel,
 }: {
   clubId: string;
   clubSlug: string;
@@ -39,6 +41,7 @@ export function WheelExperience({
   spun: boolean;
   revealed: boolean;
   initialPayload: WheelRevealPayload | null;
+  selectionMovieLabel: string;
 }) {
   const toast = useToast();
   const [pending, startTransition] = useTransition();
@@ -108,7 +111,7 @@ export function WheelExperience({
     });
   }
 
-  const title = phase === 'ready' ? 'The wheel is ready' : phase === 'waiting' ? 'The wheel has been spun' : phase === 'spinning' ? 'Finding this week’s film…' : 'This week’s movie';
+  const title = phase === 'ready' ? 'The wheel is ready' : phase === 'waiting' ? 'The wheel has been spun' : phase === 'spinning' ? `Finding ${inlineSelectionLabel(selectionMovieLabel)}…` : selectionMovieLabel;
 
   if (phase === 'revealed' && winner) {
     return (
@@ -117,7 +120,7 @@ export function WheelExperience({
         <div className="relative grid items-center gap-6 sm:grid-cols-[13rem_1fr]">
           <div className="mx-auto w-44 sm:w-full"><Poster film={winner} size="lg" linked={false} priority /></div>
           <div>
-            <p className="eyebrow text-iris">This week&apos;s movie</p>
+            <p className="eyebrow text-iris">{selectionMovieLabel}</p>
             <h1 className="mt-2 font-display text-4xl leading-none sm:text-6xl">{winner.title}</h1>
             <p className="mt-3 text-sm text-muted">{winner.year ?? 'Film'}{winner.runtime ? ` · ${formatRuntime(winner.runtime)}` : ''}</p>
             <p className="mt-4 text-sm text-muted">Picked by <span className="text-text">{winner.nominatedBy.displayName}</span> from {payload?.order.length ?? 0} club picks.</p>

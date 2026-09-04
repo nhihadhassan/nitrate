@@ -130,12 +130,12 @@ export function NominatePanel({
                 onClick={() => startTransition(async () => {
                   const result = await setRoundParticipationAction({ roundId, clubId, userId: viewerId, participating: !participating });
                   if (!result.ok) return toast({ message: result.error, tone: 'error' });
-                  toast({ message: participating ? 'You are out for this week.' : 'You are back in for this week.', tone: 'success' });
+                  toast({ message: participating ? 'You are out for this selection.' : 'You are back in for this selection.', tone: 'success' });
                   router.refresh();
                 })}
                 className="mt-3 min-h-11 text-xs text-muted underline underline-offset-2 hover:text-iris sm:min-h-0"
               >
-                {participating ? 'Not joining this week?' : 'Join this week'}
+                {participating ? 'Not joining this selection?' : 'Join this selection'}
               </button>
             ) : null}
 
@@ -183,7 +183,7 @@ export function NominatePanel({
             ) : null}
             {canSubmitForOthers && pickingOpen ? (
               <div className="mt-4 rounded-lg border border-line bg-canvas-raised/50 p-3">
-                <p className="text-xs text-dim">Helping someone join this week?</p>
+                <p className="text-xs text-dim">Helping someone join this selection?</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {members.filter((member) => member.id !== viewerId && member.pickCount < limit).map((member) => (
                     <button key={member.id} type="button" className="min-h-11 rounded-full border border-line px-3 text-xs text-muted hover:border-iris hover:text-text" onClick={() => { setProxyTarget(member); setReplacingId(null); setOpen(true); }}>
