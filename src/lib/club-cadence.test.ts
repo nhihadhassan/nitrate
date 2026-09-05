@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   cadenceLabel,
+  cadenceLine,
   nextSelectionAt,
   nextSelectionCopy,
+  nextSelectionCopyFor,
   roundMovieLabel,
   roundPeriodLabel,
   roundSelectionLabel,
@@ -40,5 +42,20 @@ describe('Movie Club cadence', () => {
 
   it('describes custom cadence with its actual interval', () => {
     expect(cadenceLabel('custom', 18)).toBe('Every 18 days');
+  });
+
+  it('builds the club card cadence line, and degrades to bare cadence before the first round', () => {
+    expect(cadenceLine('monthly', null, SEPTEMBER, 'America/Toronto')).toBe('Monthly · September movie');
+    expect(cadenceLine('weekly', null, SEPTEMBER, 'America/Toronto')).toBe('Weekly · This week’s movie');
+    expect(cadenceLine('custom', 18, null, 'America/Toronto')).toBe('Every 18 days');
+  });
+
+  it('names the period only once a club is actually due', () => {
+    const due = new Date('2026-09-04T12:00:00Z');
+    expect(nextSelectionCopyFor('monthly', due, 'America/Toronto', due)).toBe('Ready to start September’s picks');
+    expect(nextSelectionCopyFor('weekly', due, 'America/Toronto', due)).toBe('Ready to start this week’s picks');
+    expect(nextSelectionCopyFor('monthly', due, 'America/Toronto', new Date('2026-09-03T12:00:00Z'))).toBe(
+      'Next movie selection tomorrow',
+    );
   });
 });
