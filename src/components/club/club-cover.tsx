@@ -17,6 +17,43 @@ import { cn } from '@/lib/utils';
  * if there is one, then a restrained iris/ember wash with the club's initial.
  * Never an empty grey box.
  */
+/**
+ * The club's picture at identity size — a square thumbnail, the same asset the
+ * card banner crops. Used wherever a club is named in a list rather than shown
+ * as a card: the club header, the home sidebar.
+ *
+ * `className` carries the size so callers can be responsive; `sizes` should
+ * describe the largest rendered box.
+ */
+export function ClubAvatar({
+  name,
+  imageAssetId,
+  className,
+  sizes = '48px',
+}: {
+  name: string;
+  imageAssetId: string | null;
+  className?: string;
+  sizes?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        'relative block shrink-0 overflow-hidden rounded-md border border-line bg-surface',
+        className,
+      )}
+    >
+      {imageAssetId ? (
+        <Image src={`/media/${imageAssetId}`} alt="" fill sizes={sizes} className="object-cover" unoptimized />
+      ) : (
+        <span className="club-cover-fallback flex h-full items-center justify-center font-display text-iris">
+          {name.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function ClubCover({
   name,
   imageAssetId,
