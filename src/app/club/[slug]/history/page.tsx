@@ -6,7 +6,7 @@ import { RatingNumber } from '@/components/film/stars';
 import { Badge, EmptyState } from '@/components/ui/primitives';
 import { filmHref, screeningHref } from '@/lib/links';
 import { roundPeriodLabel } from '@/lib/club-cadence';
-import { formatDateTimeInZone, formatRuntime, pluralize } from '@/lib/utils';
+import { formatClubDateTime, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getClubBySlug, getClubHistory, getClubStats, getMembership } from '@/server/services/clubs';
 
@@ -100,7 +100,7 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
               <div className="min-w-0 flex-1">
                 {round ? (
                   <p className="mb-0.5 text-[0.6875rem] uppercase tracking-wide text-iris">
-                    {roundPeriodLabel(club.selectionCadence, round.roundStartAt, club.timezone)}
+                    {roundPeriodLabel(club.selectionCadence, round.roundStartAt)}
                   </p>
                 ) : null}
                 <p className="truncate font-medium">
@@ -111,7 +111,7 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
                 </p>
                 <p className="text-xs text-dim tabular">
                   {screening.completedAt
-                    ? formatDateTimeInZone(screening.completedAt, club.timezone)
+                    ? formatClubDateTime(screening.completedAt)
                     : ''}
                 </p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">

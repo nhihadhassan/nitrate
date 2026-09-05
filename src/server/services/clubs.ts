@@ -15,7 +15,7 @@ import {
 } from '@/lib/club-cadence';
 import type { ClubCadence } from '@/lib/types';
 import type { RecommendationReason } from '@/lib/recommendations';
-import { formatDateTimeInZone, formatRuntime, slugify } from '@/lib/utils';
+import { CLUB_TIME_ZONE, formatClubDateTime, formatRuntime, slugify } from '@/lib/utils';
 import { db, type DbOrTx } from '@/server/db';
 import {
   activityEvents,
@@ -269,7 +269,6 @@ export async function createClub(input: {
   name: string;
   description: string | null;
   visibility: 'private' | 'public';
-  timezone: string;
   interests: string[];
   imageAssetId: string | null;
   selectionCadence?: ClubCadence;
@@ -284,7 +283,7 @@ export async function createClub(input: {
         slug,
         description: input.description,
         visibility: input.visibility,
-        timezone: input.timezone,
+        timezone: CLUB_TIME_ZONE,
         interests: input.interests,
         imageAssetId: input.imageAssetId,
         selectionCadence: input.selectionCadence ?? 'monthly',
@@ -315,7 +314,6 @@ export async function updateClub(
     name: string;
     description: string | null;
     visibility: 'private' | 'public';
-    timezone: string;
     interests: string[];
     imageAssetId: string | null;
     blindRatingsEnabled: boolean;
@@ -1269,7 +1267,7 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
         nominatedBy: chosen.by,
         contenderCount: contenders.length,
         recipientName: member.displayName,
-        selectionMovieLabel: roundMovieLabel(club.selectionCadence, locked.roundStartAt, club.timezone),
+        selectionMovieLabel: roundMovieLabel(club.selectionCadence, locked.roundStartAt),
       }),
       // One winner email per member per round, however many times this is called.
       { dedupePrefix: `wheel:${roundId}`, preference: 'winnerSelected' },
@@ -1481,7 +1479,6 @@ export async function getRoundNominations(
 export type ScreeningPollView = {
   id: string;
   status: 'open' | 'closed' | 'cancelled';
-  timezone: string;
   roundId: string;
   movieId: string;
   options: {
@@ -1538,7 +1535,6 @@ export async function getScreeningPoll(
   return {
     id: poll.id,
     status: poll.status,
-    timezone: poll.timezone,
     roundId: poll.roundId,
     movieId: poll.movieId,
     options: [...options.values()],
@@ -1549,7 +1545,6 @@ export async function createScreeningPoll(input: {
   clubId: string;
   roundId: string;
   userId: string;
-  timezone: string;
   startsAt: Date[];
 }): Promise<string> {
   await requireClubPermission(input.clubId, input.userId, 'edit_movie_night');
@@ -1579,7 +1574,7 @@ export async function createScreeningPoll(input: {
         clubId: input.clubId,
         roundId: input.roundId,
         movieId: winner.movieId,
-        timezone: input.timezone,
+        timezone: CLUB_TIME_ZONE,
         createdByUserId: input.userId,
       })
       .returning({ id: screeningPolls.id });
@@ -1636,7 +1631,6 @@ type ScheduleScreeningInput = {
   movieId: string;
   roundId: string | null;
   scheduledAt: Date;
-  timezone: string;
   location: string | null;
   watchLink: string | null;
   notes: string | null;
@@ -1663,7 +1657,7 @@ async function scheduleScreeningRecord(
       roundId: input.roundId,
       movieId: input.movieId,
       scheduledAt: input.scheduledAt,
-      timezone: input.timezone,
+      timezone: CLUB_TIME_ZONE,
       location: input.location,
       watchLink: input.watchLink,
       notes: input.notes,
@@ -1718,7 +1712,6 @@ export async function confirmScreeningPollOption(input: {
         movieId: candidate.poll.movieId,
         roundId: candidate.poll.roundId,
         scheduledAt: candidate.startsAt,
-        timezone: candidate.poll.timezone,
         location: null,
         watchLink: null,
         notes: null,
@@ -2579,7 +2572,7 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
         ? nextSelectionCopyFor(
             club.selectionCadence,
             nextSelectionAt(club.selectionCadence, latestRoundStartAt, club.customCadenceDays),
-            club.timezone,
+            CLUB_TIME_ZONE,
           )
         : 'Ready for the next movie';
     let stateDetail: string | null = null;
@@ -2598,15 +2591,15 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
       stateDetail = action.subtitle ?? null;
     } else if (screening) {
       stateLabel = screening.movie.title;
-      stateDetail = formatDateTimeInZone(screening.screening.scheduledAt, screening.screening.timezone);
+      stateDetail = formatClubDateTime(screening.screening.scheduledAt);
     } else if (activeRoundStatus === 'voting_open') {
       stateLabel = 'Voting now';
     } else if (activeRoundStatus === 'nominations_open') {
       stateLabel = latestRoundStartAt
-        ? roundSelectionLabel(club.selectionCadence, latestRoundStartAt, club.timezone)
+        ? roundSelectionLabel(club.selectionCadence, latestRoundStartAt)
         : 'Picking movies';
       stateDetail = activeRoundDeadline
-        ? `Picks close ${formatDateTimeInZone(activeRoundDeadline, club.timezone)}`
+        ? `Picks close ${formatClubDateTime(activeRoundDeadline)}`
         : 'Picks are open';
     } else if (activeRoundStatus === 'winner_selected') {
       stateLabel = 'Winner selected';
@@ -2633,7 +2626,7 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
         club.selectionCadence,
         club.customCadenceDays,
         latestRoundStartAt ?? null,
-        club.timezone,
+        CLUB_TIME_ZONE,
       ),
     } satisfies ClubSummary;
   });
@@ -3404,21 +3397,17 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
 
   const opened: WeeklyOpenResult = [];
 
-  for (const club of candidates) {
-    // Evaluate the club's own weekday/hour in its own timezone.
-    let localDay: number;
-    try {
-      const parts = new Intl.DateTimeFormat('en-US', {
-        timeZone: club.timezone,
-        weekday: 'short',
-      }).formatToParts(now);
-      const weekday = parts.find((part) => part.type === 'weekday')?.value ?? 'Sun';
-      localDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekday);
-    } catch {
-      // An invalid timezone should skip one club, not break the whole job.
-      continue;
-    }
+  // Every club runs on Toronto time, so the "which weekday is it" check is one
+  // computation for the whole batch rather than one per club.
+  const torontoWeekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: CLUB_TIME_ZONE,
+    weekday: 'short',
+  })
+    .formatToParts(now)
+    .find((part) => part.type === 'weekday')?.value ?? 'Sun';
+  const localDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(torontoWeekday);
 
+  for (const club of candidates) {
     if (localDay !== club.weeklyPickDay) continue;
 
     const sixDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
@@ -3447,13 +3436,13 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
       await queueClubEmail(
         club.id,
         'submissions_open',
-        `What should ${club.name} choose for ${inlineSelectionLabel(roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone))}?`,
+        `What should ${club.name} choose for ${inlineSelectionLabel(roundMovieLabel(club.selectionCadence, round.roundStartAt))}?`,
         (member) => ({
           clubName: club.name,
           clubSlug: club.slug,
           closesAt: null,
           recipientName: member.displayName,
-          selectionMovieLabel: roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone),
+          selectionMovieLabel: roundMovieLabel(club.selectionCadence, round.roundStartAt),
         }),
         { dedupePrefix: `submissions:${round.id}`, preference: 'picksAndVoting' },
       );
@@ -3524,7 +3513,7 @@ export async function dispatchScreeningReminders(
       const [club] = await tx.select().from(clubs).where(eq(clubs.id, row.screening.clubId)).limit(1);
       if (!club) return 0;
       const when = new Intl.DateTimeFormat('en-CA', {
-        timeZone: row.screening.timezone,
+        timeZone: CLUB_TIME_ZONE,
         dateStyle: 'full',
         timeStyle: 'short',
       }).format(row.screening.scheduledAt);

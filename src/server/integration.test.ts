@@ -391,7 +391,6 @@ suite('nitrate integration', () => {
       name: `Test Club ${tag}`,
       description: 'Integration club',
       visibility: 'private',
-      timezone: 'Europe/London',
       interests: ['Horror'],
       imageAssetId: null,
     });
@@ -492,7 +491,6 @@ suite('nitrate integration', () => {
       clubId: club.id,
       roundId: round.id,
       userId: alex.id,
-      timezone: 'Europe/London',
       startsAt: [firstTime, secondTime],
     });
     const emptyPoll = await getScreeningPoll(round.id, maya.id);
@@ -620,7 +618,6 @@ suite('nitrate integration', () => {
       name: `Deadline Club ${tag}`,
       description: null,
       visibility: 'private',
-      timezone: 'UTC',
       interests: [],
       imageAssetId: null,
     });
@@ -661,7 +658,6 @@ suite('nitrate integration', () => {
       name: `Wheel Club ${tag}`,
       description: null,
       visibility: 'private',
-      timezone: 'Europe/London',
       interests: [],
       imageAssetId: null,
     });

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { FormError } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { cn, formatDateTimeInZone, pluralize } from '@/lib/utils';
+import { clubLocalInputValue, clubLocalToInstant, cn, formatClubDateTime, pluralize } from '@/lib/utils';
 import { bestPollOption } from '@/lib/screening-poll';
 import {
   cancelScreeningPollAction,
@@ -19,7 +19,6 @@ import {
 type Poll = {
   id: string;
   status: 'open' | 'closed' | 'cancelled';
-  timezone: string;
   options: {
     id: string;
     startsAt: string;
@@ -30,24 +29,22 @@ type Poll = {
   }[];
 };
 
+/** N days out, 8:00 PM Toronto — the value an option picker opens on. */
 function localDefault(days: number): string {
   const date = new Date(Date.now() + days * 86_400_000);
-  date.setHours(20, 0, 0, 0);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+  return `${clubLocalInputValue(date).slice(0, 11)}20:00`;
 }
 
 export function ScreeningPoll({
   clubId,
   clubSlug,
   roundId,
-  timezone,
   isAdmin,
   poll,
 }: {
   clubId: string;
   clubSlug: string;
   roundId: string;
-  timezone: string;
   isAdmin: boolean;
   poll: Poll | null;
 }) {
@@ -71,8 +68,7 @@ export function ScreeningPoll({
               clubId,
               clubSlug,
               roundId,
-              timezone,
-              startsAt: times.map((time) => new Date(time).toISOString()),
+              startsAt: times.map((time) => clubLocalToInstant(time).toISOString()),
             });
             if (!result.ok) return setError(result.error);
             toast({ message: 'Availability poll opened', tone: 'success' });
@@ -123,7 +119,7 @@ export function ScreeningPoll({
           <li key={option.id} className="rounded-md border border-line bg-surface/45 p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium tabular">
-                {formatDateTimeInZone(new Date(option.startsAt), poll.timezone)}
+                {formatClubDateTime(new Date(option.startsAt))}
               </p>
               <p className="text-xs text-dim">
                 {pluralize(option.yes, 'yes', 'yeses')} ·{' '}

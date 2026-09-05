@@ -12,7 +12,7 @@ import { RatingNumber } from '@/components/film/stars';
 import { Badge, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { Avatar } from '@/components/user/avatar';
 import { filmHref, userHref } from '@/lib/links';
-import { formatDateTimeInZone, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
+import { formatClubDateTime, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getMovieById } from '@/server/movies/catalog';
 import {
@@ -74,7 +74,7 @@ export default async function ScreeningPage({
         <ClubPulseWatcher clubId={club.id} screeningId={screening.id} />
         <EmptyState
           title="Movie night details are waiting for your reveal"
-          description={`The night is planned for ${formatDateTimeInZone(screening.scheduledAt, screening.timezone)}. Reveal the club pick when you’re ready.`}
+          description={`The night is planned for ${formatClubDateTime(screening.scheduledAt)}. Reveal the club pick when you’re ready.`}
           action={screening.roundId ? <Link className="text-iris underline underline-offset-2" href={`/club/${club.slug}/reveal/${screening.roundId}`}>Reveal the movie →</Link> : undefined}
         />
       </div>
@@ -129,7 +129,7 @@ export default async function ScreeningPage({
             </div>
             <h1 className="mt-2 text-3xl leading-tight sm:text-4xl">{movie.title}</h1>
             <p className="mt-1 text-sm text-muted tabular">
-              {formatDateTimeInZone(screening.scheduledAt, screening.timezone)}
+              {formatClubDateTime(screening.scheduledAt)}
             </p>
             {movie.runtime ? (
               <p className="text-xs text-dim">{formatRuntime(movie.runtime)}</p>
@@ -344,7 +344,7 @@ export default async function ScreeningPage({
         ) : null}
 
         <p className="text-xs text-dim">
-          Scheduled {relativeTime(screening.createdAt)} · times shown in {screening.timezone}
+          Scheduled {relativeTime(screening.createdAt)} · times shown in Toronto time (ET)
         </p>
       </aside>
     </div>

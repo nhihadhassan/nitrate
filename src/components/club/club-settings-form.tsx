@@ -23,7 +23,6 @@ export function ClubSettingsForm({
     name: string;
     description: string | null;
     visibility: 'private' | 'public';
-    timezone: string;
     interests: string[];
     imageAssetId: string | null;
     blindRatingsEnabled: boolean;
@@ -40,7 +39,6 @@ export function ClubSettingsForm({
   const [name, setName] = useState(club.name);
   const [description, setDescription] = useState(club.description ?? '');
   const [visibility, setVisibility] = useState(club.visibility);
-  const [timezone, setTimezone] = useState(club.timezone);
   const [interests, setInterests] = useState(club.interests.join(', '));
   const [imageAssetId, setImageAssetId] = useState(club.imageAssetId);
   const [blindRatings, setBlindRatings] = useState(club.blindRatingsEnabled);
@@ -63,7 +61,6 @@ export function ClubSettingsForm({
               name,
               description: description.trim() || null,
               visibility,
-              timezone,
               interests: interests
                 .split(',')
                 .map((i) => i.trim())
@@ -201,15 +198,6 @@ export function ClubSettingsForm({
           </label>
         </fieldset>
 
-        <Field label="Timezone" htmlFor="settings-timezone">
-          <input
-            id="settings-timezone"
-            value={timezone}
-            onChange={(event) => setTimezone(event.target.value)}
-            className={inputClass}
-          />
-        </Field>
-
         <Field label="Interests" htmlFor="settings-interests" optional hint="Comma separated.">
           <input
             id="settings-interests"
@@ -229,7 +217,6 @@ export function ClubSettingsForm({
       {club.selectionCadence === 'weekly' ? (
         <WeeklyPickSettings
           clubId={club.id}
-          timezone={club.timezone}
           initial={{
             enabled: club.weeklyPickEnabled,
             day: club.weeklyPickDay,

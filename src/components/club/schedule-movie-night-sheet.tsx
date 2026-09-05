@@ -14,14 +14,12 @@ export function ScheduleMovieNightSheet({
   clubId,
   clubSlug,
   roundId,
-  timezone,
   movie,
   poll,
 }: {
   clubId: string;
   clubSlug: string;
   roundId: string;
-  timezone: string;
   movie: { movieId: string; title: string; year: number | null; posterPath: string | null };
   poll: Poll;
 }) {
@@ -29,7 +27,7 @@ export function ScheduleMovieNightSheet({
   const [mode, setMode] = useState<'date' | 'poll'>('date');
 
   if (poll) {
-    return <ScreeningPoll clubId={clubId} clubSlug={clubSlug} roundId={roundId} timezone={timezone} isAdmin poll={poll} />;
+    return <ScreeningPoll clubId={clubId} clubSlug={clubSlug} roundId={roundId} isAdmin poll={poll} />;
   }
 
   return (
@@ -53,9 +51,9 @@ export function ScheduleMovieNightSheet({
           ))}
         </div>
         {mode === 'date' ? (
-          <ScheduleScreeningForm clubId={clubId} clubSlug={clubSlug} roundId={roundId} timezone={timezone} movie={movie} />
+          <ScheduleScreeningForm clubId={clubId} clubSlug={clubSlug} roundId={roundId} movie={movie} />
         ) : (
-          <ScreeningPoll clubId={clubId} clubSlug={clubSlug} roundId={roundId} timezone={timezone} isAdmin poll={null} />
+          <ScreeningPoll clubId={clubId} clubSlug={clubSlug} roundId={roundId} isAdmin poll={null} />
         )}
       </Sheet>
     </>

@@ -8,27 +8,24 @@ import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/utils';
+import { clubLocalInputValue, clubLocalToInstant, cn } from '@/lib/utils';
 import { scheduleScreeningAction } from '@/server/actions/clubs';
 
+/** Three days out, 8:00 PM Toronto — the value the picker opens on. */
 function defaultWhen(): string {
   const date = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-  date.setHours(20, 0, 0, 0);
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  return `${clubLocalInputValue(date).slice(0, 11)}20:00`;
 }
 
 export function ScheduleScreeningForm({
   clubId,
   clubSlug,
   roundId,
-  timezone,
   movie,
 }: {
   clubId: string;
   clubSlug: string;
   roundId: string | null;
-  timezone: string;
   movie?: { movieId: string; title: string; year: number | null; posterPath: string | null };
 }) {
   const router = useRouter();
@@ -57,8 +54,7 @@ export function ScheduleScreeningForm({
             roundId,
             movieId: film.movieId,
             providerId: film.providerId,
-            scheduledAt: new Date(when).toISOString(),
-            timezone,
+            scheduledAt: clubLocalToInstant(when).toISOString(),
             location: location.trim() || null,
             watchLink: watchLink.trim() || null,
             notes: notes.trim() || null,
@@ -95,7 +91,7 @@ export function ScheduleScreeningForm({
         <FilmPicker onPick={setFilm} placeholder="Which film?" />
       )}
 
-      <Field label="When" htmlFor="screening-when" hint={`Shown to members in ${timezone}`}>
+      <Field label="When" htmlFor="screening-when" hint="Toronto time (ET)">
         <DateTimePicker
           id="screening-when"
           value={when}

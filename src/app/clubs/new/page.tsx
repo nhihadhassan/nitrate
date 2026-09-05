@@ -20,7 +20,7 @@ export default async function NewClubPage() {
         scheduling — is already set up.
       </p>
       <div className="mt-7">
-        <CreateClubForm defaultTimezone={user.timezone} />
+        <CreateClubForm />
       </div>
     </Container>
   );
