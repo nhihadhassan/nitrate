@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { ClubAvatar } from '@/components/club/club-cover';
 import { ClubTabs } from '@/components/club/club-tabs';
 import { ClubActionsMenu } from '@/components/club/club-actions-menu';
 import { Badge, Container, EmptyState } from '@/components/ui/primitives';
@@ -86,22 +86,12 @@ export default async function ClubLayout({
       <header className="border-b border-line bg-canvas-raised/30">
         <Container size="wide" className="pt-5 sm:pt-8">
           <div className="flex items-center gap-3 sm:items-start sm:gap-5">
-            <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md border border-line bg-surface sm:h-20 sm:w-20">
-              {club.imageAssetId ? (
-                <Image
-                  src={`/media/${club.imageAssetId}`}
-                  alt=""
-                  fill
-                  sizes="(max-width: 640px) 48px, 80px"
-                  className="object-cover"
-                  unoptimized
-                />
-              ) : (
-                <span className="flex h-full items-center justify-center font-display text-2xl text-iris">
-                  {club.name.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-            </div>
+            <ClubAvatar
+              name={club.name}
+              imageAssetId={club.imageAssetId}
+              className="h-12 w-12 text-2xl sm:h-20 sm:w-20"
+              sizes="(max-width: 640px) 48px, 80px"
+            />
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">

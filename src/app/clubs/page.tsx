@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { JoinClubForm } from '@/components/club/join-club-form';
 import { ClubLoopPreview } from '@/components/club/club-loop-preview';
+import { ClubCover } from '@/components/club/club-cover';
 import { ClubSummaryCard } from '@/components/club/club-summary-card';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState, SectionHeading } from '@/components/ui/primitives';
@@ -91,20 +92,23 @@ export default async function ClubsPage() {
               <li key={club.id}>
                 <Link
                   href={`/club/${club.slug}`}
-                  className="interactive-card club-card block rounded-lg border border-line p-4 hover:border-iris/40"
+                  className="interactive-card club-card flex h-full flex-col overflow-hidden rounded-xl border border-line hover:border-iris/40"
                   data-pointer-light
                   data-reveal="card"
                 >
-                  <p className="font-display text-xl leading-tight">{club.name}</p>
-                  {club.description ? (
-                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted">
-                      {club.description}
+                  <ClubCover name={club.name} imageAssetId={club.imageAssetId} className="h-28" />
+                  <div className="flex flex-1 flex-col p-4">
+                    <p className="font-display text-xl leading-tight">{club.name}</p>
+                    {club.description ? (
+                      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-muted">
+                        {club.description}
+                      </p>
+                    ) : null}
+                    <p className="mt-auto pt-3 text-xs text-dim">
+                      {pluralize(club.memberCount, 'member')} ·{' '}
+                      {pluralize(club.screeningCount, 'screening')}
                     </p>
-                  ) : null}
-                  <p className="mt-3 text-xs text-dim">
-                    {pluralize(club.memberCount, 'member')} ·{' '}
-                    {pluralize(club.screeningCount, 'screening')}
-                  </p>
+                  </div>
                 </Link>
               </li>
             ))}

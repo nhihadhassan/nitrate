@@ -6,6 +6,7 @@ import { Poster, PosterCard, PosterGrid } from '@/components/film/poster';
 import { PosterRail } from '@/components/film/poster-rail';
 import { LandingPage } from '@/components/marketing/landing';
 import { RightNow } from '@/components/club/right-now';
+import { ClubAvatar } from '@/components/club/club-cover';
 import { ClubSummaryCard } from '@/components/club/club-summary-card';
 import { TonightFeature } from '@/components/discovery/tonight-feature';
 import { Button } from '@/components/ui/button';
@@ -229,11 +230,22 @@ export default async function HomePage({
               <ul className="space-y-2.5">
                 {clubs.slice(0, 6).map((summary) => (
                   <li key={summary.club.id}>
-                    <Link href={summary.attention?.href ?? `/club/${summary.club.slug}`} className="group block min-w-0">
-                      <span className="block truncate text-sm text-muted transition-colors group-hover:text-ember">
-                        {summary.club.name}
+                    <Link
+                      href={summary.attention?.href ?? `/club/${summary.club.slug}`}
+                      className="group flex min-w-0 items-center gap-2.5"
+                    >
+                      <ClubAvatar
+                        name={summary.club.name}
+                        imageAssetId={summary.club.imageAssetId}
+                        className="h-9 w-9 text-sm"
+                        sizes="36px"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-muted transition-colors group-hover:text-ember">
+                          {summary.club.name}
+                        </span>
+                        <span className="block truncate text-xs text-dim">{summary.stateLabel}</span>
                       </span>
-                      <span className="block text-xs text-dim">{summary.stateLabel}</span>
                     </Link>
                   </li>
                 ))}

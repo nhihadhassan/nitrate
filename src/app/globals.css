@@ -612,6 +612,47 @@ select:focus {
   transform: translate(-0.4rem, -0.35rem) scale(1.08);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Club cover                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+  The banner on a club card. A club has exactly one image; this is a crop of it,
+  scrimmed so the card body reads over the bottom of the picture instead of
+  starting below a hard edge. Ember is deliberately absent — iris is the club
+  colour, and the accent stays reserved for personal film actions.
+*/
+.club-cover-scrim {
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to top,
+      var(--canvas-raised) 0%,
+      color-mix(in srgb, var(--canvas-raised) 55%, transparent) 18%,
+      transparent 52%
+    ),
+    linear-gradient(120deg, color-mix(in srgb, var(--iris) 10%, transparent), transparent 60%);
+}
+
+.club-cover-fallback {
+  background:
+    radial-gradient(120% 90% at 18% 0%, color-mix(in srgb, var(--iris) 26%, transparent), transparent 62%),
+    radial-gradient(90% 80% at 100% 100%, color-mix(in srgb, var(--ember) 12%, transparent), transparent 58%),
+    linear-gradient(160deg, var(--surface) 0%, var(--canvas) 100%);
+}
+
+/* The picture drifts a hair on hover — enough to feel alive, not enough to
+   compete with the artwork underneath it. */
+.club-cover-media {
+  transition: transform var(--duration-slow) var(--ease-out-expo);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .interactive-card:hover .club-cover-media {
+    transform: scale(1.035);
+  }
+}
+
 @utility hairline {
   border-bottom: 1px solid var(--line);
 }
@@ -967,7 +1008,9 @@ select:focus {
   .premium-poster,
   .premium-poster:hover,
   .cinematic-backdrop-media,
-  .cinematic-hero-poster {
+  .cinematic-hero-poster,
+  .club-cover-media,
+  .interactive-card:hover .club-cover-media {
     transform: none !important;
   }
 
