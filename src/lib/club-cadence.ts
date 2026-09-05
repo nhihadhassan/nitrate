@@ -63,6 +63,33 @@ export function roundSelectionLabel(cadence: ClubCadence, roundStart: Date, time
   return 'Current movie selection';
 }
 
+/**
+ * Possessive form of the period a round belongs to — "September’s picks",
+ * "this week’s picks". Used for card copy that talks about the *upcoming*
+ * selection rather than the movie it produced.
+ */
+export function selectionPicksLabel(cadence: ClubCadence, at: Date, timeZone: string): string {
+  if (cadence === 'monthly') return `${monthName(at, timeZone)}’s picks`;
+  if (cadence === 'weekly') return 'this week’s picks';
+  return 'the next picks';
+}
+
+/**
+ * The one-line "Monthly · September movie" summary on a club card. Falls back
+ * to the bare cadence when a club has never run a round, so a brand-new club
+ * still says how often it intends to meet.
+ */
+export function cadenceLine(
+  cadence: ClubCadence,
+  customCadenceDays: number | null | undefined,
+  roundStart: Date | null,
+  timeZone: string,
+): string {
+  const cadenceText = cadenceLabel(cadence, customCadenceDays);
+  if (!roundStart) return cadenceText;
+  return `${cadenceText} · ${roundSelectionLabel(cadence, roundStart, timeZone)}`;
+}
+
 export function roundPeriodLabel(cadence: ClubCadence, roundStart: Date, timeZone: string): string {
   const zone = safeTimeZone(timeZone);
   if (cadence === 'monthly') {
@@ -99,6 +126,22 @@ export function nextSelectionCopy(next: Date, now = new Date()): string {
   if (days <= 0) return 'Ready for the next movie';
   if (days === 1) return 'Next movie selection tomorrow';
   return `Next movie selection in ${days} days`;
+}
+
+/**
+ * `nextSelectionCopy` with the period named once the club is actually due —
+ * "Ready to start September’s picks" reads as an invitation, where the generic
+ * "Ready for the next movie" reads as a status.
+ */
+export function nextSelectionCopyFor(
+  cadence: ClubCadence,
+  next: Date,
+  timeZone: string,
+  now = new Date(),
+): string {
+  const generic = nextSelectionCopy(next, now);
+  if (generic !== 'Ready for the next movie') return generic;
+  return `Ready to start ${selectionPicksLabel(cadence, next, timeZone)}`;
 }
 
 export function localDateParts(date: Date, timeZone: string) {

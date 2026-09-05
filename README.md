@@ -22,6 +22,7 @@ that file.
 
 | Doc | What's in it |
 | --- | --- |
+| **[DESIGN & PRODUCT](DESIGN_AND_PRODUCT.md)** | What Nitrate is for, and how it should look and feel — audiences, product principles, brand identity, design tokens, motion, accessibility |
 | **[HANDOFF](docs/HANDOFF.md)** | Where everything lives, env vars, what blocks other people using it, how to run and deploy, gotchas |
 | **[FEATURES](docs/FEATURES.md)** | Everything that is built and working |
 | **[DECISIONS](docs/DECISIONS.md)** | Why the code looks like this, the bugs found and how, deployment history |

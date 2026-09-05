@@ -5,7 +5,14 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { and, asc, count, desc, eq, gt, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm';
 
 import { clubHref, screeningHref } from '@/lib/links';
-import { inlineSelectionLabel, nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
+import {
+  cadenceLine,
+  inlineSelectionLabel,
+  nextSelectionAt,
+  nextSelectionCopyFor,
+  roundMovieLabel,
+  roundSelectionLabel,
+} from '@/lib/club-cadence';
 import type { ClubCadence } from '@/lib/types';
 import type { RecommendationReason } from '@/lib/recommendations';
 import { formatDateTimeInZone, formatRuntime, slugify } from '@/lib/utils';
@@ -2517,6 +2524,8 @@ export type ClubSummary = {
   } | null;
   stateLabel: string;
   stateDetail: string | null;
+  /** "Monthly · September movie" — the club's rhythm, for the card banner. */
+  cadenceLine: string;
 };
 
 /**
@@ -2567,7 +2576,11 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
     let stateLabel = club.screeningCount === 0
       ? 'Pick your first movie'
       : latestRoundStartAt
-        ? nextSelectionCopy(nextSelectionAt(club.selectionCadence, latestRoundStartAt, club.customCadenceDays))
+        ? nextSelectionCopyFor(
+            club.selectionCadence,
+            nextSelectionAt(club.selectionCadence, latestRoundStartAt, club.customCadenceDays),
+            club.timezone,
+          )
         : 'Ready for the next movie';
     let stateDetail: string | null = null;
     if (action) {
@@ -2616,6 +2629,12 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
       } : null,
       stateLabel,
       stateDetail,
+      cadenceLine: cadenceLine(
+        club.selectionCadence,
+        club.customCadenceDays,
+        latestRoundStartAt ?? null,
+        club.timezone,
+      ),
     } satisfies ClubSummary;
   });
 
