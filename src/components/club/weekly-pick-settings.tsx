@@ -12,11 +12,9 @@ const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 
 
 export function WeeklyPickSettings({
   clubId,
-  timezone,
   initial,
 }: {
   clubId: string;
-  timezone: string;
   initial: { enabled: boolean; day: number; hour: number };
 }) {
   const router = useRouter();
@@ -55,7 +53,7 @@ export function WeeklyPickSettings({
           <Field
             label="Start choosing on"
             htmlFor="weekly-day"
-            hint={`Each ${DAYS[day]}, in ${timezone}.`}
+            hint={`Each ${DAYS[day]}, Toronto time.`}
           >
             <select
               id="weekly-day"

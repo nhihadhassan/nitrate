@@ -36,7 +36,6 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
           name: club.name,
           description: club.description,
           visibility: club.visibility,
-          timezone: club.timezone,
           interests: club.interests,
           imageAssetId: club.imageAssetId,
           blindRatingsEnabled: club.blindRatingsEnabled,

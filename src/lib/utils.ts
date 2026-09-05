@@ -155,20 +155,76 @@ export function todayIsoDate(timeZone = 'UTC'): string {
   return parts;
 }
 
-export function formatDateTimeInZone(date: Date, timeZone: string): string {
+/**
+ * Every club shares one clock. Movie nights are a Toronto thing, so screening
+ * times, poll options and history dates are always shown in Eastern regardless
+ * of where the viewer — or the club's stored timezone — happens to be. One
+ * displayed time for the whole group beats each member doing the maths.
+ */
+export const CLUB_TIME_ZONE = 'America/Toronto';
+
+/**
+ * "Fri Sept 11, 8:00 PM" — a wall-clock time in {@link CLUB_TIME_ZONE}, with no
+ * offset suffix. Built from parts because no single locale gives both the
+ * "Sept" abbreviation (en-GB) and an uppercase "PM" (en-US).
+ */
+export function formatClubDateTime(date: Date): string {
+  if (Number.isNaN(date.getTime())) return '';
   try {
-    return new Intl.DateTimeFormat('en-GB', {
-      timeZone,
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: CLUB_TIME_ZONE,
       weekday: 'short',
       day: 'numeric',
       month: 'short',
       hour: 'numeric',
       minute: '2-digit',
-      timeZoneName: 'short',
-    }).format(date);
+      hour12: true,
+    }).formatToParts(date);
+    const get = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? '';
+    return `${get('weekday')} ${get('month')} ${get('day')}, ${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()}`;
   } catch {
     return date.toISOString();
   }
+}
+
+/** The UTC offset {@link CLUB_TIME_ZONE} is at on a given instant, in minutes. */
+function clubOffsetMinutes(at: Date): number {
+  const label =
+    new Intl.DateTimeFormat('en-US', { timeZone: CLUB_TIME_ZONE, timeZoneName: 'longOffset' })
+      .formatToParts(at)
+      .find((part) => part.type === 'timeZoneName')?.value ?? 'GMT+00:00';
+  const match = label.match(/GMT([+-])(\d{2}):(\d{2})/);
+  if (!match) return 0;
+  return (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3]));
+}
+
+/**
+ * Read a `YYYY-MM-DDTHH:mm` string as a wall-clock time in {@link CLUB_TIME_ZONE}
+ * and return the instant it names — so "8:00 PM" means 8 PM in Toronto whoever
+ * typed it. Handles the ~1h DST error by resolving the offset twice.
+ */
+export function clubLocalToInstant(local: string): Date {
+  const naive = new Date(`${local}:00Z`);
+  if (Number.isNaN(naive.getTime())) return new Date(NaN);
+  const firstGuess = new Date(naive.getTime() - clubOffsetMinutes(naive) * 60_000);
+  return new Date(naive.getTime() - clubOffsetMinutes(firstGuess) * 60_000);
+}
+
+/** `YYYY-MM-DDTHH:mm` for an instant, as wall-clock in {@link CLUB_TIME_ZONE}. */
+export function clubLocalInputValue(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLUB_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
 }
 
 export function yearOf(value: string | null | undefined): number | null {

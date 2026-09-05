@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { ImageUpload } from '@/components/media/image-upload';
 import { Button } from '@/components/ui/button';
@@ -26,29 +26,17 @@ const INTERESTS = [
   'Cult',
 ];
 
-export function CreateClubForm({ defaultTimezone }: { defaultTimezone: string }) {
+export function CreateClubForm() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState<'private' | 'public'>('private');
   const [selectionCadence, setSelectionCadence] = useState<ClubCadence>('monthly');
   const [customCadenceDays, setCustomCadenceDays] = useState(30);
-  const [timezone, setTimezone] = useState(defaultTimezone);
   const [interests, setInterests] = useState<string[]>([]);
   const [imageAssetId, setImageAssetId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-
-  // Default to the browser's zone; screening times are shown in the club's zone.
-  useEffect(() => {
-    if (defaultTimezone && defaultTimezone !== 'UTC') return;
-    try {
-      const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (detected) setTimezone(detected);
-    } catch {
-      /* keep the default */
-    }
-  }, [defaultTimezone]);
 
   return (
     <form
@@ -61,7 +49,6 @@ export function CreateClubForm({ defaultTimezone }: { defaultTimezone: string })
             name,
             description: description.trim() || null,
             visibility,
-            timezone,
             interests,
             imageAssetId,
             selectionCadence,
@@ -164,19 +151,6 @@ export function CreateClubForm({ defaultTimezone }: { defaultTimezone: string })
           />
         </div>
       </fieldset>
-
-      <Field
-        label="Timezone"
-        htmlFor="club-timezone"
-        hint="Screening times are shown to everyone in this zone."
-      >
-        <input
-          id="club-timezone"
-          value={timezone}
-          onChange={(event) => setTimezone(event.target.value)}
-          className={inputClass}
-        />
-      </Field>
 
       <fieldset>
         <legend className="mb-1.5 text-sm font-medium">

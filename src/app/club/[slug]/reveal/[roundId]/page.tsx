@@ -63,7 +63,7 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         spun={revealState.spun}
         revealed={revealState.revealed}
         initialPayload={initialPayload}
-        selectionMovieLabel={roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone)}
+        selectionMovieLabel={roundMovieLabel(club.selectionCadence, round.roundStartAt)}
       />
     </Container>
   );

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  clubLocalInputValue,
+  clubLocalToInstant,
+  formatClubDateTime,
   formatCount,
   formatDateOnly,
   formatRuntime,
@@ -75,5 +78,31 @@ describe('formatting', () => {
     // A naive `new Date('2024-01-01')` renders as 31 Dec in negative offsets.
     expect(formatDateOnly('2024-01-01')).toBe('1 Jan 2024');
     expect(formatDateOnly('2024-12-31')).toBe('31 Dec 2024');
+  });
+});
+
+describe('club time (America/Toronto)', () => {
+  it('renders an instant as a Toronto wall-clock time, no offset suffix', () => {
+    // 2026-09-11 20:00 EDT
+    expect(formatClubDateTime(new Date('2026-09-12T00:00:00Z'))).toBe('Fri Sept 11, 8:00 PM');
+    // 2026-01-15 19:30 EST — the offset shifts, the label does not mention it
+    expect(formatClubDateTime(new Date('2026-01-16T00:30:00Z'))).toBe('Thu Jan 15, 7:30 PM');
+  });
+
+  it('returns an empty string for an invalid date rather than throwing', () => {
+    expect(formatClubDateTime(new Date(NaN))).toBe('');
+  });
+
+  it('reads a typed wall-clock time as Toronto, across the DST boundary', () => {
+    // Summer: 8 PM Toronto is 00:00 UTC the next day (-4)
+    expect(clubLocalToInstant('2026-07-04T20:00').toISOString()).toBe('2026-07-05T00:00:00.000Z');
+    // Winter: 8 PM Toronto is 01:00 UTC the next day (-5)
+    expect(clubLocalToInstant('2026-02-04T20:00').toISOString()).toBe('2026-02-05T01:00:00.000Z');
+  });
+
+  it('round-trips an instant through the input value and back', () => {
+    const instant = new Date('2026-09-12T00:00:00Z');
+    expect(clubLocalInputValue(instant)).toBe('2026-09-11T20:00');
+    expect(clubLocalToInstant(clubLocalInputValue(instant)).toISOString()).toBe(instant.toISOString());
   });
 });

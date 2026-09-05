@@ -5,7 +5,7 @@ import { ScreeningPoll } from '@/components/club/screening-poll';
 import { Poster } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
 import { EmptyState, SectionHeading } from '@/components/ui/primitives';
-import { formatDateTimeInZone } from '@/lib/utils';
+import { formatClubDateTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getActiveRound, getClubBySlug, getMembership, getScreeningPoll, getUpcomingScreening } from '@/server/services/clubs';
 
@@ -64,7 +64,7 @@ export default async function ClubCalendarPage({ params }: { params: Promise<{ s
               <div className="min-w-0">
                 <p className="eyebrow text-iris">Next movie night</p>
                 <h2 className="mt-1 text-xl leading-tight">{upcoming.movie.title}</h2>
-                <p className="mt-1 text-xs text-muted">{formatDateTimeInZone(upcoming.screening.scheduledAt, upcoming.screening.timezone)}</p>
+                <p className="mt-1 text-xs text-muted">{formatClubDateTime(upcoming.screening.scheduledAt)}</p>
                 {upcoming.screening.location ? <p className="mt-1 text-xs text-dim">{upcoming.screening.location}</p> : null}
               </div>
             </div>
@@ -86,7 +86,6 @@ export default async function ClubCalendarPage({ params }: { params: Promise<{ s
             clubId={club.id}
             clubSlug={club.slug}
             roundId={round.id}
-            timezone={club.timezone}
             isAdmin={membership.role !== 'member'}
             poll={{ ...poll, options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })) }}
           />

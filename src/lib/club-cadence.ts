@@ -1,3 +1,4 @@
+import { CLUB_TIME_ZONE } from '@/lib/utils';
 import type { ClubCadence } from '@/lib/types';
 
 export const CLUB_CADENCE_OPTIONS: Array<{ value: ClubCadence; label: string; detail: string }> = [
@@ -51,13 +52,21 @@ export function inlineSelectionLabel(label: string): string {
   return label.startsWith('This ') ? `this ${label.slice(5)}` : label;
 }
 
-export function roundMovieLabel(cadence: ClubCadence, roundStart: Date, timeZone: string): string {
+export function roundMovieLabel(
+  cadence: ClubCadence,
+  roundStart: Date,
+  timeZone: string = CLUB_TIME_ZONE,
+): string {
   if (cadence === 'monthly') return `${monthName(roundStart, timeZone)}’s movie`;
   if (cadence === 'weekly') return 'This week’s movie';
   return 'This selection’s movie';
 }
 
-export function roundSelectionLabel(cadence: ClubCadence, roundStart: Date, timeZone: string): string {
+export function roundSelectionLabel(
+  cadence: ClubCadence,
+  roundStart: Date,
+  timeZone: string = CLUB_TIME_ZONE,
+): string {
   if (cadence === 'monthly') return `${monthName(roundStart, timeZone)} movie`;
   if (cadence === 'weekly') return 'This week’s movie';
   return 'Current movie selection';
@@ -68,7 +77,11 @@ export function roundSelectionLabel(cadence: ClubCadence, roundStart: Date, time
  * "this week’s picks". Used for card copy that talks about the *upcoming*
  * selection rather than the movie it produced.
  */
-export function selectionPicksLabel(cadence: ClubCadence, at: Date, timeZone: string): string {
+export function selectionPicksLabel(
+  cadence: ClubCadence,
+  at: Date,
+  timeZone: string = CLUB_TIME_ZONE,
+): string {
   if (cadence === 'monthly') return `${monthName(at, timeZone)}’s picks`;
   if (cadence === 'weekly') return 'this week’s picks';
   return 'the next picks';
@@ -83,14 +96,18 @@ export function cadenceLine(
   cadence: ClubCadence,
   customCadenceDays: number | null | undefined,
   roundStart: Date | null,
-  timeZone: string,
+  timeZone: string = CLUB_TIME_ZONE,
 ): string {
   const cadenceText = cadenceLabel(cadence, customCadenceDays);
   if (!roundStart) return cadenceText;
   return `${cadenceText} · ${roundSelectionLabel(cadence, roundStart, timeZone)}`;
 }
 
-export function roundPeriodLabel(cadence: ClubCadence, roundStart: Date, timeZone: string): string {
+export function roundPeriodLabel(
+  cadence: ClubCadence,
+  roundStart: Date,
+  timeZone: string = CLUB_TIME_ZONE,
+): string {
   const zone = safeTimeZone(timeZone);
   if (cadence === 'monthly') {
     return new Intl.DateTimeFormat('en-US', { timeZone: zone, month: 'long', year: 'numeric' }).format(roundStart);

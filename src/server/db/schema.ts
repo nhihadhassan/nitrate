@@ -890,6 +890,12 @@ export const clubs = nitrate.table(
     description: text('description'),
     imageAssetId: uuid('image_asset_id').references(() => mediaAssets.id, { onDelete: 'set null' }),
     visibility: clubVisibility('visibility').notNull().default('private'),
+    /**
+     * Vestigial. Every club runs on Toronto time — see `CLUB_TIME_ZONE` in
+     * `src/lib/utils.ts` — so nothing reads this any more; new rows are written
+     * `America/Toronto`. Kept as a column so a future per-club clock needs no
+     * backfill.
+     */
     timezone: text('timezone').notNull().default('UTC'),
     interests: text('interests').array().notNull().default(sql`ARRAY[]::text[]`),
     ownerId: uuid('owner_id')
@@ -906,7 +912,7 @@ export const clubs = nitrate.table(
 
     /**
      * Optional weekly ritual: open a submissions round automatically, then let
-     * the club spin for a winner. Day is 0=Sunday, hour is in the club timezone.
+     * the club spin for a winner. Day is 0=Sunday, hour is Toronto time.
      */
     weeklyPickEnabled: boolean('weekly_pick_enabled').notNull().default(false),
     weeklyPickDay: smallint('weekly_pick_day').notNull().default(1),

@@ -17,7 +17,7 @@ import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { filmHref } from '@/lib/links';
 import { deriveClubDashboardView, resolveClubState } from '@/lib/club';
 import { nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
-import { cn, formatDateTimeInZone, relativeTime } from '@/lib/utils';
+import { cn, formatClubDateTime, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getWatchlistPreview } from '@/server/services/profile';
 import {
@@ -97,10 +97,10 @@ export default async function ClubDashboard({
   const attendance = upcoming ? await getScreeningAttendance(upcoming.screening.id) : [];
   const going = attendance.filter((a) => a.rsvp === 'going');
   const selectionMovieLabel = round
-    ? roundMovieLabel(club.selectionCadence, round.roundStartAt, club.timezone)
+    ? roundMovieLabel(club.selectionCadence, round.roundStartAt)
     : null;
   const selectionLabel = round
-    ? roundSelectionLabel(club.selectionCadence, round.roundStartAt, club.timezone)
+    ? roundSelectionLabel(club.selectionCadence, round.roundStartAt)
     : null;
   const nextSelectionLabel = latestRoundStart
     ? nextSelectionCopy(nextSelectionAt(club.selectionCadence, latestRoundStart, club.customCadenceDays))
@@ -177,7 +177,7 @@ export default async function ClubDashboard({
           view={dashboardView}
           movie={heroMovie}
           actionHref={heroActionHref}
-          dateLabel={viewerCanSeeWheelWinner && upcoming ? formatDateTimeInZone(upcoming.screening.scheduledAt, upcoming.screening.timezone) : null}
+          dateLabel={viewerCanSeeWheelWinner && upcoming ? formatClubDateTime(upcoming.screening.scheduledAt) : null}
           location={viewerCanSeeWheelWinner ? upcoming?.screening.location : null}
           going={going}
         />
@@ -326,7 +326,6 @@ export default async function ClubDashboard({
                   clubId={club.id}
                   clubSlug={club.slug}
                   roundId={round.id}
-                  timezone={club.timezone}
                   poll={poll ? {
                     ...poll,
                     options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
@@ -346,7 +345,6 @@ export default async function ClubDashboard({
                   clubId={club.id}
                   clubSlug={club.slug}
                   roundId={round.id}
-                  timezone={club.timezone}
                   isAdmin={false}
                   poll={{
                     ...poll,
