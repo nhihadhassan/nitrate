@@ -6,6 +6,7 @@ import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { DiscussionThread } from '@/components/club/discussion-thread';
 import { PostScreeningPanel } from '@/components/club/post-screening-panel';
 import { RsvpControls } from '@/components/club/rsvp-controls';
+import { MovieNightHero } from '@/components/club/mobile/movie-night-hero';
 import { ScreeningAdminControls } from '@/components/club/screening-admin-controls';
 import { Poster } from '@/components/film/poster';
 import { RatingNumber } from '@/components/film/stars';
@@ -103,7 +104,29 @@ export default async function ScreeningPage({
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <ClubPulseWatcher clubId={club.id} screeningId={screening.id} />
       <div className="min-w-0 space-y-9">
-        <header className="flex gap-4 sm:gap-5">
+        {/* Phone: the film's artwork carries the event, and the RSVP is the
+            first thing in reach. Desktop keeps the existing header below. */}
+        <div className="lg:hidden">
+          <MovieNightHero
+            film={{ slug: movie.slug, title: movie.title, year: movie.year, posterPath: movie.posterPath }}
+            backdropPath={movie.backdropPath}
+            dateLabel={formatClubDateTime(screening.scheduledAt)}
+            location={screening.location}
+            watchLink={screening.watchLink}
+            notes={screening.notes}
+            attendees={going}
+            goingCount={going.length}
+            maybeCount={maybe.length}
+            invitedCount={attendance.length || going.length}
+            viewerRsvp={context.attendance?.rsvp ?? null}
+            screeningId={screening.id}
+            clubSlug={club.slug}
+            showRsvp={screening.status === 'scheduled'}
+            calendarHref={`/club/${club.slug}/screening/${screening.id}/calendar`}
+          />
+        </div>
+
+        <header className="hidden gap-4 sm:gap-5 lg:flex">
           <div className="w-24 shrink-0 sm:w-32">
             <Poster
               film={{
@@ -186,7 +209,7 @@ export default async function ScreeningPage({
         </header>
 
         {screening.status === 'scheduled' ? (
-          <section>
+          <section className="hidden lg:block">
             <SectionHeading title="Are you coming?" />
             <RsvpControls
               screeningId={screening.id}
@@ -204,10 +227,7 @@ export default async function ScreeningPage({
 
         {isCompleted ? (
           <section>
-            <SectionHeading
-              title="After the film"
-              subtitle="Confirm you were there, log it to your own diary, then rate it."
-            />
+            <SectionHeading title="After the film" />
             <PostScreeningPanel
               screeningId={screening.id}
               clubSlug={club.slug}
@@ -247,7 +267,7 @@ export default async function ScreeningPage({
 
         {isCompleted ? (
           <section>
-            <SectionHeading title="Club rating" subtitle="Blind until you submit yours." />
+            <SectionHeading title="Club rating" />
             <BlindRatings
               screeningId={screening.id}
               clubSlug={club.slug}
