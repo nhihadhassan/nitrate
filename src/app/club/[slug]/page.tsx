@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ClubInvitePanel } from '@/components/club/invite-panel';
+import { ClubStageCardView } from '@/components/club/mobile/club-stage-card';
+import { ClubShelves, NextMovieNightCard } from '@/components/club/mobile/club-home-sections';
 import { ClubCurrentHero } from '@/components/club/club-current-hero';
 import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { ClubShortlist } from '@/components/club/club-shortlist';
@@ -16,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { filmHref } from '@/lib/links';
 import { deriveClubDashboardView, resolveClubState } from '@/lib/club';
+import { resolveClubStageCard } from '@/lib/club-stage';
 import { nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
 import { cn, formatClubDateTime, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
@@ -169,9 +172,151 @@ export default async function ClubDashboard({
           ? '#club-decision'
           : null;
 
+  const participatingMembers = participants.filter((participant) => participant.participating);
+  // The stage card and the desktop hero read the same `kind`; only the wording
+  // differs, so the two can never disagree about where the club is.
+  const stageCard = resolveClubStageCard({
+    view: dashboardView,
+    clubSlug: club.slug,
+    inviteCode: club.inviteCode,
+    selectionLabel: selectionLabel,
+    selectionMovieLabel: selectionMovieLabel,
+    roundId: round?.id ?? null,
+    screeningId: upcoming?.screening.id ?? null,
+    ratingScreeningId: dueRating?.screening.id ?? null,
+    movieTitle: heroMovie?.title ?? null,
+    pickCount: nominations?.nominationCount ?? 0,
+    readyMembers,
+    participatingMembers: participatingMembers.length || members.length,
+    viewerHasPicked: Boolean(round && currentUserPickCount >= round.nominationLimitPerMember),
+    canSpin: clubPermissions.has('start_wheel'),
+    dateLabel: viewerCanSeeWheelWinner && upcoming ? formatClubDateTime(upcoming.screening.scheduledAt) : null,
+    location: viewerCanSeeWheelWinner ? (upcoming?.screening.location ?? null) : null,
+    rsvp: myAttendance?.rsvp ?? null,
+    nextSelectionLabel,
+  });
+  // A stage that must not name the winner is handed no artwork at all, rather
+  // than relying on the card to hide it.
+  const stageFilm = stageCard.kind === 'reveal' ? null : heroMovie;
+  const stagePicks =
+    nominations?.contendersVisible && (stageCard.kind === 'pick' || stageCard.kind === 'waiting' || stageCard.kind === 'wheel')
+      ? nominations.nominations.map((nomination) => nomination.movie)
+      : [];
+  const stageMembers =
+    stageCard.kind === 'pick' || stageCard.kind === 'waiting'
+      ? participatingMembers
+          .map((participant) => members.find((member) => member.id === participant.userId))
+          .filter((member): member is (typeof members)[number] => Boolean(member))
+          .map((member) => ({
+            id: member.id,
+            username: member.username,
+            displayName: member.displayName,
+            avatarAssetId: member.avatarAssetId,
+            ready: (pickCounts.get(member.id) ?? 0) >= (round?.nominationLimitPerMember ?? 1),
+          }))
+      : [];
+
   return (
-    <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <>
       {isMember ? <ClubPulseWatcher clubId={club.id} /> : null}
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Phone: one stage, one action, then only what is genuinely useful. */}
+      {/* ---------------------------------------------------------------- */}
+      <div className="space-y-9 lg:hidden">
+        <ClubStageCardView
+          card={stageCard}
+          picks={stagePicks}
+          members={stageMembers}
+          film={stageFilm}
+          backdropPath={stageFilm && 'backdropPath' in stageFilm ? stageFilm.backdropPath : null}
+          progress={
+            stageCard.kind === 'pick' || stageCard.kind === 'waiting'
+              ? { done: readyMembers, total: participatingMembers.length || members.length }
+              : null
+          }
+          // A quieter way to look at the wheel without committing to a pick.
+          secondaryAction={
+            stageCard.kind === 'pick' && round
+              ? { label: 'See the picks', href: `/club/${club.slug}/reveal/${round.id}` }
+              : null
+          }
+        />
+
+        {/* The controls the stage card points at. Same components as desktop —
+            the mobile tree only needs its own anchor ids, because both trees
+            are in the DOM and the desktop one is hidden at this width. */}
+        {/* Only while the round is still being decided. Past that point these
+            are controls for something already settled — "Close picks early"
+            and "Cancel round" under a booked movie night read as clutter at
+            best and a trap at worst. Desktop keeps its own full set. */}
+        {isMember &&
+        (!round || round.status === 'nominations_open' || round.status === 'voting_open') &&
+        (isAdmin || clubPermissions.has('extend_submission_deadline') || clubPermissions.has('start_wheel')) ? (
+          <section
+            id="club-decision-m"
+            className="scroll-mt-4 rounded-xl border border-line p-3"
+            aria-label="Club tools"
+          >
+            <RoundControls
+              clubId={club.id}
+              clubSlug={club.slug}
+              roundId={round?.id ?? null}
+              status={round?.status ?? null}
+              mode={round?.mode}
+              nominationCount={nominations?.nominationCount ?? 0}
+              allMembersPicked={allMembersPicked}
+              picksExpired={picksExpired}
+              picksClosed={picksClosed}
+              isAdmin={isAdmin}
+              canExtendDeadline={clubPermissions.has('extend_submission_deadline')}
+              canStartWheel={clubPermissions.has('start_wheel')}
+            />
+          </section>
+        ) : null}
+
+        {round?.status === 'winner_selected' && canEditMovieNight && viewerCanSeeWheelWinner && nominations?.nominations.length ? (
+          <section id="club-schedule-m" className="scroll-mt-4">
+            <ScheduleMovieNightSheet
+              clubId={club.id}
+              clubSlug={club.slug}
+              roundId={round.id}
+              poll={poll ? {
+                ...poll,
+                options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
+              } : null}
+              movie={{
+                movieId: (winner ?? nominations.nominations[0]).movie.id,
+                title: (winner ?? nominations.nominations[0]).movie.title,
+                year: (winner ?? nominations.nominations[0]).movie.year,
+                posterPath: (winner ?? nominations.nominations[0]).movie.posterPath,
+              }}
+            />
+          </section>
+        ) : null}
+
+        {/* The booked night, unless the stage card is already about it. */}
+        {isMember && upcoming && viewerCanSeeWheelWinner && stageCard.kind !== 'screening' ? (
+          <NextMovieNightCard
+            href={`/club/${club.slug}/screening/${upcoming.screening.id}`}
+            film={upcoming.movie}
+            dateLabel={formatClubDateTime(upcoming.screening.scheduledAt)}
+            location={upcoming.screening.location}
+            goingCount={going.length}
+          />
+        ) : null}
+
+        {isMember ? (
+          <ClubShelves
+            clubSlug={club.slug}
+            ideas={queue.map((item) => item.movie)}
+            pastNights={completed.map(({ movie }) => movie)}
+          />
+        ) : null}
+      </div>
+
+      {/* Desktop keeps the existing two-column dashboard. */}
+      <div className="hidden gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-10">
         <ClubCurrentHero
           view={dashboardView}
@@ -566,7 +711,8 @@ export default async function ClubDashboard({
           </ul>
         </section>
       </aside>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -641,6 +641,44 @@ select:focus {
     linear-gradient(160deg, var(--surface) 0%, var(--canvas) 100%);
 }
 
+/*
+  Default club covers.
+
+  A club without an uploaded photo still deserves a header that looks chosen
+  rather than missing. These are three built-in treatments — a projector beam,
+  a late show, a lit room — drawn entirely from the brand tokens, so they never
+  claim to be a photograph of anybody and never fight the posters below them.
+  `defaultClubCover()` in src/lib/club-cover.ts picks one per club and keeps it
+  stable, so a club's header does not change identity between visits.
+*/
+.club-cover-default-1 {
+  background:
+    /* the beam */
+    conic-gradient(
+      from 196deg at 78% -6%,
+      transparent 0deg,
+      color-mix(in srgb, var(--amber) 26%, transparent) 7deg,
+      transparent 15deg
+    ),
+    radial-gradient(58% 44% at 78% 0%, color-mix(in srgb, var(--amber) 34%, transparent), transparent 70%),
+    radial-gradient(120% 100% at 10% 100%, color-mix(in srgb, var(--iris) 20%, transparent), transparent 66%),
+    linear-gradient(168deg, #171520 0%, var(--canvas) 78%);
+}
+
+.club-cover-default-2 {
+  background:
+    radial-gradient(30% 42% at 74% 24%, color-mix(in srgb, var(--text) 20%, transparent), transparent 68%),
+    radial-gradient(120% 80% at 50% 108%, color-mix(in srgb, var(--iris) 30%, transparent), transparent 64%),
+    linear-gradient(178deg, #0d1020 0%, #131a2b 46%, var(--canvas) 100%);
+}
+
+.club-cover-default-3 {
+  background:
+    radial-gradient(46% 60% at 16% 18%, color-mix(in srgb, var(--ember) 30%, transparent), transparent 70%),
+    radial-gradient(70% 70% at 92% 88%, color-mix(in srgb, var(--amber) 18%, transparent), transparent 66%),
+    linear-gradient(150deg, #1d1512 0%, #14100f 52%, var(--canvas) 100%);
+}
+
 /* The picture drifts a hair on hover — enough to feel alive, not enough to
    compete with the artwork underneath it. */
 .club-cover-media {
