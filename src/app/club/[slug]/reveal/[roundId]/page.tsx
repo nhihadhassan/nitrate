@@ -2,11 +2,12 @@ import { notFound, redirect } from 'next/navigation';
 
 import { WheelExperience } from '@/components/club/wheel-experience';
 import { Container, EmptyState } from '@/components/ui/primitives';
-import { roundMovieLabel } from '@/lib/club-cadence';
+import { cadenceLabel, roundMovieLabel } from '@/lib/club-cadence';
 import { getCurrentUser } from '@/server/auth/session';
 import {
-  getActiveRound,
+  getClubRound,
   getClubBySlug,
+  getClubMembers,
   getClubPermissions,
   getMembership,
   getRoundNominations,
@@ -24,14 +25,29 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
   const user = await getCurrentUser();
   const membership = await getMembership(club.id, user?.id ?? null);
   if (!user || !membership || membership.status !== 'active') redirect(`/login?next=/club/${encodeURIComponent(slug)}/reveal/${roundId}`);
-  const round = await getActiveRound(club.id);
-  if (!round || round.id !== roundId || round.mode !== 'wheel') return <Container size="narrow" className="py-16"><EmptyState title="That wheel is no longer active" description="Return to the club to see the current selection." /></Container>;
+  // Look the round up directly rather than asking for the club's *active*
+  // round: scheduling movie night ends a round's active life, and a member who
+  // has not revealed yet would otherwise be sent here by the screening page
+  // and hit a dead end.
+  const round = await getClubRound(club.id, roundId);
+  const cancelled = round?.status === 'cancelled';
+  if (!round || round.mode !== 'wheel' || cancelled) {
+    return (
+      <Container size="narrow" className="py-16">
+        <EmptyState
+          title="That wheel is no longer active"
+          description="Return to the club to see the current selection."
+        />
+      </Container>
+    );
+  }
 
-  const [nominations, revealState, permissions, participants] = await Promise.all([
+  const [nominations, revealState, permissions, participants, members] = await Promise.all([
     getRoundNominations(round.id, user.id),
     getWheelRevealState(round.id, user.id),
     getClubPermissions(club.id, user.id),
     getRoundParticipants(round.id),
+    getClubMembers(club.id),
   ]);
   const pickCounts = nominations.memberPickCounts;
   const activeParticipantIds = participants.filter((participant) => participant.participating).map((participant) => participant.userId);
@@ -41,10 +57,11 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
   const initialPayload = revealState.revealed ? await beginWheelReveal(round.id, user.id) : null;
 
   return (
-    <Container size="narrow" className="py-6 sm:py-10">
+    <div className="mx-auto w-full max-w-md px-4 pb-24 pt-6">
       <WheelExperience
         clubId={club.id}
         clubSlug={club.slug}
+        clubName={club.name}
         roundId={round.id}
         previews={revealState.spun && !revealState.revealed ? [] : nominations.nominations.map((nomination) => ({
           nominationId: nomination.id,
@@ -64,7 +81,10 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         revealed={revealState.revealed}
         initialPayload={initialPayload}
         selectionMovieLabel={roundMovieLabel(club.selectionCadence, round.roundStartAt)}
+        canPlanMovieNight={permissions.has('edit_movie_night')}
+        members={members}
+        memberLine={`${members.length} ${members.length === 1 ? 'member' : 'members'} · ${cadenceLabel(club.selectionCadence, club.customCadenceDays)}`}
       />
-    </Container>
+    </div>
   );
 }
