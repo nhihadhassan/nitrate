@@ -8,7 +8,14 @@ import { filmHref, screeningHref } from '@/lib/links';
 import { roundPeriodLabel } from '@/lib/club-cadence';
 import { formatClubDateTime, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getClubHistory, getClubStats, getMembership } from '@/server/services/clubs';
+import { FeaturedPastNight } from '@/components/club/mobile/past-night-card';
+import {
+  getClubBySlug,
+  getClubHistory,
+  getClubStats,
+  getMembership,
+  getScreeningAttendance,
+} from '@/server/services/clubs';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +38,14 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
     getClubStats(club.id, user?.id ?? null),
   ]);
 
+  // Avatars only for the night that gets the large card; the compact rows
+  // below do not show them, so there is no reason to pay for the rest.
+  const featured = history[0] ?? null;
+  const featuredAttendees =
+    featured && isMember
+      ? (await getScreeningAttendance(featured.screening.id)).filter((entry) => entry.attended)
+      : [];
+
   if (!history.length) {
     return (
       <EmptyState
@@ -41,8 +56,13 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
   }
 
   return (
-    <div className="max-w-3xl">
-      <section className="mb-8 grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface/50 p-4 sm:grid-cols-4">
+    /* On a phone the artwork comes first: a club's history is the nights it
+       had, not its averages. Ordering rather than duplicate markup, so desktop
+       keeps the summary-then-list reading order it already had. */
+    <div className="flex max-w-3xl flex-col">
+      <h1 className="order-1 mb-4 font-display text-[1.75rem] leading-none lg:hidden">Past nights</h1>
+
+      <section className="order-3 mb-8 grid grid-cols-2 gap-4 rounded-lg border border-line bg-surface/50 p-4 sm:grid-cols-4 lg:order-1">
         <Stat label="Films watched" value={String(stats.screeningCount)} />
         <Stat
           label="Group average"
@@ -56,7 +76,7 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
       </section>
 
       {stats.topGenres.length ? (
-        <p className="mb-6 text-sm text-muted">
+        <p className="order-4 mb-6 text-sm text-muted lg:order-2">
           This club mostly watches{' '}
           <span className="text-text">
             {stats.topGenres
@@ -78,8 +98,35 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
         </p>
       ) : null}
 
-      <ol className="space-y-3">
-        {history.map(({ screening, movie, round, average, ratingsHidden }) => (
+      {featured ? (
+        <div className="order-2 mb-3 lg:order-3">
+          <FeaturedPastNight
+            href={isMember ? screeningHref(club, featured.screening) : filmHref(featured.movie)}
+            film={{
+              slug: featured.movie.slug,
+              title: featured.movie.title,
+              year: featured.movie.year,
+              posterPath: featured.movie.posterPath,
+            }}
+            backdropPath={featured.movie.backdropPath}
+            dateLabel={
+              featured.screening.completedAt
+                ? formatClubDateTime(featured.screening.completedAt)
+                : featured.round
+                  ? roundPeriodLabel(club.selectionCadence, featured.round.roundStartAt)
+                  : 'Watched together'
+            }
+            attendees={featuredAttendees}
+            attendeeCount={featured.screening.attendeeCount}
+            average={featured.average}
+            ratingsHidden={featured.ratingsHidden}
+            postCount={featured.screening.postCount}
+          />
+        </div>
+      ) : null}
+
+      <ol className="order-2 mb-8 space-y-3 lg:order-3 lg:mb-0">
+        {history.slice(1).map(({ screening, movie, round, average, ratingsHidden }) => (
           <li key={screening.id}>
             <Link
               href={isMember ? screeningHref(club, screening) : filmHref(movie)}

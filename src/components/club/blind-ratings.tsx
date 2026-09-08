@@ -63,15 +63,19 @@ export function BlindRatings({
   if (!revealed) {
     return (
       <div className="rounded-lg border border-iris/30 bg-iris/[0.06] p-5 text-center">
-        <p className="font-display text-xl">What did you make of it?</p>
-        <p className="mx-auto mt-1.5 max-w-sm text-sm text-muted">
-          {count > 0
-            ? `${pluralize(count, 'member')} already rated it. You will see the spread the moment you commit.`
-            : 'Be the first. Nobody sees anyone else’s score until they have given their own.'}
+        <p className="font-display text-xl">Rate it</p>
+        <p className="mt-1.5 text-sm text-muted">
+          {count > 0 ? `${pluralize(count, 'rating')} so far` : 'Nobody has rated it yet'}
         </p>
         <div className="mt-4 flex flex-col items-center gap-3">
           <StarInput value={rating} onChange={setRating} size="lg" label="Your club rating" />
-          <Button variant="iris" disabled={pending || !rating} onClick={submit}>
+          <Button
+            variant="iris"
+            size="lg"
+            className="w-full justify-center sm:w-auto"
+            disabled={pending || !rating}
+            onClick={submit}
+          >
             {pending ? 'Submitting…' : 'Submit and reveal'}
           </Button>
         </div>

@@ -618,6 +618,46 @@ export type QueueEntry = {
  * how many members already want it, how many have seen it, and whether the club
  * has already screened it. All of it resolves in three queries, not N.
  */
+/**
+ * Poster art for a club that has not uploaded a photo.
+ *
+ * A club with history should not be represented by a coloured gradient when it
+ * owns a wall of artwork already: the films it has watched, then the films it
+ * has picked, then the ones it is thinking about. Deduplicated and ordered
+ * newest first, so a club's banner reflects what it has actually been doing.
+ */
+export async function getClubCoverPosters(clubId: string, limit = 5): Promise<string[]> {
+  const rows = await db
+    .select({ posterPath: movies.posterPath, at: sql<string>`x.at` })
+    .from(
+      sql`(
+        select s.movie_id as movie_id, s.scheduled_at as at from nitrate.screenings s
+          where s.club_id = ${clubId}
+        union all
+        select n.movie_id, n.created_at from nitrate.nominations n
+          join nitrate.selection_rounds r on r.id = n.round_id
+          where r.club_id = ${clubId} and n.withdrawn_at is null
+        union all
+        select q.movie_id, q.created_at from nitrate.club_queue_items q
+          where q.club_id = ${clubId}
+      ) as x`,
+    )
+    .innerJoin(movies, sql`${movies.id} = x.movie_id`)
+    .where(sql`${movies.posterPath} is not null`)
+    .orderBy(sql`x.at desc`)
+    .limit(40);
+
+  const seen = new Set<string>();
+  const posters: string[] = [];
+  for (const row of rows) {
+    if (!row.posterPath || seen.has(row.posterPath)) continue;
+    seen.add(row.posterPath);
+    posters.push(row.posterPath);
+    if (posters.length >= limit) break;
+  }
+  return posters;
+}
+
 export async function getClubQueue(clubId: string, limit = 50): Promise<QueueEntry[]> {
   const rows = await db
     .select({
@@ -1010,6 +1050,27 @@ async function loadRound(roundId: string, tx: DbOrTx = db): Promise<SelectionRou
   const [round] = await tx.select().from(selectionRounds).where(eq(selectionRounds.id, roundId)).limit(1);
   if (!round) throw new NotFoundError('That round no longer exists.');
   return round;
+}
+
+/**
+ * A round by id, scoped to its club.
+ *
+ * The reveal route needs this rather than `getActiveRound`: a round stops
+ * being "active" the moment movie night is scheduled, but a member who has not
+ * revealed yet still has to be able to watch — and anyone who has revealed can
+ * replay it. Looking the round up directly keeps that possible for the life of
+ * the round instead of only until someone books a date.
+ */
+export async function getClubRound(
+  clubId: string,
+  roundId: string,
+): Promise<SelectionRound | null> {
+  const [round] = await db
+    .select()
+    .from(selectionRounds)
+    .where(and(eq(selectionRounds.id, roundId), eq(selectionRounds.clubId, clubId)))
+    .limit(1);
+  return round ?? null;
 }
 
 export async function openVoting(roundId: string, userId: string): Promise<SelectionRound> {
@@ -2470,6 +2531,23 @@ export async function getClubPulse(clubId: string, screeningId?: string | null):
   };
 }
 
+/**
+ * Coerces a timestamp that came back from a *raw* SQL fragment.
+ *
+ * Drizzle's postgres-js driver runs statements through `unsafe()` with
+ * `prepare: false`, so postgres.js has no type information for a hand-written
+ * `sql<Date | null>` subselect and hands back a string — while a
+ * schema-mapped column on the same row is parsed into a real `Date`. The
+ * asymmetry is invisible to TypeScript, and a string reaching
+ * `Intl.DateTimeFormat` throws `RangeError: Invalid time value` at render
+ * time. Anything selected as a raw date fragment goes through here.
+ */
+function rawDate(value: Date | string | null | undefined): Date | null {
+  if (value == null) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function getUserClubs(userId: string) {
   return db
     .select({
@@ -2563,7 +2641,10 @@ export async function getClubSummaries(userId: string): Promise<ClubSummary[]> {
     membersByClub.set(member.clubId, group);
   }
 
-  const summaries = memberships.map(({ club, role, activeRoundStatus, activeRoundDeadline, latestRoundStartAt }) => {
+  const summaries = memberships.map(({ club, role, activeRoundStatus, ...row }) => {
+    // Raw SQL fragments: see `rawDate`.
+    const activeRoundDeadline = rawDate(row.activeRoundDeadline);
+    const latestRoundStartAt = rawDate(row.latestRoundStartAt);
     const action = attentionByClub.get(club.id) ?? null;
     const screening = screeningByClub.get(club.id);
     let stateLabel = club.screeningCount === 0
@@ -2911,7 +2992,7 @@ export async function getClubStats(
       ratingSum: sql<number>`coalesce(sum(${screenings.groupRatingSum}), 0)::int`,
       ratingCount: sql<number>`coalesce(sum(${screenings.groupRatingCount}), 0)::int`,
       runtime: sql<number>`coalesce(sum(${movies.runtime}), 0)::int`,
-      lastWatchedAt: sql<Date | null>`max(${screenings.completedAt})`,
+      lastWatchedAt: sql<Date | string | null>`max(${screenings.completedAt})`,
     })
     .from(screenings)
     .innerJoin(movies, eq(movies.id, screenings.movieId))

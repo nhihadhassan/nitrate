@@ -1111,7 +1111,14 @@ export const nominations = nitrate.table(
     withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('nominations_round_movie_key').on(t.roundId, t.movieId),
+    // Live picks only: a withdrawn pick must not keep its film hostage for the
+    // rest of the round. Without the predicate, withdrawing a pick and then
+    // picking that same film again — by anyone — hit the unique index and
+    // surfaced a raw database error, because the service only checks for
+    // *live* duplicates before inserting.
+    uniqueIndex('nominations_round_movie_key')
+      .on(t.roundId, t.movieId)
+      .where(sql`${t.withdrawnAt} is null`),
     index('nominations_round_idx').on(t.roundId, t.createdAt),
     index('nominations_user_idx').on(t.nominatedByUserId),
   ],

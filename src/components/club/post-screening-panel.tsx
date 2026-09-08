@@ -55,19 +55,23 @@ export function PostScreeningPanel({
 
   return (
     <ol className="space-y-2.5">
-      <li className="flex flex-wrap items-center gap-3 rounded-md border border-line px-3 py-2.5">
-        <StepMark done={attendedState !== null} />
-        <span className="min-w-0 flex-1 text-sm">
-          {attendedState === true
-            ? 'You watched it with the club'
-            : attendedState === false
-              ? 'You missed this one'
-              : 'Were you there?'}
-        </span>
-        <span className="flex shrink-0 gap-1.5">
+      <li className="rounded-md border border-line px-3 py-2.5">
+        <div className="flex items-center gap-3">
+          <StepMark done={attendedState !== null} />
+          <span className="min-w-0 flex-1 text-sm">
+            {attendedState === true
+              ? 'You were there'
+              : attendedState === false
+                ? 'You missed this one'
+                : 'Were you there?'}
+          </span>
+        </div>
+        {/* Full-width targets on a phone; inline once there is room. */}
+        <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:ml-8 sm:mt-2 sm:flex sm:justify-start">
           <Button
             variant={attendedState === true ? 'iris' : 'outline'}
             size="sm"
+            className="justify-center"
             disabled={pending}
             onClick={() => confirm(true)}
           >
@@ -76,20 +80,19 @@ export function PostScreeningPanel({
           <Button
             variant={attendedState === false ? 'secondary' : 'ghost'}
             size="sm"
+            className="justify-center"
             disabled={pending}
             onClick={() => confirm(false)}
           >
             I missed it
           </Button>
-        </span>
+        </div>
       </li>
 
-      <li className="flex flex-wrap items-center gap-3 rounded-md border border-line px-3 py-2.5">
+      <li className="flex items-center gap-3 rounded-md border border-line px-3 py-2.5">
         <StepMark done={hasLogged} />
         <span className="min-w-0 flex-1 text-sm">
-          {hasLogged
-            ? `${film.title} is in your diary`
-            : 'Log it to your own diary, rate it and add a review'}
+          {hasLogged ? `${film.title} is in your diary` : 'Log it to your diary'}
         </span>
         <Button
           variant={hasLogged ? 'ghost' : 'primary'}

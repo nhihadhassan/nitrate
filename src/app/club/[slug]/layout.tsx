@@ -3,14 +3,23 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ClubAvatar } from '@/components/club/club-cover';
+import { ClubMobileHeader } from '@/components/club/mobile/club-mobile-header';
+import { ClubShell } from '@/components/club/club-shell';
 import { ClubTabs } from '@/components/club/club-tabs';
 import { ClubActionsMenu } from '@/components/club/club-actions-menu';
 import { Badge, Container, EmptyState } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { AvatarStack } from '@/components/user/avatar';
 import { BRAND } from '@/lib/brand';
+import { cadenceLabel } from '@/lib/club-cadence';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getClubMembers, getClubPermissions, getMembership } from '@/server/services/clubs';
+import {
+  getClubBySlug,
+  getClubCoverPosters,
+  getClubMembers,
+  getClubPermissions,
+  getMembership,
+} from '@/server/services/clubs';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +72,8 @@ export default async function ClubLayout({
   const isMember = membership?.status === 'active';
   const members = await getClubMembers(club.id);
   const permissions = isMember && user ? await getClubPermissions(club.id, user.id) : new Set();
+  // Only needed when there is no uploaded photo to show.
+  const coverPosters = club.imageAssetId ? [] : await getClubCoverPosters(club.id);
 
   // Private clubs render nothing but a wall to non-members.
   if (club.visibility === 'private' && !isMember) {
@@ -81,11 +92,23 @@ export default async function ClubLayout({
     );
   }
 
-  return (
-    <div>
+  const header = (
       <header className="border-b border-line bg-canvas-raised/30">
-        <Container size="wide" className="pt-5 sm:pt-8">
-          <div className="flex items-center gap-3 sm:items-start sm:gap-5">
+        <Container size="wide" className="pt-0 lg:pt-8">
+          {/* The club's own photo carries the header on a phone; the fuller
+              desktop header below is unchanged. */}
+          <div className="lg:hidden">
+            <ClubMobileHeader
+              name={club.name}
+              imageAssetId={club.imageAssetId}
+              memberCount={members.length}
+              cadenceLabel={cadenceLabel(club.selectionCadence, club.customCadenceDays)}
+              coverSeed={club.id}
+              posterPaths={coverPosters}
+            />
+          </div>
+
+          <div className="hidden items-center gap-3 sm:items-start sm:gap-5 lg:flex">
             <ClubAvatar
               name={club.name}
               imageAssetId={club.imageAssetId}
@@ -140,10 +163,13 @@ export default async function ClubLayout({
           <ClubTabs slug={club.slug} isMember={isMember} isAdmin={membership?.role !== 'member' && isMember} />
         </Container>
       </header>
+  );
 
-      <Container size="wide" className="py-8 pb-20">
-        {children}
-      </Container>
+  // The reveal takes the whole screen; every other club surface keeps the
+  // header and tabs. See `ClubShell`.
+  return (
+    <div>
+      <ClubShell header={header}>{children}</ClubShell>
     </div>
   );
 }
