@@ -15,6 +15,7 @@ import {
   importRows,
   listActivity,
   movies,
+  nominations,
   ownershipCopies,
   notifications,
   profilePins,
@@ -50,6 +51,7 @@ import {
   getScreeningPoll,
   joinClubByCode,
   nominate,
+  withdrawNomination,
   openVoting,
   postDiscussion,
   replaceNomination,
@@ -610,6 +612,61 @@ suite('nitrate integration', () => {
 
     const intelligence = await getClubIntelligence(club.id);
     expect(intelligence.shortlist.some((suggestion) => suggestion.movie.id === stalker.id)).toBe(false);
+  }, 30_000);
+
+  // Regression: `nominations_round_movie_key` used to be a plain unique index
+  // on (round_id, movie_id), so a withdrawn pick kept its film reserved for the
+  // rest of the round. `insertPick` only looks for a *live* duplicate, so the
+  // friendly check passed and the insert then died with a raw PostgresError.
+  // Migration 0013 made the index partial on `withdrawn_at is null`.
+  it('frees a film for re-picking once its pick is withdrawn', async () => {
+    const rePickClub = await createClub({
+      ownerId: alex.id,
+      name: `Re-pick Club ${tag}`,
+      description: null,
+      visibility: 'private',
+      interests: [],
+      imageAssetId: null,
+    });
+    created.clubIds.push(rePickClub.id);
+    await joinClubByCode(rePickClub.inviteCode, maya.id);
+
+    const round = await startRound({
+      clubId: rePickClub.id,
+      userId: alex.id,
+      title: 'Re-pick test',
+      mode: 'wheel',
+      nominationLimitPerMember: 2,
+      nominationsCloseAt: null,
+      votingCloseAt: null,
+    });
+    const film = await makeMovie('Re-pick Subject', 2003);
+
+    await nominate({ roundId: round.id, userId: alex.id, movieId: film.id, pitch: null });
+    const [first] = await db
+      .select()
+      .from(nominations)
+      .where(and(eq(nominations.roundId, round.id), eq(nominations.movieId, film.id)));
+
+    // While it is live, a duplicate is refused by the service, in words.
+    await expect(
+      nominate({ roundId: round.id, userId: maya.id, movieId: film.id, pitch: null }),
+    ).rejects.toThrow(/already picked that movie/i);
+
+    await withdrawNomination(first.id, alex.id);
+
+    // Now anyone may choose it again — including a different member.
+    await expect(
+      nominate({ roundId: round.id, userId: maya.id, movieId: film.id, pitch: null }),
+    ).resolves.toBeUndefined();
+
+    const rows = await db
+      .select()
+      .from(nominations)
+      .where(and(eq(nominations.roundId, round.id), eq(nominations.movieId, film.id)));
+    // The withdrawn row is still on record; nothing was deleted to make room.
+    expect(rows).toHaveLength(2);
+    expect(rows.filter((row) => row.withdrawnAt === null)).toHaveLength(1);
   }, 30_000);
 
   it('requires an admin decision before an incomplete expired wheel round can continue', async () => {
