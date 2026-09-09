@@ -3,6 +3,7 @@ import { desc, isNotNull } from 'drizzle-orm';
 
 import { ClubStageCardView } from '@/components/club/mobile/club-stage-card';
 import { MovieNightCard } from '@/components/club/mobile/movie-night-card';
+import { RoundControls } from '@/components/club/round-controls';
 import { Container } from '@/components/ui/primitives';
 import { deriveClubDashboardView, type ClubState } from '@/lib/club';
 import { resolveClubStageCard } from '@/lib/club-stage';
@@ -258,6 +259,22 @@ export default async function ClubStageFixturePage({
             />
           </div>
         </>
+      ) : null}
+
+      {!only || only === 'screening-next-selection' ? (
+        <div>
+          <p className="mb-2 text-xs uppercase tracking-wide text-dim">Screening · next selection</p>
+          <RoundControls
+            clubId="fixture-club"
+            clubSlug="velvet-frame"
+            roundId={null}
+            status={null}
+            nominationCount={0}
+            allMembersPicked={false}
+            idleVariant="next-selection"
+            idleMembers={members.slice(0, 5)}
+          />
+        </div>
       ) : null}
 
       {shown.map((item) => (

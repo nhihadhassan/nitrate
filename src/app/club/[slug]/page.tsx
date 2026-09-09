@@ -304,7 +304,12 @@ export default async function ClubDashboard({
         (isAdmin || clubPermissions.has('extend_submission_deadline') || clubPermissions.has('start_wheel')) ? (
           <section
             id="club-decision-m"
-            className="scroll-mt-4 rounded-xl border border-line p-3"
+            className={cn(
+              'scroll-mt-4',
+              round && round.status !== 'screening_scheduled'
+                ? 'rounded-xl border border-line p-3'
+                : '',
+            )}
             aria-label="Club tools"
           >
             <RoundControls
@@ -320,6 +325,8 @@ export default async function ClubDashboard({
               isAdmin={isAdmin}
               canExtendDeadline={clubPermissions.has('extend_submission_deadline')}
               canStartWheel={clubPermissions.has('start_wheel')}
+              idleVariant="next-selection"
+              idleMembers={members}
             />
           </section>
         ) : null}

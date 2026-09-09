@@ -3,8 +3,10 @@
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
+import { Avatar, type AvatarUser } from '@/components/user/avatar';
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { ChevronRightIcon, FilmIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
@@ -43,6 +45,8 @@ export function RoundControls({
   isAdmin = false,
   canExtendDeadline = false,
   canStartWheel = false,
+  idleVariant = 'button',
+  idleMembers = [],
 }: {
   clubId: string;
   clubSlug: string;
@@ -56,6 +60,8 @@ export function RoundControls({
   isAdmin?: boolean;
   canExtendDeadline?: boolean;
   canStartWheel?: boolean;
+  idleVariant?: 'button' | 'next-selection';
+  idleMembers?: AvatarUser[];
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -70,9 +76,50 @@ export function RoundControls({
   if (!roundId || !status) {
     return (
       <>
-        <Button variant="iris" onClick={() => setStarting(true)}>
-          Choose the next movie
-        </Button>
+        {idleVariant === 'next-selection' ? (
+          <button
+            type="button"
+            onClick={() => setStarting(true)}
+            className="group relative grid min-h-[6.25rem] w-full grid-cols-[5.25rem_minmax(0,1fr)_2rem] items-center gap-3 overflow-hidden rounded-xl border border-ember/45 bg-canvas-raised p-2.5 pr-3 text-left shadow-[0_18px_45px_rgb(0_0_0/0.24)] transition-[border-color,transform] duration-200 ease-out hover:border-ember/75 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+            aria-label="Choose the next movie"
+          >
+            <span
+              aria-hidden
+              className="absolute inset-0 bg-[radial-gradient(circle_at_92%_115%,rgb(88_64_214/0.34),transparent_48%),radial-gradient(circle_at_10%_-15%,rgb(234_88_50/0.22),transparent_42%),linear-gradient(105deg,rgb(11_18_25),rgb(13_20_34))]"
+            />
+            <span className="relative flex aspect-[1.12] h-full min-h-[4.75rem] items-center justify-center overflow-hidden rounded-lg border border-line/60 bg-[radial-gradient(circle_at_43%_38%,rgb(234_88_50/0.4),transparent_24%),linear-gradient(145deg,rgb(46_44_46),rgb(12_17_22))] text-ember shadow-inner">
+              <FilmIcon className="h-10 w-10 drop-shadow-[0_5px_14px_rgb(0_0_0/0.55)]" />
+            </span>
+            <span className="relative min-w-0">
+              <span className="eyebrow block text-[0.625rem] tracking-[0.24em] text-dim">Next selection</span>
+              <span className="mt-1 block font-display text-[1.45rem] leading-none text-text">
+                Choose next movie
+              </span>
+              <span className="mt-2 flex items-center gap-2">
+                {idleMembers.length ? (
+                  <span className="flex -space-x-1.5" aria-hidden>
+                    {idleMembers.slice(0, 5).map((member, index) => (
+                      <Avatar
+                        key={`${member.username ?? member.displayName}-${index}`}
+                        user={member}
+                        size="xs"
+                        className="ring-2 ring-canvas-raised"
+                      />
+                    ))}
+                  </span>
+                ) : null}
+                <span className="text-xs tabular-nums text-muted">
+                  {idleMembers.length}/{idleMembers.length}
+                </span>
+              </span>
+            </span>
+            <ChevronRightIcon className="relative h-5 w-5 text-muted transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-text" />
+          </button>
+        ) : (
+          <Button variant="iris" onClick={() => setStarting(true)}>
+            Choose the next movie
+          </Button>
+        )}
         {starting ? (
           <StartRoundSheet clubId={clubId} clubSlug={clubSlug} onClose={() => setStarting(false)} />
         ) : null}
