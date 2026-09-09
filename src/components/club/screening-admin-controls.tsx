@@ -12,11 +12,13 @@ export function ScreeningAdminControls({
   clubSlug,
   status,
   isPast,
+  mobileCards = false,
 }: {
   screeningId: string;
   clubSlug: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   isPast: boolean;
+  mobileCards?: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -26,10 +28,11 @@ export function ScreeningAdminControls({
   if (status !== 'scheduled') return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={mobileCards ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'}>
       <Button
         variant="iris"
         size="sm"
+        className={mobileCards ? 'min-h-16 justify-center rounded-lg' : undefined}
         disabled={pending}
         onClick={() =>
           startTransition(async () => {
@@ -72,7 +75,7 @@ export function ScreeningAdminControls({
           </Button>
         </>
       ) : (
-        <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(true)}>
+        <Button variant={mobileCards ? 'danger' : 'ghost'} size="sm" className={mobileCards ? 'min-h-16 justify-center rounded-lg' : undefined} onClick={() => setConfirmCancel(true)}>
           Cancel movie night
         </Button>
       )}

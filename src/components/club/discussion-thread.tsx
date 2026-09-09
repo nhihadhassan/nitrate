@@ -32,6 +32,7 @@ export function DiscussionThread({
   hasSeenFilm,
   movieTitle,
   posts,
+  compact = false,
 }: {
   clubId: string;
   clubSlug: string;
@@ -41,6 +42,7 @@ export function DiscussionThread({
   hasSeenFilm: boolean;
   movieTitle: string;
   posts: Post[];
+  compact?: boolean;
 }) {
   // Spoiler gate: members who have not watched or attended must opt in.
   const [entered, setEntered] = useState(hasSeenFilm);
@@ -70,6 +72,7 @@ export function DiscussionThread({
       viewerId={viewerId}
       isAdmin={isAdmin}
       posts={posts}
+      compact={compact}
     />
   );
 }
@@ -81,6 +84,7 @@ function Thread({
   viewerId,
   isAdmin,
   posts,
+  compact,
 }: {
   clubId: string;
   clubSlug: string;
@@ -88,6 +92,7 @@ function Thread({
   viewerId: string;
   isAdmin: boolean;
   posts: Post[];
+  compact: boolean;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -130,7 +135,7 @@ function Thread({
 
   return (
     <div>
-      <div className="mb-6">
+      <div className={compact ? 'mb-4' : 'mb-6'}>
         {replyTo ? (
           <p className="mb-1.5 text-xs text-dim">
             Replying ·{' '}
@@ -146,13 +151,13 @@ function Thread({
         <textarea
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          rows={3}
+          rows={compact ? 1 : 3}
           maxLength={5000}
           placeholder="What did you think?"
           aria-label="Write a message"
-          className={cn(inputClass, 'resize-y')}
+          className={cn(inputClass, compact ? 'min-h-12 resize-none rounded-full px-4 py-3' : 'resize-y')}
         />
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+        <div className={cn('mt-2 flex flex-wrap items-center justify-between gap-3', compact && 'pl-1')}>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-muted">
             <input
               type="checkbox"
@@ -169,9 +174,9 @@ function Thread({
       </div>
 
       {roots.length ? (
-        <ul className="space-y-5">
+        <ul className={compact ? 'divide-y divide-line' : 'space-y-5'}>
           {roots.map((post) => (
-            <li key={post.id}>
+            <li key={post.id} className={compact ? 'py-3 first:pt-0 last:pb-0' : undefined}>
               <PostRow
                 post={post}
                 viewerId={viewerId}

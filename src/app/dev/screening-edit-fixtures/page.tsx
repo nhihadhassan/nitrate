@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { desc, isNotNull } from 'drizzle-orm';
 
 import { MovieNightHero } from '@/components/club/mobile/movie-night-hero';
+import { MovieNightMobileActions } from '@/components/club/mobile/movie-night-actions';
 import { MovieNightPlanner } from '@/components/club/movie-night-planner';
 import { Container } from '@/components/ui/primitives';
 import { db } from '@/server/db';
@@ -42,6 +43,18 @@ export default async function ScreeningEditFixturePage() {
         calendarHref="#"
         googleCalendarHref="#"
         canEditDate
+      />
+      <MovieNightMobileActions
+        screeningId="fixture-screening"
+        clubSlug="fixture-club"
+        title={movie?.title ?? 'Sinners'}
+        dateLabel="Sat Sept 5, 8:00 PM"
+        scheduledAt="2026-09-06T00:00:00.000Z"
+        location="Sam's flat"
+        inviteLink="https://partiful.com/e/example"
+        watchLink="https://example.com/watch"
+        notes="Bring snacks. Starting on time for once."
+        canEdit
       />
       <MovieNightPlanner
         screeningId="fixture-screening"

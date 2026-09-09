@@ -9,6 +9,7 @@ import { DiscussionThread } from '@/components/club/discussion-thread';
 import { PostScreeningPanel } from '@/components/club/post-screening-panel';
 import { RsvpControls } from '@/components/club/rsvp-controls';
 import { MovieNightHero } from '@/components/club/mobile/movie-night-hero';
+import { MovieNightMobileActions } from '@/components/club/mobile/movie-night-actions';
 import { MovieNightDateTrigger, MovieNightPlanner } from '@/components/club/movie-night-planner';
 import { ScreeningAdminControls } from '@/components/club/screening-admin-controls';
 import { Poster } from '@/components/film/poster';
@@ -156,6 +157,19 @@ export default async function ScreeningPage({
           />
         </div>
 
+        <MovieNightMobileActions
+          screeningId={screening.id}
+          clubSlug={club.slug}
+          title={movie.title}
+          dateLabel={formatClubDateTime(screening.scheduledAt)}
+          scheduledAt={screening.scheduledAt.toISOString()}
+          location={screening.location}
+          inviteLink={screening.inviteLink}
+          watchLink={screening.watchLink}
+          notes={screening.notes}
+          canEdit={canEditNight && screening.status === 'scheduled'}
+        />
+
         <header className="hidden gap-4 sm:gap-5 lg:flex">
           <div className="w-24 shrink-0 sm:w-32">
             <Poster
@@ -287,7 +301,7 @@ export default async function ScreeningPage({
         {/* The night can still move, gain a location, or get an invite page
             after it is booked — the scheduling form used to be a one-way door. */}
         {canEditNight && screening.status === 'scheduled' ? (
-          <section>
+          <section className="hidden lg:block">
             <MovieNightPlanner
               screeningId={screening.id}
               clubSlug={club.slug}
@@ -325,7 +339,7 @@ export default async function ScreeningPage({
             />
           </section>
         ) : awaitingConfirmation && isAdmin ? (
-          <section className="rounded-lg border border-iris/30 bg-iris/[0.06] p-4">
+          <section className="hidden rounded-lg border border-iris/30 bg-iris/[0.06] p-4 lg:block">
             <p className="font-display text-lg">Did this happen?</p>
             <p className="mt-1 text-sm text-muted">
               Marking it complete opens ratings and the discussion, and writes it into club history.
@@ -364,9 +378,9 @@ export default async function ScreeningPage({
           </section>
         ) : null}
 
-        <Divider />
+        <div className="hidden lg:block"><Divider /></div>
 
-        <section>
+        <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
           <SectionHeading
             title="Discussion"
             subtitle={`Private to ${club.name}.`}
@@ -379,6 +393,7 @@ export default async function ScreeningPage({
             isAdmin={isAdmin}
             hasSeenFilm={hasSeen}
             movieTitle={movie.title}
+            compact
             posts={discussion.map((post) => ({
               id: post.id,
               body: post.body,
@@ -392,9 +407,18 @@ export default async function ScreeningPage({
             }))}
           />
         </section>
+
+        {isAdmin && screening.status !== 'completed' ? (
+          <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:hidden">
+            <p className="font-display text-xl">Admin</p>
+            <div className="mt-3">
+              <ScreeningAdminControls screeningId={screening.id} clubSlug={club.slug} status={screening.status} isPast={isPast} mobileCards />
+            </div>
+          </section>
+        ) : null}
       </div>
 
-      <aside className="space-y-8">
+      <aside className="hidden space-y-8 lg:block">
         {isAdmin && screening.status !== 'completed' ? (
           <section>
             <p className="eyebrow mb-2.5">Admin</p>

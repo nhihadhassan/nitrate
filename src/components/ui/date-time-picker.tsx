@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { CalendarIcon, ChevronRightIcon, XIcon } from '@/components/ui/icons';
 import { cn } from '@/lib/utils';
@@ -236,7 +237,7 @@ export function DateTimePicker({
         ) : null}
       </button>
 
-      {open ? (
+      {open && typeof document !== 'undefined' ? createPortal((
         <div
           ref={panelRef}
           role="dialog"
@@ -392,6 +393,7 @@ export function DateTimePicker({
             </button>
           </div>
         </div>
+      ), document.body
       ) : null}
     </div>
   );
