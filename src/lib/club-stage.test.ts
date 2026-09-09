@@ -45,6 +45,7 @@ function card(
     location: 'Maya’s House',
     rsvp: null,
     nextSelectionLabel: 'Next movie selection in 12 days',
+    screeningPast: false,
     ...overrides,
   });
 }

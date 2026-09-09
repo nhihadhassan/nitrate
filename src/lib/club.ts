@@ -89,6 +89,22 @@ export type ClubState = {
 /** Screening night counts as "watching" from four hours before it starts. */
 const WATCH_WINDOW_MS = 1000 * 60 * 60 * 4;
 
+/**
+ * How long a night stays "in progress" after its start time.
+ *
+ * A screening row only leaves `scheduled` when someone marks it watched, so
+ * without this the club sits on "tonight is the night" indefinitely and keeps
+ * asking people to RSVP to an evening that already happened. Six hours covers
+ * a long film and the talking afterwards; past that the night is over whether
+ * or not anyone has confirmed it.
+ */
+const SCREENING_RUNS_MS = 1000 * 60 * 60 * 6;
+
+/** Whether a scheduled night is now in the past, given `msUntilScreening`. */
+export function screeningHasPassed(msUntilScreening: number | null): boolean {
+  return msUntilScreening !== null && msUntilScreening < -SCREENING_RUNS_MS;
+}
+
 export function resolveClubState(input: ClubStageInput): ClubState {
   const {
     roundStatus,
@@ -118,6 +134,18 @@ export function resolveClubState(input: ClubStageInput): ClubState {
   }
 
   if (msUntilScreening !== null) {
+    // Still `scheduled` long after the fact: nobody has confirmed it. Asking
+    // for an RSVP now is meaningless, so the club's move becomes closing it.
+    if (screeningHasPassed(msUntilScreening)) {
+      return {
+        stage: 'watch',
+        headline: 'Movie night has passed.',
+        youNeedTo: isAdmin ? 'Mark it watched' : null,
+        next: isAdmin
+          ? 'Ratings open once you mark it watched.'
+          : 'Ratings open once an admin marks it watched.',
+      };
+    }
     if (msUntilScreening <= WATCH_WINDOW_MS) {
       return {
         stage: 'watch',
@@ -254,10 +282,16 @@ export function deriveClubDashboardView(input: {
   selectionMovieLabel?: string;
   selectionRoundLabel?: string;
   nextSelectionLabel?: string;
+  /** The booked night's start time is behind us and nobody has confirmed it. */
+  screeningPast?: boolean;
 }): ClubDashboardView {
   if (!input.isMember) return { kind: 'join', eyebrow: 'Movie Club', title: 'Watch with this group', detail: 'Join to see picks, votes and movie nights.', actionLabel: 'Join club' };
   if (input.state.stage === 'rate') return { kind: 'rate', eyebrow: 'After movie night', title: 'How was it?', detail: 'Rate the film to reveal the group score.', actionLabel: 'Rate the film' };
-  if (input.upcomingTitle) return { kind: 'screening', eyebrow: 'Next movie night', title: input.upcomingTitle, detail: input.state.youNeedTo === 'RSVP' ? 'Let everyone know if you are coming.' : 'The night is set.', actionLabel: input.state.youNeedTo === 'RSVP' ? 'RSVP' : 'Open movie night' };
+  if (input.upcomingTitle) {
+    // A night that has already happened is not a night to RSVP to.
+    if (input.screeningPast) return { kind: 'screening', eyebrow: 'Movie night', title: input.upcomingTitle, detail: input.isAdmin ? 'Mark it watched to open ratings.' : 'Waiting on an admin to confirm it.', actionLabel: input.isAdmin ? 'Mark it watched' : 'Open movie night' };
+    return { kind: 'screening', eyebrow: 'Next movie night', title: input.upcomingTitle, detail: input.state.youNeedTo === 'RSVP' ? 'Let everyone know if you are coming.' : 'The night is set.', actionLabel: input.state.youNeedTo === 'RSVP' ? 'RSVP' : 'Open movie night' };
+  }
   if (input.roundStatus === 'nominations_open') {
     if (input.roundMode === 'wheel' && input.picksReady) return { kind: 'wheel', eyebrow: input.selectionRoundLabel ?? 'The picks are in', title: 'Spin the wheel', detail: `${input.readyMembers} of ${input.memberCount} members ready`, actionLabel: 'Spin the wheel' };
     if (input.picksRemaining > 0) return { kind: 'pick', eyebrow: input.selectionRoundLabel ?? 'Your turn', title: 'Pick our next movie', detail: `${input.picksRemaining} ${input.picksRemaining === 1 ? 'pick' : 'picks'} left`, actionLabel: 'Choose a movie' };

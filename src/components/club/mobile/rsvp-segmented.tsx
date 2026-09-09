@@ -32,12 +32,20 @@ export function RsvpSegmented({
   current,
   goingCount,
   maybeCount = 0,
+  variant = 'panel',
 }: {
   screeningId: string;
   clubSlug: string;
   current: RsvpStatus | null;
   goingCount: number;
   maybeCount?: number;
+  /**
+   * `panel` is the control on its own, inside a bordered section. `overlay`
+   * sits under the movie night poster, where a second enclosing border would
+   * read as a box inside a box, and the brand colour carries the answer
+   * because the artwork above it already owns the card.
+   */
+  variant?: 'panel' | 'overlay';
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -87,12 +95,17 @@ export function RsvpSegmented({
     0,
   );
 
+  const overlay = variant === 'overlay';
+
   return (
     <div>
       <div
         role="radiogroup"
         aria-label="Your RSVP"
-        className="relative grid grid-cols-3 gap-1 rounded-full border border-line bg-surface/60 p-1"
+        className={cn(
+          'relative grid grid-cols-3',
+          overlay ? 'gap-2' : 'gap-1 rounded-full border border-line bg-surface/60 p-1',
+        )}
       >
         {OPTIONS.map((option, index) => {
           const selected = value === option.value;
@@ -112,7 +125,12 @@ export function RsvpSegmented({
                 className={cn(
                   'relative flex min-h-11 w-full items-center justify-center rounded-full text-sm font-medium transition-colors',
                   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ember',
-                  selected ? 'text-canvas' : 'text-muted hover:text-text',
+                  overlay && !selected && 'border border-line',
+                  selected
+                    ? overlay
+                      ? 'text-white'
+                      : 'text-canvas'
+                    : 'text-muted hover:text-text',
                 )}
               >
                 {selected ? (
@@ -122,9 +140,15 @@ export function RsvpSegmented({
                     transition={SPRING.layout}
                     className={cn(
                       'absolute inset-0 rounded-full',
-                      option.value === 'going' && 'bg-jade',
-                      option.value === 'maybe' && 'bg-amber',
-                      option.value === 'cant' && 'bg-surface-strong',
+                      overlay
+                        ? option.value === 'going'
+                          ? 'bg-ember'
+                          : 'bg-surface-strong'
+                        : option.value === 'going'
+                          ? 'bg-jade'
+                          : option.value === 'maybe'
+                            ? 'bg-amber'
+                            : 'bg-surface-strong',
                     )}
                   />
                 ) : null}
@@ -132,6 +156,7 @@ export function RsvpSegmented({
                   className={cn(
                     'relative flex items-center gap-1.5',
                     option.value === 'cant' && selected && 'text-text',
+                    overlay && selected && option.value !== 'going' && 'text-text',
                   )}
                 >
                   {option.icon}
@@ -143,10 +168,14 @@ export function RsvpSegmented({
         })}
       </div>
 
-      <p className="mt-2.5 text-center text-xs text-dim">
-        <TickingCount value={optimisticGoing} className="text-muted" /> going
-        {maybeCount ? ` · ${maybeCount} maybe` : ''}
-      </p>
+      {/* The overlay variant already shows who is coming as faces on the
+          poster; repeating the number under it is noise. */}
+      {overlay ? null : (
+        <p className="mt-2.5 text-center text-xs text-dim">
+          <TickingCount value={optimisticGoing} className="text-muted" /> going
+          {maybeCount ? ` · ${maybeCount} maybe` : ''}
+        </p>
+      )}
     </div>
   );
 }

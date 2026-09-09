@@ -1789,6 +1789,7 @@ export async function updateScreening(
     scheduledAt: Date;
     location: string | null;
     watchLink: string | null;
+    inviteLink: string | null;
     notes: string | null;
   }>,
 ): Promise<Screening> {

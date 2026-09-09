@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { desc, isNotNull } from 'drizzle-orm';
 
 import { ClubStageCardView } from '@/components/club/mobile/club-stage-card';
+import { MovieNightCard } from '@/components/club/mobile/movie-night-card';
 import { Container } from '@/components/ui/primitives';
 import { deriveClubDashboardView, type ClubState } from '@/lib/club';
 import { resolveClubStageCard } from '@/lib/club-stage';
@@ -89,6 +90,7 @@ export default async function ClubStageFixturePage({
     location: 'Maya’s House',
     rsvp: null as 'going' | 'maybe' | 'cant' | null,
     nextSelectionLabel: 'Next movie selection in 12 days',
+    screeningPast: false,
   };
 
   const cases = [
@@ -166,6 +168,39 @@ export default async function ClubStageFixturePage({
       film: rows[0] ?? null,
     },
     {
+      // The night is booked, the date has gone by, and nobody has confirmed
+      // it — the state the club sits in between watching and rating.
+      name: 'Movie night has passed',
+      card: resolveClubStageCard({
+        ...shared,
+        screeningPast: true,
+        rsvp: 'going',
+        dateLabel: 'Sat Sept 5, 8:00 PM',
+        view: deriveClubDashboardView({ ...base, upcomingTitle: rows[0]?.title, screeningPast: true }),
+      }),
+      picks: [],
+      members: [],
+      film: rows[0] ?? null,
+    },
+    {
+      name: 'Movie night has passed (not an admin)',
+      card: resolveClubStageCard({
+        ...shared,
+        screeningPast: true,
+        rsvp: 'going',
+        dateLabel: 'Sat Sept 5, 8:00 PM',
+        view: deriveClubDashboardView({
+          ...base,
+          isAdmin: false,
+          upcomingTitle: rows[0]?.title,
+          screeningPast: true,
+        }),
+      }),
+      picks: [],
+      members: [],
+      film: rows[0] ?? null,
+    },
+    {
       name: 'Rate it',
       card: resolveClubStageCard({
         ...shared,
@@ -179,8 +214,42 @@ export default async function ClubStageFixturePage({
 
   const shown = only ? cases.filter((item) => slugify(item.name) === only) : cases;
 
+  const nightProps = {
+    href: '/club/velvet-frame/screening/screening-1',
+    title: rows[0]?.title ?? 'A film',
+    posterPath: rows[0]?.posterPath ?? null,
+    backdropPath: rows[0]?.backdropPath ?? null,
+    dateLabel: 'Sat Sept 5, 8:00 PM',
+    location: 'Maya’s House',
+    attendees: members.slice(0, 5),
+    goingCount: 5,
+    maybeCount: 1,
+    extraAttendees: 3,
+    screeningId: 'screening-1',
+    clubSlug: 'velvet-frame',
+    calendarHref: '/club/velvet-frame/screening/screening-1/calendar',
+  };
+
   return (
     <Container size="narrow" className="space-y-8 py-8">
+      {!only || only === 'movie-night-card' ? (
+        <>
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-dim">Movie night card</p>
+            <MovieNightCard {...nightProps} viewerRsvp="going" hasPassed={false} passedAction={null} />
+          </div>
+          <div>
+            <p className="mb-2 text-xs uppercase tracking-wide text-dim">Movie night card · passed</p>
+            <MovieNightCard
+              {...nightProps}
+              viewerRsvp="going"
+              hasPassed
+              passedAction={{ label: 'Mark it watched', href: '/club/velvet-frame/screening/screening-1' }}
+            />
+          </div>
+        </>
+      ) : null}
+
       {shown.map((item) => (
         <div key={item.name}>
           <p className="mb-2 text-xs uppercase tracking-wide text-dim">{item.name}</p>

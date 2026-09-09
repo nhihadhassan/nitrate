@@ -30,7 +30,10 @@ export function MovieNightHero({
   screeningId,
   clubSlug,
   showRsvp,
+  awaitingConfirmation,
+  inviteLink,
   calendarHref,
+  googleCalendarHref,
 }: {
   film: PosterFilm;
   backdropPath: string | null;
@@ -46,7 +49,11 @@ export function MovieNightHero({
   screeningId: string;
   clubSlug: string;
   showRsvp: boolean;
+  /** The start time has gone by and nobody has marked it watched yet. */
+  awaitingConfirmation: boolean;
+  inviteLink: string | null;
   calendarHref: string;
+  googleCalendarHref: string;
 }) {
   const backdrop = backdropUrl(backdropPath, 'md');
 
@@ -84,15 +91,29 @@ export function MovieNightHero({
                 {location}
               </p>
             ) : null}
-            {watchLink ? (
-              <a
-                href={watchLink}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mt-0.5 inline-block text-sm text-iris underline underline-offset-2"
-              >
-                Watch link
-              </a>
+            {inviteLink || watchLink ? (
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                {inviteLink ? (
+                  <a
+                    href={inviteLink}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-sm text-iris underline underline-offset-2"
+                  >
+                    Invite page
+                  </a>
+                ) : null}
+                {watchLink ? (
+                  <a
+                    href={watchLink}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-sm text-iris underline underline-offset-2"
+                  >
+                    Watch link
+                  </a>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </div>
@@ -125,13 +146,26 @@ export function MovieNightHero({
               goingCount={goingCount}
               maybeCount={maybeCount}
             />
-            <Link
-              href={calendarHref}
-              className="mt-3 block text-center text-xs text-muted underline underline-offset-2 hover:text-text"
-            >
-              Add to calendar
-            </Link>
+            <div className="mt-3 flex items-center justify-center gap-4 text-xs text-muted">
+              <a
+                href={googleCalendarHref}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline underline-offset-2 hover:text-text"
+              >
+                Google Calendar
+              </a>
+              <Link href={calendarHref} className="underline underline-offset-2 hover:text-text">
+                Download .ics
+              </Link>
+            </div>
           </div>
+        ) : awaitingConfirmation ? (
+          // Not an RSVP and not silence: the night happened, and the page says
+          // so where the buttons used to be.
+          <p className="mt-5 rounded-full border border-line py-2.5 text-center text-sm text-muted">
+            This night has passed
+          </p>
         ) : null}
       </div>
     </section>

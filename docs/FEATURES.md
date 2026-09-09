@@ -100,8 +100,15 @@ directory.
     `crypto.randomInt`, commits the winner behind a row lock, and the client
     animates to a result it did not choose. Spinning again replays the same
     outcome; there are no re-rolls.
-- Screenings with date, timezone, location, watch link, notes and RSVP
-  (going / maybe / can't)
+- Screenings with date, timezone, location, watch link, invite link, notes and
+  RSVP (going / maybe / can't)
+- **A booked night stays editable.** Date, location, links and details can all
+  change after the night is booked, for anyone holding `edit_movie_night` —
+  moving a night no longer means cancelling and rebuilding it
+- **A night that has passed stops asking who is coming.** A screening row stays
+  `scheduled` until someone confirms it, so the RSVP is retired six hours after
+  the start time and the club is asked whether it happened instead
+- Add to calendar as a Google Calendar event or a downloadable `.ics`
 - Post-screening flow: confirm attendance, log to your own diary without
   creating a duplicate, rate and review
 - **Blind club ratings** — before you submit you see only how many people have

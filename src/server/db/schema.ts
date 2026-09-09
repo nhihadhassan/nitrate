@@ -1269,6 +1269,8 @@ export const screenings = nitrate.table(
     timezone: text('timezone').notNull().default('UTC'),
     location: text('location'),
     watchLink: text('watch_link'),
+    /** An external invite page — Partiful, an event link, wherever people RSVP outside Nitrate. */
+    inviteLink: text('invite_link'),
     notes: text('notes'),
     status: screeningStatus('status').notNull().default('scheduled'),
 

@@ -82,3 +82,23 @@ export function serialiseCalendarEvent(event: CalendarEvent): string {
 
   return lines.map(foldLine).join('\r\n') + '\r\n';
 }
+
+/**
+ * A Google Calendar "add event" URL for the same event the .ics describes.
+ *
+ * The .ics covers Apple Calendar, Outlook and anything else that reads a file;
+ * Google's web client handles a downloaded file badly enough that a direct
+ * template link is the only version most people will actually use. Times are
+ * UTC (`Z`), which Google interprets correctly regardless of the viewer's own
+ * calendar timezone, so nobody sees the night an hour out.
+ */
+export function googleCalendarUrl(event: CalendarEvent): string {
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${formatUtc(event.start)}/${formatUtc(event.end)}`,
+  });
+  if (event.description) params.set('details', event.description);
+  if (event.location) params.set('location', event.location);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}

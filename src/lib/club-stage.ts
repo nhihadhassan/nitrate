@@ -48,6 +48,8 @@ export type ClubStageInput = {
   /** "Next movie selection in 12 days", when the club is between rounds. */
   nextSelectionLabel: string | null;
   rsvp: 'going' | 'maybe' | 'cant' | null;
+  /** The booked night has already happened and is still unconfirmed. */
+  screeningPast: boolean;
 };
 
 const RSVP_LABEL: Record<'going' | 'maybe' | 'cant', string> = {
@@ -163,6 +165,9 @@ export function resolveClubStageCard(input: ClubStageInput): ClubStageCard {
         waitingOn: input.view.actionLabel ? null : 'An admin is picking the date',
       };
 
+    // The one card that has to know the difference between "coming?" and
+    // "did this happen?" — the round stays `scheduled` until someone confirms
+    // it, so the date is the only thing that can tell them apart.
     case 'screening':
       return {
         kind: 'screening',
@@ -171,11 +176,18 @@ export function resolveClubStageCard(input: ClubStageInput): ClubStageCard {
         meta: [input.dateLabel, input.location].filter(Boolean).join(' · ') || null,
         action: input.screeningId
           ? {
-              label: input.rsvp ? RSVP_LABEL[input.rsvp] : 'RSVP',
+              label: input.screeningPast
+                ? input.view.actionLabel ?? 'Open movie night'
+                : input.rsvp
+                  ? RSVP_LABEL[input.rsvp]
+                  : 'RSVP',
               href: `${club}/screening/${input.screeningId}`,
             }
           : null,
-        waitingOn: null,
+        waitingOn:
+          input.screeningPast && input.view.actionLabel !== 'Mark it watched'
+            ? 'Waiting on an admin to confirm it'
+            : null,
       };
 
     case 'rate':

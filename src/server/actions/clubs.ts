@@ -771,16 +771,24 @@ export async function updateScreeningAction(input: {
   scheduledAt?: string;
   location?: string | null;
   watchLink?: string | null;
+  inviteLink?: string | null;
   notes?: string | null;
 }): Promise<ActionResult<null>> {
   return actionGuard(async () => {
     const user = await requireUser();
+    const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : undefined;
+    if (scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+      throw new ValidationError('That date could not be read.');
+    }
     await updateScreening(input.screeningId, user.id, {
-      scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
+      scheduledAt,
       location: input.location,
       watchLink: input.watchLink,
+      inviteLink: input.inviteLink,
       notes: input.notes,
     });
+    // The club home shows the booked night too, so it has to move with it.
+    revalidatePath(`/club/${input.clubSlug}`);
     revalidatePath(`/club/${input.clubSlug}/screening/${input.screeningId}`);
     revalidatePath(`/club/${input.clubSlug}/calendar`);
     return null;

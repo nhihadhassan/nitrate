@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { ClubInvitePanel } from '@/components/club/invite-panel';
 import { ClubStageCardView } from '@/components/club/mobile/club-stage-card';
 import { ClubShelves, NextMovieNightCard } from '@/components/club/mobile/club-home-sections';
+import { MovieNightCard } from '@/components/club/mobile/movie-night-card';
 import { ClubCurrentHero } from '@/components/club/club-current-hero';
 import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { ClubShortlist } from '@/components/club/club-shortlist';
@@ -17,7 +18,7 @@ import { PosterRail } from '@/components/film/poster-rail';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { filmHref } from '@/lib/links';
-import { deriveClubDashboardView, resolveClubState } from '@/lib/club';
+import { deriveClubDashboardView, resolveClubState, screeningHasPassed } from '@/lib/club';
 import { resolveClubStageCard } from '@/lib/club-stage';
 import { nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
 import { cn, formatClubDateTime, relativeTime } from '@/lib/utils';
@@ -113,12 +114,15 @@ export default async function ClubDashboard({
     ? await getOwnershipMap(user.id, intelligence.shortlist.map((item) => item.movie.id))
     : new Map();
 
+  const msUntilScreening = upcoming
+    ? upcoming.screening.scheduledAt.getTime() - Date.now()
+    : null;
+  const screeningPast = screeningHasPassed(msUntilScreening);
+
   const state = resolveClubState({
     roundStatus: round?.status ?? null,
     roundMode: round?.mode ?? null,
-    msUntilScreening: upcoming
-      ? upcoming.screening.scheduledAt.getTime() - Date.now()
-      : null,
+    msUntilScreening,
     awaitingViewerRating: isMember && completed.some((entry) => !entry.viewerRated),
     hasCompletedScreening: completed.length > 0,
     isAdmin,
@@ -158,6 +162,7 @@ export default async function ClubDashboard({
     selectionMovieLabel: selectionMovieLabel ?? undefined,
     selectionRoundLabel: selectionLabel ?? undefined,
     nextSelectionLabel: nextSelectionLabel ?? undefined,
+    screeningPast,
   });
   const heroMovie = (viewerCanSeeWheelWinner ? upcoming?.movie : null) ?? winner?.movie ?? dueRating?.movie ?? null;
   const heroActionHref = dashboardView.kind === 'screening' && upcoming
@@ -194,6 +199,7 @@ export default async function ClubDashboard({
     location: viewerCanSeeWheelWinner ? (upcoming?.screening.location ?? null) : null,
     rsvp: myAttendance?.rsvp ?? null,
     nextSelectionLabel,
+    screeningPast,
   });
   // A stage that must not name the winner is handed no artwork at all, rather
   // than relying on the card to hide it.
@@ -224,6 +230,33 @@ export default async function ClubDashboard({
       {/* Phone: one stage, one action, then only what is genuinely useful. */}
       {/* ---------------------------------------------------------------- */}
       <div className="space-y-9 lg:hidden">
+        {/* The booked night is the one stage that is an event rather than a
+            task, so it gets its own card: the film's artwork, and an RSVP that
+            can be answered here instead of one screen away. */}
+        {stageCard.kind === 'screening' && upcoming && viewerCanSeeWheelWinner ? (
+          <MovieNightCard
+            href={`/club/${club.slug}/screening/${upcoming.screening.id}`}
+            title={upcoming.movie.title}
+            posterPath={upcoming.movie.posterPath}
+            backdropPath={upcoming.movie.backdropPath}
+            dateLabel={formatClubDateTime(upcoming.screening.scheduledAt)}
+            location={upcoming.screening.location}
+            attendees={going.slice(0, 5)}
+            goingCount={going.length}
+            maybeCount={attendance.filter((a) => a.rsvp === 'maybe').length}
+            extraAttendees={Math.max(going.length - 5, 0)}
+            viewerRsvp={myAttendance?.rsvp ?? null}
+            screeningId={upcoming.screening.id}
+            clubSlug={club.slug}
+            calendarHref={`/club/${club.slug}/screening/${upcoming.screening.id}/calendar`}
+            hasPassed={screeningPast}
+            passedAction={
+              screeningPast && stageCard.action?.label === 'Mark it watched'
+                ? stageCard.action
+                : null
+            }
+          />
+        ) : (
         <ClubStageCardView
           card={stageCard}
           picks={stagePicks}
@@ -242,6 +275,7 @@ export default async function ClubDashboard({
               : null
           }
         />
+        )}
 
         {/* The controls the stage card points at. Same components as desktop —
             the mobile tree only needs its own anchor ids, because both trees
@@ -250,8 +284,16 @@ export default async function ClubDashboard({
             are controls for something already settled — "Close picks early"
             and "Cancel round" under a booked movie night read as clutter at
             best and a trap at worst. Desktop keeps its own full set. */}
+        {/* A booked night does not block the next round — `startRound` only
+            refuses while one is still being decided — but mobile had no way to
+            start one, so the club had to wait for the night to be marked
+            watched before it could choose again. Handing the controls a null
+            round is the honest description: nothing is being decided. */}
         {isMember &&
-        (!round || round.status === 'nominations_open' || round.status === 'voting_open') &&
+        (!round ||
+          round.status === 'nominations_open' ||
+          round.status === 'voting_open' ||
+          (round.status === 'screening_scheduled' && isAdmin)) &&
         (isAdmin || clubPermissions.has('extend_submission_deadline') || clubPermissions.has('start_wheel')) ? (
           <section
             id="club-decision-m"
@@ -261,8 +303,8 @@ export default async function ClubDashboard({
             <RoundControls
               clubId={club.id}
               clubSlug={club.slug}
-              roundId={round?.id ?? null}
-              status={round?.status ?? null}
+              roundId={round && round.status !== 'screening_scheduled' ? round.id : null}
+              status={round && round.status !== 'screening_scheduled' ? round.status : null}
               mode={round?.mode}
               nominationCount={nominations?.nominationCount ?? 0}
               allMembersPicked={allMembersPicked}
