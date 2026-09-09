@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { CalendarIcon, ChevronDownIcon, FilmIcon, ShareIcon } from '@/components/ui/icons';
+import { CalendarIcon, ChevronDownIcon, FilmIcon, InfoIcon, LinkIcon, LocationIcon, NoteIcon, PencilIcon, ShareIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
@@ -76,7 +76,7 @@ export function MovieNightMobileActions(props: Props) {
   const quickClass = 'flex min-h-[4.75rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-canvas-raised px-2 text-center text-xs text-muted transition-colors hover:border-line-strong hover:text-text';
 
   return (
-    <div className="space-y-4 lg:hidden">
+    <div className="space-y-3 lg:hidden">
       <div className="grid grid-cols-4 gap-2" aria-label="Movie night actions">
         {props.canEdit ? (
           <button type="button" onClick={() => openEditor(true)} className={quickClass}>
@@ -90,15 +90,15 @@ export function MovieNightMobileActions(props: Props) {
 
       <section className="rounded-xl border border-line bg-canvas-raised p-4" aria-labelledby="movie-night-details">
         <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-          <h2 id="movie-night-details" className="font-display text-xl">Details</h2>
-          {props.canEdit ? <button type="button" onClick={() => openEditor(false)} className="min-h-10 px-2 text-sm font-medium text-ember">Edit</button> : null}
+          <h2 id="movie-night-details" className="flex items-center gap-2 font-display text-xl"><InfoIcon className="text-ember" /> Details</h2>
+          {props.canEdit ? <button type="button" onClick={() => openEditor(false)} className="flex min-h-10 items-center gap-1.5 px-2 text-sm font-medium text-ember"><PencilIcon /> Edit</button> : null}
         </div>
         <dl className="divide-y divide-line text-sm">
-          <DetailRow label="When" value={props.dateLabel} />
-          <DetailRow label="Where" value={props.location ?? 'Not set'} />
-          <DetailRow label="Invite link" value={props.inviteLink ?? 'Not set'} href={props.inviteLink} />
-          <DetailRow label="Watch link" value={props.watchLink ?? 'Not set'} href={props.watchLink} />
-          <DetailRow label="Notes" value={props.notes ?? 'No notes'} />
+          <DetailRow icon={<CalendarIcon />} label="When" value={props.dateLabel} />
+          {props.location ? <DetailRow icon={<LocationIcon />} label="Where" value={props.location} /> : null}
+          {props.inviteLink ? <DetailRow icon={<LinkIcon />} label="Invite link" value={props.inviteLink} href={props.inviteLink} /> : null}
+          {props.watchLink ? <DetailRow icon={<FilmIcon />} label="Watch link" value={props.watchLink} href={props.watchLink} /> : null}
+          {props.notes ? <DetailRow icon={<NoteIcon />} label="Notes" value={props.notes} /> : null}
         </dl>
       </section>
 
@@ -124,6 +124,6 @@ export function MovieNightMobileActions(props: Props) {
   );
 }
 
-function DetailRow({ label, value, href }: { label: string; value: string; href?: string | null }) {
-  return <div className="grid grid-cols-[5.75rem_minmax(0,1fr)] gap-3 py-3"><dt className="text-text">{label}</dt><dd className="min-w-0 truncate text-muted">{href ? <a href={href} target="_blank" rel="noreferrer noopener" className="hover:text-ember">{value}</a> : value}</dd></div>;
+function DetailRow({ icon, label, value, href }: { icon: React.ReactNode; label: string; value: string; href?: string | null }) {
+  return <div className="grid grid-cols-[1.25rem_5.25rem_minmax(0,1fr)] items-center gap-2.5 py-2.5"><dt className="contents"><span className="text-ember">{icon}</span><span className="text-text">{label}</span></dt><dd className="min-w-0 truncate text-muted">{href ? <a href={href} target="_blank" rel="noreferrer noopener" className="hover:text-ember">{value}</a> : value}</dd></div>;
 }

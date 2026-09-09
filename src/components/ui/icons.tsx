@@ -137,6 +137,30 @@ export const CommentIcon = (p: IconProps) => (
   </Icon>
 );
 
+export const InfoIcon = (p: IconProps) => (
+  <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 10.5V17M12 7h.01" /></Icon>
+);
+
+export const LocationIcon = (p: IconProps) => (
+  <Icon {...p}><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></Icon>
+);
+
+export const LinkIcon = (p: IconProps) => (
+  <Icon {...p}><path d="m9.5 14.5 5-5" /><path d="m7.2 17.8-1 1a3.5 3.5 0 0 1-5-5l4-4a3.5 3.5 0 0 1 5 0" /><path d="m16.8 6.2 1-1a3.5 3.5 0 0 1 5 5l-4 4a3.5 3.5 0 0 1-5 0" /></Icon>
+);
+
+export const NoteIcon = (p: IconProps) => (
+  <Icon {...p}><path d="M5 3.5h10l4 4V20H5z" /><path d="M15 3.5V8h4M8 12h8M8 15.5h6" /></Icon>
+);
+
+export const ImageIcon = (p: IconProps) => (
+  <Icon {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="9" r="1.5" /><path d="m4.5 17 4.5-4 3.5 3 2.5-2 4.5 3.5" /></Icon>
+);
+
+export const SendIcon = (p: IconProps) => (
+  <Icon {...p}><path d="m3 11 18-8-8 18-2-8zM11 13l5-5" /></Icon>
+);
+
 export const ShareIcon = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 3v13M8 6.5 12 3l4 3.5" />

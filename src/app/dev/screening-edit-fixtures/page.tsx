@@ -28,8 +28,6 @@ export default async function ScreeningEditFixturePage() {
         dateLabel="Sat Sept 5, 8:00 PM"
         scheduledAt="2026-09-06T00:00:00.000Z"
         location={null}
-        watchLink={null}
-        notes={null}
         attendees={[]}
         goingCount={1}
         maybeCount={0}
@@ -39,7 +37,6 @@ export default async function ScreeningEditFixturePage() {
         clubSlug="fixture-club"
         showRsvp={false}
         awaitingConfirmation
-        inviteLink={null}
         calendarHref="#"
         googleCalendarHref="#"
         canEditDate

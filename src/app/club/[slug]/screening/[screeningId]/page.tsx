@@ -15,6 +15,7 @@ import { ScreeningAdminControls } from '@/components/club/screening-admin-contro
 import { Poster } from '@/components/film/poster';
 import { RatingNumber } from '@/components/film/stars';
 import { Badge, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
+import { CommentIcon, SettingsIcon } from '@/components/ui/icons';
 import { Avatar } from '@/components/user/avatar';
 import { googleCalendarUrl } from '@/lib/calendar';
 import { filmHref, userHref } from '@/lib/links';
@@ -139,8 +140,6 @@ export default async function ScreeningPage({
             dateLabel={formatClubDateTime(screening.scheduledAt)}
             scheduledAt={screening.scheduledAt.toISOString()}
             location={screening.location}
-            watchLink={screening.watchLink}
-            notes={screening.notes}
             attendees={going}
             goingCount={going.length}
             maybeCount={maybe.length}
@@ -150,7 +149,6 @@ export default async function ScreeningPage({
             clubSlug={club.slug}
             showRsvp={rsvpOpen}
             awaitingConfirmation={awaitingConfirmation}
-            inviteLink={screening.inviteLink}
             calendarHref={calendarHref}
             googleCalendarHref={googleHref}
             canEditDate={canEditNight && screening.status === 'scheduled'}
@@ -381,10 +379,8 @@ export default async function ScreeningPage({
         <div className="hidden lg:block"><Divider /></div>
 
         <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
-          <SectionHeading
-            title="Discussion"
-            subtitle={`Private to ${club.name}.`}
-          />
+          <div className="mb-3 flex items-center gap-2 lg:hidden"><CommentIcon className="text-ember" /><h2 className="font-display text-xl">Discussion</h2></div>
+          <div className="hidden lg:block"><SectionHeading title="Discussion" subtitle={`Private to ${club.name}.`} /></div>
           <DiscussionThread
             clubId={club.id}
             clubSlug={club.slug}
@@ -394,6 +390,7 @@ export default async function ScreeningPage({
             hasSeenFilm={hasSeen}
             movieTitle={movie.title}
             compact
+            viewer={{ username: user!.username, displayName: user!.displayName, avatarAssetId: user!.avatarAssetId }}
             posts={discussion.map((post) => ({
               id: post.id,
               body: post.body,
@@ -410,7 +407,7 @@ export default async function ScreeningPage({
 
         {isAdmin && screening.status !== 'completed' ? (
           <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:hidden">
-            <p className="font-display text-xl">Admin</p>
+            <p className="flex items-center gap-2 font-display text-xl"><SettingsIcon className="text-ember" /> Admin</p>
             <div className="mt-3">
               <ScreeningAdminControls screeningId={screening.id} clubSlug={club.slug} status={screening.status} isPast={isPast} mobileCards />
             </div>

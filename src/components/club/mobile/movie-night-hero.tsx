@@ -4,7 +4,7 @@ import { Poster, type PosterFilm } from '@/components/film/poster';
 import { RsvpSegmented } from '@/components/club/mobile/rsvp-segmented';
 import { MovieNightDateTrigger } from '@/components/club/movie-night-planner';
 import { AvatarStack, type AvatarUser } from '@/components/user/avatar';
-import { CalendarIcon, UsersIcon } from '@/components/ui/icons';
+import { CalendarIcon } from '@/components/ui/icons';
 import { backdropUrl } from '@/lib/images';
 import type { RsvpStatus } from '@/lib/types';
 
@@ -23,8 +23,6 @@ export function MovieNightHero({
   dateLabel,
   scheduledAt,
   location,
-  watchLink,
-  notes,
   attendees,
   goingCount,
   maybeCount,
@@ -34,7 +32,6 @@ export function MovieNightHero({
   clubSlug,
   showRsvp,
   awaitingConfirmation,
-  inviteLink,
   calendarHref,
   googleCalendarHref,
   canEditDate,
@@ -45,8 +42,6 @@ export function MovieNightHero({
   dateLabel: string;
   scheduledAt: string;
   location: string | null;
-  watchLink: string | null;
-  notes: string | null;
   attendees: AvatarUser[];
   goingCount: number;
   maybeCount: number;
@@ -57,7 +52,6 @@ export function MovieNightHero({
   showRsvp: boolean;
   /** The start time has gone by and nobody has marked it watched yet. */
   awaitingConfirmation: boolean;
-  inviteLink: string | null;
   calendarHref: string;
   googleCalendarHref: string;
   canEditDate: boolean;
@@ -65,7 +59,7 @@ export function MovieNightHero({
   const backdrop = backdropUrl(backdropPath, 'md');
 
   return (
-    <section className="relative -mx-4 min-h-[43rem] overflow-hidden px-4 pb-7 pt-5">
+    <section className="relative -mx-4 overflow-hidden px-4 pb-5 pt-4">
       {backdrop ? (
         <>
           <span
@@ -92,14 +86,13 @@ export function MovieNightHero({
           </Link>
         </div>
 
-        <div className="pt-28 sm:pt-36">
+        <div className="pt-20 sm:pt-28">
           <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-canvas/45 px-3 py-2 text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-white/80 backdrop-blur-sm">
             <CalendarIcon className="h-3.5 w-3.5 text-ember" /> Movie night
           </p>
           <h1 className="mt-4 max-w-[20rem] font-display text-[2.65rem] leading-[0.98] text-white drop-shadow-[0_4px_22px_rgb(0_0_0/0.8)]">
             {film.title}
           </h1>
-          {notes ? <p className="mt-3 max-w-md text-sm leading-relaxed text-white/70">{notes}</p> : null}
         </div>
 
         <div className="mt-5 grid grid-cols-[7.25rem_minmax(0,1fr)] items-start gap-5">
@@ -127,50 +120,20 @@ export function MovieNightHero({
                 {location}
               </p>
             ) : null}
-            {inviteLink || watchLink ? (
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                {inviteLink ? (
-                  <a
-                    href={inviteLink}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-sm text-iris underline underline-offset-2"
-                  >
-                    Invite page
-                  </a>
-                ) : null}
-                {watchLink ? (
-                  <a
-                    href={watchLink}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-sm text-iris underline underline-offset-2"
-                  >
-                    Watch link
-                  </a>
-                ) : null}
+            {attendees.length ? (
+              <div className="mt-4">
+                <AvatarStack users={attendees} max={5} />
+                <p className="mt-2 text-xs text-white/60">
+                  <span className="text-white/85">{goingCount} going{maybeCount ? ` · ${maybeCount} maybe` : ''}</span>
+                  {' · '}{invitedCount} invited
+                </p>
               </div>
             ) : null}
           </div>
         </div>
 
-        {attendees.length ? (
-          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/15 pt-4">
-            <AvatarStack users={attendees} max={6} />
-            <span className="text-right text-xs text-white/55">
-              <span className="text-white/80">
-                {goingCount} going{maybeCount ? ` · ${maybeCount} maybe` : ''}
-              </span>
-              <span className="mt-0.5 flex items-center gap-1">
-                <UsersIcon className="h-3 w-3" />
-                {invitedCount} invited
-              </span>
-            </span>
-          </div>
-        ) : null}
-
         {showRsvp ? (
-          <div className="mt-5">
+          <div className="mt-4">
             <RsvpSegmented
               screeningId={screeningId}
               clubSlug={clubSlug}

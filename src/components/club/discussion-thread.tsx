@@ -1,15 +1,18 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 
 import { ReportDialog } from '@/components/moderation/report-dialog';
 import { Button } from '@/components/ui/button';
+import { ImageIcon, SendIcon } from '@/components/ui/icons';
 import { inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
-import { UserChip } from '@/components/user/avatar';
+import { Avatar, UserChip } from '@/components/user/avatar';
 import { cn, relativeTime } from '@/lib/utils';
 import { deleteDiscussionPostAction, postDiscussionAction } from '@/server/actions/clubs';
+import { uploadImageAction } from '@/server/actions/media';
 
 type Post = {
   id: string;
@@ -33,6 +36,7 @@ export function DiscussionThread({
   movieTitle,
   posts,
   compact = false,
+  viewer,
 }: {
   clubId: string;
   clubSlug: string;
@@ -43,6 +47,7 @@ export function DiscussionThread({
   movieTitle: string;
   posts: Post[];
   compact?: boolean;
+  viewer?: { username: string; displayName: string; avatarAssetId: string | null };
 }) {
   // Spoiler gate: members who have not watched or attended must opt in.
   const [entered, setEntered] = useState(hasSeenFilm);
@@ -73,6 +78,7 @@ export function DiscussionThread({
       isAdmin={isAdmin}
       posts={posts}
       compact={compact}
+      viewer={viewer}
     />
   );
 }
@@ -85,6 +91,7 @@ function Thread({
   isAdmin,
   posts,
   compact,
+  viewer,
 }: {
   clubId: string;
   clubSlug: string;
@@ -93,6 +100,7 @@ function Thread({
   isAdmin: boolean;
   posts: Post[];
   compact: boolean;
+  viewer?: { username: string; displayName: string; avatarAssetId: string | null };
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -101,6 +109,9 @@ function Thread({
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [reporting, setReporting] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [imageAssetId, setImageAssetId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const roots = posts.filter((p) => !p.parentId);
   const repliesByParent = new Map<string, Post[]>();
@@ -112,14 +123,16 @@ function Thread({
   }
 
   function submit() {
-    if (!body.trim()) return;
+    if (!body.trim() && !imageAssetId) return;
     startTransition(async () => {
+      const textBody = imageAssetId ? body.trim().slice(0, 4950) : body.trim();
+      const postBody = `${textBody}${imageAssetId ? `${textBody ? '\n' : ''}[[image:${imageAssetId}]]` : ''}`;
       const result = await postDiscussionAction({
         clubId,
         clubSlug,
         screeningId,
         parentId: replyTo,
-        body,
+        body: postBody,
         containsSpoilers: spoilers,
       });
       if (!result.ok) {
@@ -129,6 +142,7 @@ function Thread({
       setBody('');
       setSpoilers(false);
       setReplyTo(null);
+      setImageAssetId(null);
       router.refresh();
     });
   }
@@ -148,16 +162,55 @@ function Thread({
             </button>
           </p>
         ) : null}
-        <textarea
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          rows={compact ? 1 : 3}
-          maxLength={5000}
-          placeholder="What did you think?"
-          aria-label="Write a message"
-          className={cn(inputClass, compact ? 'min-h-12 resize-none rounded-full px-4 py-3' : 'resize-y')}
-        />
-        <div className={cn('mt-2 flex flex-wrap items-center justify-between gap-3', compact && 'pl-1')}>
+        <div className={cn(compact && 'flex items-start gap-2.5')}>
+          {compact && viewer ? <Avatar user={viewer} size="sm" className="mt-1 shrink-0" /> : null}
+          <div className="min-w-0 flex-1">
+            <div className={cn(compact && 'flex items-center gap-2')}>
+              <div className="relative min-w-0 flex-1">
+                <textarea
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  rows={compact ? 1 : 3}
+                  maxLength={5000}
+                  placeholder="What did you think?"
+                  aria-label="Write a message"
+                  className={cn(inputClass, compact ? 'min-h-12 resize-none rounded-full py-3 pl-4 pr-12' : 'resize-y')}
+                />
+                {compact ? (
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} aria-label="Add an image" className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-surface-hover hover:text-text">
+                    <ImageIcon className="h-5 w-5" />
+                  </button>
+                ) : null}
+              </div>
+              {compact ? (
+                <button type="button" onClick={submit} disabled={pending || uploading || (!body.trim() && !imageAssetId)} aria-label={pending ? 'Posting' : 'Post message'} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ember text-white transition-opacity disabled:opacity-40">
+                  <SendIcon className="h-5 w-5" />
+                </button>
+              ) : null}
+            </div>
+            {imageAssetId ? (
+              <div className="relative mt-2 h-20 w-20 overflow-hidden rounded-lg border border-line">
+                <Image src={`/media/${imageAssetId}`} alt="Attached image" fill sizes="80px" className="object-cover" unoptimized />
+                <button type="button" onClick={() => setImageAssetId(null)} aria-label="Remove image" className="absolute right-1 top-1 h-6 w-6 rounded-full bg-canvas/85 text-xs text-text">×</button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (!file) return;
+          if (file.size > 8 * 1024 * 1024) return toast({ message: 'That image is too large (8MB max).', tone: 'error' });
+          setUploading(true);
+          try {
+            const dataUrl = await prepareDiscussionImage(file);
+            const result = await uploadImageAction({ kind: 'club_image', dataUrl });
+            if (!result.ok) toast({ message: result.error, tone: 'error' });
+            else setImageAssetId(result.data.assetId);
+          } catch { toast({ message: 'We could not read that image.', tone: 'error' }); }
+          finally { setUploading(false); }
+        }} />
+        <div className={cn('mt-2 flex flex-wrap items-center justify-between gap-3', compact && 'pl-11')}>
           <label className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-muted">
             <input
               type="checkbox"
@@ -167,9 +220,9 @@ function Thread({
             />
             Mark as a bigger spoiler
           </label>
-          <Button variant="iris" size="sm" disabled={pending || !body.trim()} onClick={submit}>
+          {!compact ? <Button variant="iris" size="sm" disabled={pending || (!body.trim() && !imageAssetId)} onClick={submit}>
             {pending ? 'Posting…' : 'Post'}
-          </Button>
+          </Button> : null}
         </div>
       </div>
 
@@ -264,9 +317,7 @@ function PostRow({
       </div>
 
       {revealed ? (
-        <p className="mt-1.5 break-words whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-muted [overflow-wrap:anywhere]">
-          {post.body}
-        </p>
+        <PostBody body={post.body} />
       ) : (
         <button
           type="button"
@@ -308,4 +359,25 @@ function PostRow({
       </div>
     </div>
   );
+}
+
+const IMAGE_MARKER = /\[\[image:([0-9a-f-]{36})\]\]/i;
+
+function PostBody({ body }: { body: string }) {
+  const match = IMAGE_MARKER.exec(body);
+  const text = body.replace(IMAGE_MARKER, '').trim();
+  return <div className="mt-1.5">{text ? <p className="break-words whitespace-pre-wrap text-[0.9375rem] leading-relaxed text-muted [overflow-wrap:anywhere]">{text}</p> : null}{match ? <div className="relative mt-2 aspect-[4/3] max-w-sm overflow-hidden rounded-lg border border-line"><Image src={`/media/${match[1]}`} alt="Discussion attachment" fill sizes="(max-width: 640px) 80vw, 384px" className="object-cover" unoptimized /></div> : null}</div>;
+}
+
+async function prepareDiscussionImage(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not process image');
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas.toDataURL('image/jpeg', 0.84);
 }
