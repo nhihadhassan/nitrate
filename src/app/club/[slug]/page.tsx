@@ -17,7 +17,7 @@ import { PosterRail } from '@/components/film/poster-rail';
 import { Button } from '@/components/ui/button';
 import { Badge, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { filmHref } from '@/lib/links';
-import { deriveClubDashboardView, resolveClubState } from '@/lib/club';
+import { deriveClubDashboardView, resolveClubState, screeningHasPassed } from '@/lib/club';
 import { resolveClubStageCard } from '@/lib/club-stage';
 import { nextSelectionAt, nextSelectionCopy, roundMovieLabel, roundSelectionLabel } from '@/lib/club-cadence';
 import { cn, formatClubDateTime, relativeTime } from '@/lib/utils';
@@ -113,12 +113,15 @@ export default async function ClubDashboard({
     ? await getOwnershipMap(user.id, intelligence.shortlist.map((item) => item.movie.id))
     : new Map();
 
+  const msUntilScreening = upcoming
+    ? upcoming.screening.scheduledAt.getTime() - Date.now()
+    : null;
+  const screeningPast = screeningHasPassed(msUntilScreening);
+
   const state = resolveClubState({
     roundStatus: round?.status ?? null,
     roundMode: round?.mode ?? null,
-    msUntilScreening: upcoming
-      ? upcoming.screening.scheduledAt.getTime() - Date.now()
-      : null,
+    msUntilScreening,
     awaitingViewerRating: isMember && completed.some((entry) => !entry.viewerRated),
     hasCompletedScreening: completed.length > 0,
     isAdmin,
@@ -158,6 +161,7 @@ export default async function ClubDashboard({
     selectionMovieLabel: selectionMovieLabel ?? undefined,
     selectionRoundLabel: selectionLabel ?? undefined,
     nextSelectionLabel: nextSelectionLabel ?? undefined,
+    screeningPast,
   });
   const heroMovie = (viewerCanSeeWheelWinner ? upcoming?.movie : null) ?? winner?.movie ?? dueRating?.movie ?? null;
   const heroActionHref = dashboardView.kind === 'screening' && upcoming
@@ -194,6 +198,7 @@ export default async function ClubDashboard({
     location: viewerCanSeeWheelWinner ? (upcoming?.screening.location ?? null) : null,
     rsvp: myAttendance?.rsvp ?? null,
     nextSelectionLabel,
+    screeningPast,
   });
   // A stage that must not name the winner is handed no artwork at all, rather
   // than relying on the card to hide it.

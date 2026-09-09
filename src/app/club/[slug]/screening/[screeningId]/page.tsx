@@ -1,23 +1,28 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { env } from '@/env';
+
 import { BlindRatings } from '@/components/club/blind-ratings';
 import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { DiscussionThread } from '@/components/club/discussion-thread';
 import { PostScreeningPanel } from '@/components/club/post-screening-panel';
 import { RsvpControls } from '@/components/club/rsvp-controls';
 import { MovieNightHero } from '@/components/club/mobile/movie-night-hero';
+import { MovieNightPlanner } from '@/components/club/movie-night-planner';
 import { ScreeningAdminControls } from '@/components/club/screening-admin-controls';
 import { Poster } from '@/components/film/poster';
 import { RatingNumber } from '@/components/film/stars';
 import { Badge, Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { Avatar } from '@/components/user/avatar';
+import { googleCalendarUrl } from '@/lib/calendar';
 import { filmHref, userHref } from '@/lib/links';
 import { formatClubDateTime, formatRuntime, pluralize, relativeTime } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { getMovieById } from '@/server/movies/catalog';
 import {
   getClubBySlug,
+  getClubPermissions,
   getClubRatings,
   getDiscussion,
   getMembership,
@@ -82,7 +87,7 @@ export default async function ScreeningPage({
     );
   }
 
-  const [movie, attendance, ratings, discussion, context, hasSeen, filmState] =
+  const [movie, attendance, ratings, discussion, context, hasSeen, filmState, permissions] =
     await Promise.all([
       getMovieById(screening.movieId),
       getScreeningAttendance(screening.id),
@@ -91,6 +96,7 @@ export default async function ScreeningPage({
       getViewerScreeningContext(screening, user!.id),
       viewerHasSeenScreeningFilm(screening, user!.id),
       getUserMovieState(user!.id, screening.movieId),
+      getClubPermissions(club.id, user!.id),
     ]);
 
   const going = attendance.filter((a) => a.rsvp === 'going');
@@ -99,6 +105,24 @@ export default async function ScreeningPage({
   const attended = attendance.filter((a) => a.attended);
   const isCompleted = screening.status === 'completed';
   const isPast = screening.scheduledAt.getTime() < Date.now();
+  const canEditNight = permissions.has('edit_movie_night');
+  // "Are you coming?" is a question about a night that has not started. Once
+  // the clock passes it the honest question is whether it happened, so the
+  // RSVP comes down rather than sitting there collecting answers about an
+  // evening that is already over.
+  const rsvpOpen = screening.status === 'scheduled' && !isPast;
+  const awaitingConfirmation = screening.status === 'scheduled' && isPast;
+  const calendarHref = `/club/${club.slug}/screening/${screening.id}/calendar`;
+  const googleHref = googleCalendarUrl({
+    uid: `screening-${screening.id}@nitrate`,
+    title: `${movie.title} — ${club.name}`,
+    start: screening.scheduledAt,
+    end: new Date(
+      screening.scheduledAt.getTime() + (movie.runtime && movie.runtime > 0 ? movie.runtime : 120) * 60_000,
+    ),
+    description: `${club.name} on Nitrate.\n${env.siteUrl}/club/${club.slug}/screening/${screening.id}`,
+    location: screening.location ?? undefined,
+  });
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -121,8 +145,11 @@ export default async function ScreeningPage({
             viewerRsvp={context.attendance?.rsvp ?? null}
             screeningId={screening.id}
             clubSlug={club.slug}
-            showRsvp={screening.status === 'scheduled'}
-            calendarHref={`/club/${club.slug}/screening/${screening.id}/calendar`}
+            showRsvp={rsvpOpen}
+            awaitingConfirmation={awaitingConfirmation}
+            inviteLink={screening.inviteLink}
+            calendarHref={calendarHref}
+            googleCalendarHref={googleHref}
           />
         </div>
 
@@ -160,16 +187,28 @@ export default async function ScreeningPage({
             {screening.location ? (
               <p className="mt-2 text-sm text-muted">{screening.location}</p>
             ) : null}
-            {screening.watchLink ? (
-              <a
-                href={screening.watchLink}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="mt-1 inline-block text-sm text-iris underline underline-offset-2"
-              >
-                Watch link
-              </a>
-            ) : null}
+            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+              {screening.inviteLink ? (
+                <a
+                  href={screening.inviteLink}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-sm text-iris underline underline-offset-2"
+                >
+                  Invite page
+                </a>
+              ) : null}
+              {screening.watchLink ? (
+                <a
+                  href={screening.watchLink}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-sm text-iris underline underline-offset-2"
+                >
+                  Watch link
+                </a>
+              ) : null}
+            </div>
             {screening.notes ? (
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted">
                 {screening.notes}
@@ -208,7 +247,7 @@ export default async function ScreeningPage({
           </div>
         </header>
 
-        {screening.status === 'scheduled' ? (
+        {rsvpOpen ? (
           <section className="hidden lg:block">
             <SectionHeading title="Are you coming?" />
             <RsvpControls
@@ -216,12 +255,36 @@ export default async function ScreeningPage({
               clubSlug={club.slug}
               current={context.attendance?.rsvp ?? null}
             />
-            <a
-              href={`/club/${club.slug}/screening/${screening.id}/calendar`}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm text-muted underline underline-offset-2 hover:text-iris"
-            >
-              Add to calendar
-            </a>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+              <a
+                href={googleHref}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline underline-offset-2 hover:text-iris"
+              >
+                Google Calendar
+              </a>
+              <a href={calendarHref} className="underline underline-offset-2 hover:text-iris">
+                Download .ics
+              </a>
+            </div>
+          </section>
+        ) : null}
+
+        {/* The night can still move, gain a location, or get an invite page
+            after it is booked — the scheduling form used to be a one-way door. */}
+        {canEditNight && screening.status === 'scheduled' ? (
+          <section>
+            <MovieNightPlanner
+              screeningId={screening.id}
+              clubSlug={club.slug}
+              scheduledAt={screening.scheduledAt.toISOString()}
+              location={screening.location}
+              watchLink={screening.watchLink}
+              inviteLink={screening.inviteLink}
+              notes={screening.notes}
+              isPast={isPast}
+            />
           </section>
         ) : null}
 
@@ -248,7 +311,7 @@ export default async function ScreeningPage({
               screeningDate={screening.scheduledAt.toISOString().slice(0, 10)}
             />
           </section>
-        ) : isPast && isAdmin ? (
+        ) : awaitingConfirmation && isAdmin ? (
           <section className="rounded-lg border border-iris/30 bg-iris/[0.06] p-4">
             <p className="font-display text-lg">Did this happen?</p>
             <p className="mt-1 text-sm text-muted">
@@ -262,6 +325,13 @@ export default async function ScreeningPage({
                 isPast={isPast}
               />
             </div>
+          </section>
+        ) : awaitingConfirmation ? (
+          <section className="rounded-lg border border-line p-4">
+            <p className="font-display text-lg">This night has passed</p>
+            <p className="mt-1 text-sm text-muted">
+              Ratings and the discussion open once an admin marks it watched.
+            </p>
           </section>
         ) : null}
 
@@ -325,7 +395,9 @@ export default async function ScreeningPage({
         ) : null}
 
         <section>
-          <p className="eyebrow mb-2.5">{isCompleted ? 'Who was there' : 'Who is coming'}</p>
+          <p className="eyebrow mb-2.5">
+            {isCompleted ? 'Who was there' : awaitingConfirmation ? 'Who was coming' : 'Who is coming'}
+          </p>
           {isCompleted ? (
             attended.length ? (
               <ul className="space-y-1.5">

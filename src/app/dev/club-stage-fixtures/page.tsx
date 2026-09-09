@@ -89,6 +89,7 @@ export default async function ClubStageFixturePage({
     location: 'Maya’s House',
     rsvp: null as 'going' | 'maybe' | 'cant' | null,
     nextSelectionLabel: 'Next movie selection in 12 days',
+    screeningPast: false,
   };
 
   const cases = [
@@ -160,6 +161,39 @@ export default async function ClubStageFixturePage({
       card: resolveClubStageCard({
         ...shared,
         view: deriveClubDashboardView({ ...base, upcomingTitle: rows[0]?.title }),
+      }),
+      picks: [],
+      members: [],
+      film: rows[0] ?? null,
+    },
+    {
+      // The night is booked, the date has gone by, and nobody has confirmed
+      // it — the state the club sits in between watching and rating.
+      name: 'Movie night has passed',
+      card: resolveClubStageCard({
+        ...shared,
+        screeningPast: true,
+        rsvp: 'going',
+        dateLabel: 'Sat Sept 5, 8:00 PM',
+        view: deriveClubDashboardView({ ...base, upcomingTitle: rows[0]?.title, screeningPast: true }),
+      }),
+      picks: [],
+      members: [],
+      film: rows[0] ?? null,
+    },
+    {
+      name: 'Movie night has passed (not an admin)',
+      card: resolveClubStageCard({
+        ...shared,
+        screeningPast: true,
+        rsvp: 'going',
+        dateLabel: 'Sat Sept 5, 8:00 PM',
+        view: deriveClubDashboardView({
+          ...base,
+          isAdmin: false,
+          upcomingTitle: rows[0]?.title,
+          screeningPast: true,
+        }),
       }),
       picks: [],
       members: [],
