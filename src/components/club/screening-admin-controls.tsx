@@ -38,12 +38,12 @@ export function ScreeningAdminControls({
               toast({ message: result.error, tone: 'error' });
               return;
             }
-            toast({ message: 'Screening complete — ratings are open', tone: 'success' });
+            toast({ message: 'Marked as watched — ratings are open', tone: 'success' });
             router.refresh();
           })
         }
       >
-        {pending ? 'Saving…' : isPast ? 'Mark as watched' : 'We watched it early'}
+        {pending ? 'Saving…' : isPast ? 'Mark it watched' : 'We watched it early'}
       </Button>
 
       {confirmCancel ? (
@@ -59,7 +59,7 @@ export function ScreeningAdminControls({
                   toast({ message: result.error, tone: 'error' });
                   return;
                 }
-                toast({ message: 'Screening cancelled' });
+                toast({ message: 'Movie night cancelled' });
                 router.push(`/club/${clubSlug}`);
                 router.refresh();
               })
@@ -73,7 +73,7 @@ export function ScreeningAdminControls({
         </>
       ) : (
         <Button variant="ghost" size="sm" onClick={() => setConfirmCancel(true)}>
-          Cancel screening
+          Cancel movie night
         </Button>
       )}
     </div>

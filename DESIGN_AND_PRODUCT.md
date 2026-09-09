@@ -63,6 +63,10 @@ voting, spinning the wheel, revealing ratings, choosing the next film — feel
 - **The club round is a real state machine.** `draft → nominations_open →
   voting_open → winner_selected → screening_scheduled → completed`. Every
   transition is checked server-side; a stale tab cannot reopen a closed vote.
+- **A date is not a status.** The last two transitions are made by a person, not
+  the clock, so the club reads the calendar as well as the row: six hours after
+  a booked night starts it stops asking who is coming and starts asking whether
+  it happened.
 - **Blind means blind.** While a vote or club rating is open, the server does not
   send totals to the client at all. The reveal is a real reveal.
 - **Nothing is silently dropped.** The Letterboxd importer surfaces every

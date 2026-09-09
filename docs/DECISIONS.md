@@ -187,7 +187,37 @@ no `VTIMEZONE` block is needed. No `SEQUENCE` line is emitted (screenings have
 no `updatedAt` to derive one from); a moved screening is a new download, not an
 update a calendar app reconciles automatically — an acceptable simplification
 for something a member downloads once, not something the app pushes changes
-into.
+into. That caveat carries more weight now that a night *can* be moved from the
+movie night page: whoever moves it has to tell the club, because the calendar
+entries people already saved will not follow.
+
+**Google Calendar gets a template link next to the `.ics`.** `googleCalendarUrl`
+in the same file builds a `calendar.google.com/render?action=TEMPLATE` URL from
+the same event. Not a contradiction of the "no calendar API" rule below — it is
+a plain link with no OAuth scope, no token and no sync — but the `.ics` alone
+was close to decorative for anyone living in Google Calendar's web client,
+which handles a downloaded file badly. Times go out as UTC, so the event lands
+correctly whatever timezone the viewer's own calendar is set to.
+
+**A scheduled night and an upcoming night are not the same thing.** A
+`screenings` row leaves `scheduled` only when a person marks it watched or
+cancels it, so status alone cannot tell a night that is coming from one that
+came and went. Everything downstream of `msUntilScreening` treated a negative
+number as "very soon": three days after a screening the club still said
+"Tonight is the night. Press play." and still offered Going / Maybe / Can't.
+`screeningHasPassed` in `src/lib/club.ts` draws the line six hours after the
+start time — long enough for a long film and the talking afterwards — and past
+it the club asks whether the night happened rather than who is coming. The rule
+lives in the state machine rather than in each screen precisely so the club
+home and the movie night page cannot disagree; `club-past-night.test.ts` pins
+both sides of the boundary.
+
+**The movie night gets a card of its own, and the RSVP with it.** Every other
+stage of the club loop is a fact and a button, and shares one presenter
+(`resolveClubStageCard`). The booked night is an event rather than a task, so
+on a phone it renders as the film's poster with the facts on the artwork and
+the RSVP answerable in place. It is the one stage that reads the *date* as well
+as the round status, for the reason above.
 
 **Screening reminders reuse the existing outbox and cron; nothing new was
 built to send mail.** `getScreeningsNeedingReminder` and `reminderSentAt`
@@ -213,10 +243,17 @@ be trusted against this repo's snapshot history (see `0003`/`0004`), so `0005`
 through `0010` are hand-written the same way: `IF NOT EXISTS`/`ADD CONSTRAINT …
 EXCEPTION WHEN duplicate_object` guards throughout, one `ALTER TYPE … ADD
 VALUE` per statement (it cannot share a transaction batch with a use of the new
-value), and a journal entry appended by hand. All six are additive only — new
+value), and a journal entry appended by hand. All are additive only — new
 tables, nullable or defaulted columns, new enum values, new indexes — nothing
-drops or narrows an existing column. `0000`–`0010` are all applied to
-production as of this phase.
+drops or narrows an existing column. The one index that *changed* rather than
+appeared, `0013`, replaced a unique index with a strictly looser partial one,
+so no existing row could conflict. `0000`–`0014` are all applied to production.
+
+`0014` adds `screenings.invite_link`: one nullable column for the event page a
+club actually gathers on — Partiful, or whatever the group uses — alongside the
+watch link. It was applied to production *before* the code that reads it
+shipped, which is the required order: Drizzle selects an explicit column list,
+so deploying first would have failed every screening query.
 
 ---
 
@@ -388,6 +425,8 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
 | 11 Aug 2026 | Resend configured on a verified sending domain; live send confirmed |
 | 11 Aug 2026 | `NEXT_PUBLIC_SITE_URL` set in production — the first test email carried `localhost` links |
 | 27 Aug 2026 | Product polish pass: cinematic landing page, curated Explore rails, Home "Right now" band, club lifecycle clarity, live club updates via polling, CI added |
+| 8 Sep 2026 | Mobile-first Movie Club redesign; three production bugs fixed (monthly-club home crash, withdraw/re-pick, reveal lock-out); migration `0013` |
+| 8 Sep 2026 | Movie night: RSVP retired once the night has passed, poster card on the club home, editable after booking, invite link (`0014`) and Google Calendar link |
 
 ---
 
@@ -412,8 +451,10 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
   static-asset service worker ship; push needs a subscription-management
   surface and a delivery guarantee this phase does not build.
 - **External calendar API integration** (Google/Outlook two-way sync). Calendar
-  export is a standards-based `.ics` download — see above — deliberately
-  simpler and requiring no OAuth scope from a club member.
+  export is a standards-based `.ics` download plus a Google Calendar template
+  link — see above — deliberately simpler and requiring no OAuth scope from a
+  club member. A link that pre-fills an event is not an integration: nothing is
+  authorised, stored or kept in sync.
 - **Close friends**, as a visibility tier narrower than followers for diary
   entries and reviews specifically. (Taste circles, above, are adjacent but
   solve a different problem — an opt-in *feed* audience, not a *visibility*
