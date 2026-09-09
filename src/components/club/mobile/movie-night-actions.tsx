@@ -105,7 +105,7 @@ export function MovieNightMobileActions(props: Props) {
       <Sheet open={editing} onClose={() => setEditing(false)} title="Edit movie night" description="Toronto time (ET)" size="sm" footer={<div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button><Button variant="primary" size="sm" onClick={save} disabled={pending}>{pending ? 'Saving…' : 'Save changes'}</Button></div>}>
         <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); save(); }}>
           <FormError>{error}</FormError>
-          <Field label="When"><DateTimePicker value={when} onChange={setWhen} clearable={false} required defaultOpen={openCalendar} /></Field>
+          <Field label="When"><DateTimePicker value={when} onChange={setWhen} clearable={false} required defaultOpen={openCalendar} doneLabel="Save date" onDone={save} /></Field>
           <details className="group rounded-lg border border-line bg-canvas/40">
             <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-medium text-muted hover:text-text">
               <span>More details</span>

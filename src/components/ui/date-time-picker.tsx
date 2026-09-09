@@ -70,6 +70,8 @@ export function DateTimePicker({
   required,
   clearable = true,
   defaultOpen = false,
+  doneLabel = 'Done',
+  onDone,
 }: {
   id?: string;
   value: string;
@@ -81,6 +83,9 @@ export function DateTimePicker({
   clearable?: boolean;
   /** Open the calendar as soon as the picker mounts. */
   defaultOpen?: boolean;
+  /** Optional commit action for flows where closing the calendar should save. */
+  doneLabel?: string;
+  onDone?: () => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -120,7 +125,8 @@ export function DateTimePicker({
     if (!open) return;
 
     function onPointerDown(event: PointerEvent) {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !panelRef.current?.contains(target)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== 'Escape') return;
@@ -383,13 +389,14 @@ export function DateTimePicker({
               onClick={() => {
                 setOpen(false);
                 triggerRef.current?.focus();
+                onDone?.();
               }}
               className={cn(
                 'min-h-11 rounded-md px-4 py-1.5 text-sm font-medium text-inverse transition-opacity hover:opacity-90 sm:min-h-0 sm:px-3',
                 accentBg,
               )}
             >
-              Done
+              {doneLabel}
             </button>
           </div>
         </div>

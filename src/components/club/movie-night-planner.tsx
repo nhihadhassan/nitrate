@@ -91,6 +91,8 @@ export function MovieNightDateTrigger({
           clearable={false}
           required
           defaultOpen
+          doneLabel="Save date"
+          onDone={saveDate}
         />
       </Sheet>
     </>
