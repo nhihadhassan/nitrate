@@ -20,8 +20,8 @@ export function ClubTabs({
   void isAdmin;
   const tabs = [
     { href: base, label: 'Club' },
-    ...(isMember ? [{ href: `${base}/queue`, label: 'Movies' }, { href: `${base}/calendar`, label: 'Calendar' }] : []),
-    { href: `${base}/history`, label: 'History' },
+    ...(isMember ? [{ href: `${base}/queue`, label: 'Movies' }] : []),
+    { href: `${base}/history`, label: 'Past Movies' },
   ];
 
   return (
