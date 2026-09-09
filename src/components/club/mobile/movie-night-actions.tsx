@@ -90,7 +90,7 @@ export function MovieNightMobileActions(props: Props) {
 
       <section className="rounded-xl border border-line bg-canvas-raised p-4" aria-labelledby="movie-night-details">
         <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-          <h2 id="movie-night-details" className="flex items-center gap-2 font-display text-xl"><InfoIcon className="text-ember" /> Details</h2>
+          <h2 id="movie-night-details" className="flex items-center gap-2 font-display text-xl"><InfoIcon className="h-5 w-5 text-ember" /> Details</h2>
           {props.canEdit ? <button type="button" onClick={() => openEditor(false)} className="flex min-h-10 items-center gap-1.5 px-2 text-sm font-medium text-ember"><PencilIcon /> Edit</button> : null}
         </div>
         <dl className="divide-y divide-line text-sm">

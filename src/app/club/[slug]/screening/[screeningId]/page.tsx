@@ -379,7 +379,7 @@ export default async function ScreeningPage({
         <div className="hidden lg:block"><Divider /></div>
 
         <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
-          <div className="mb-3 flex items-center gap-2 lg:hidden"><CommentIcon className="text-ember" /><h2 className="font-display text-xl">Discussion</h2></div>
+          <div className="mb-3 flex items-center gap-2 lg:hidden"><CommentIcon className="h-5 w-5 text-ember" /><h2 className="font-display text-xl">Discussion</h2></div>
           <div className="hidden lg:block"><SectionHeading title="Discussion" subtitle={`Private to ${club.name}.`} /></div>
           <DiscussionThread
             clubId={club.id}
@@ -407,7 +407,7 @@ export default async function ScreeningPage({
 
         {isAdmin && screening.status !== 'completed' ? (
           <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:hidden">
-            <p className="flex items-center gap-2 font-display text-xl"><SettingsIcon className="text-ember" /> Admin</p>
+            <p className="flex items-center gap-2 font-display text-xl"><SettingsIcon className="h-5 w-5 text-ember" /> Admin</p>
             <div className="mt-3">
               <ScreeningAdminControls screeningId={screening.id} clubSlug={club.slug} status={screening.status} isPast={isPast} mobileCards />
             </div>

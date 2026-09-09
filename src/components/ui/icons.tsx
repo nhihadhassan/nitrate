@@ -4,7 +4,7 @@
  */
 type IconProps = React.SVGProps<SVGSVGElement>;
 
-function Icon({ children, ...props }: IconProps) {
+function Icon({ children, className, ...props }: IconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -14,7 +14,7 @@ function Icon({ children, ...props }: IconProps) {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
-      className="h-[1.25em] w-[1.25em]"
+      className={`h-[1.25em] w-[1.25em] shrink-0 ${className ?? ''}`}
       {...props}
     >
       {children}
