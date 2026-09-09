@@ -69,7 +69,7 @@ export function MovieNightCard({
           from the edges rather than the top, because the subject is in the
           middle and the poster's own printed title is reprinted below anyway.
           The poster is the subject, so it is not blurred. */}
-      <Link href={href} className="relative block aspect-[3/4] w-full">
+      <Link href={href} className="relative block aspect-[4/5] w-full">
         {art ? (
           <Image
             src={art}

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { ClubAvatar } from '@/components/club/club-cover';
 import { ClubMobileHeader } from '@/components/club/mobile/club-mobile-header';
+import { ClubCompactHeader } from '@/components/club/mobile/club-compact-header';
 import { ClubShell } from '@/components/club/club-shell';
 import { ClubTabs } from '@/components/club/club-tabs';
 import { ClubActionsMenu } from '@/components/club/club-actions-menu';
@@ -117,6 +118,7 @@ export default async function ClubLayout({
                 />
               }
             />
+            <ClubCompactHeader name={club.name} />
           </div>
 
           <div className="hidden items-center gap-3 sm:items-start sm:gap-5 lg:flex">
