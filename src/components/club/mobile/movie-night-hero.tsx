@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { Poster, type PosterFilm } from '@/components/film/poster';
 import { RsvpSegmented } from '@/components/club/mobile/rsvp-segmented';
+import { MovieNightDateTrigger } from '@/components/club/movie-night-planner';
 import { AvatarStack, type AvatarUser } from '@/components/user/avatar';
 import { CalendarIcon, UsersIcon } from '@/components/ui/icons';
 import { backdropUrl } from '@/lib/images';
@@ -17,6 +18,7 @@ import type { RsvpStatus } from '@/lib/types';
  */
 export function MovieNightHero({
   film,
+  clubName,
   backdropPath,
   dateLabel,
   location,
@@ -34,8 +36,10 @@ export function MovieNightHero({
   inviteLink,
   calendarHref,
   googleCalendarHref,
+  canEditDate,
 }: {
   film: PosterFilm;
+  clubName: string;
   backdropPath: string | null;
   dateLabel: string;
   location: string | null;
@@ -54,40 +58,67 @@ export function MovieNightHero({
   inviteLink: string | null;
   calendarHref: string;
   googleCalendarHref: string;
+  canEditDate: boolean;
 }) {
   const backdrop = backdropUrl(backdropPath, 'md');
 
   return (
-    <section className="relative -mx-4 overflow-hidden px-4 pb-6 pt-5">
+    <section className="relative -mx-4 min-h-[43rem] overflow-hidden px-4 pb-7 pt-5">
       {backdrop ? (
         <>
           <span
             aria-hidden
-            className="absolute inset-x-0 top-0 h-72 bg-cover bg-center"
+            className="absolute inset-0 bg-cover bg-center"
             style={{ backgroundImage: `url(${backdrop})` }}
           />
           <span
             aria-hidden
-            className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-canvas/50 via-canvas/75 to-canvas"
+            className="absolute inset-0 bg-gradient-to-b from-canvas/30 via-canvas/65 to-canvas"
           />
+          <span aria-hidden className="absolute inset-0 bg-gradient-to-r from-canvas/45 via-transparent to-canvas/20" />
         </>
       ) : null}
 
       <div className="relative">
-        <div className="flex gap-4">
-          <div className="w-24 shrink-0">
-            <Poster film={film} size="sm" linked={false} priority />
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href={`/club/${clubSlug}`}
+            className="flex min-h-11 min-w-0 items-center gap-2 rounded-full text-white/90 hover:text-white focus-visible:outline-2 focus-visible:outline-ember"
+          >
+            <span aria-hidden className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/20 bg-canvas/45 text-2xl backdrop-blur-sm">‹</span>
+            <span className="truncate font-display text-xl">{clubName}</span>
+          </Link>
+        </div>
+
+        <div className="pt-28 sm:pt-36">
+          <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-canvas/45 px-3 py-2 text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-white/80 backdrop-blur-sm">
+            <CalendarIcon className="h-3.5 w-3.5 text-ember" /> Movie night
+          </p>
+          <h1 className="mt-4 max-w-[20rem] font-display text-[2.65rem] leading-[0.98] text-white drop-shadow-[0_4px_22px_rgb(0_0_0/0.8)]">
+            {film.title}
+          </h1>
+          {notes ? <p className="mt-3 max-w-md text-sm leading-relaxed text-white/70">{notes}</p> : null}
+        </div>
+
+        <div className="mt-5 grid grid-cols-[7.25rem_minmax(0,1fr)] items-start gap-5">
+          <div className="w-[7.25rem] shrink-0 overflow-hidden rounded-xl border border-white/20 shadow-[0_16px_35px_rgb(0_0_0/0.4)]">
+            <Poster film={film} size="md" linked={false} priority />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="eyebrow">Movie night</p>
-            <h1 className="mt-1 font-display text-[1.75rem] leading-[1.1]">{film.title}</h1>
-            <p className="mt-2 flex items-center gap-1.5 text-sm font-medium tabular text-text">
-              <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-ember" />
-              {dateLabel}
-            </p>
+          <div className="min-w-0 pt-2">
+            {canEditDate ? (
+              <MovieNightDateTrigger
+                dateLabel={dateLabel}
+                className="flex min-h-11 max-w-full flex-wrap items-center gap-2 rounded-md pr-1 text-left text-base font-medium tabular text-white hover:text-ember focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+              />
+            ) : (
+              <p className="flex items-center gap-2 text-base font-medium tabular text-white">
+                <CalendarIcon className="h-4 w-4 shrink-0 text-ember" />
+                {dateLabel}
+              </p>
+            )}
             {location ? (
-              <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
-                <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-ember" />
+              <p className="mt-2 flex items-center gap-2 text-sm text-white/75">
+                <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-ember" />
                 {location}
               </p>
             ) : null}
@@ -118,15 +149,11 @@ export function MovieNightHero({
           </div>
         </div>
 
-        {notes ? (
-          <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-muted">{notes}</p>
-        ) : null}
-
         {attendees.length ? (
-          <div className="mt-5 flex items-center gap-3">
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/15 pt-4">
             <AvatarStack users={attendees} max={6} />
-            <span className="text-xs text-dim">
-              <span className="text-muted">
+            <span className="text-right text-xs text-white/55">
+              <span className="text-white/80">
                 {goingCount} going{maybeCount ? ` · ${maybeCount} maybe` : ''}
               </span>
               <span className="mt-0.5 flex items-center gap-1">

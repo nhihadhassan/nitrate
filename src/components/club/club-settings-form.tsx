@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 
 import { WeeklyPickSettings } from '@/components/club/weekly-pick-settings';
+import { ClubCover } from '@/components/club/club-cover';
 import { ImageUpload } from '@/components/media/image-upload';
 import { Button } from '@/components/ui/button';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
@@ -16,6 +17,7 @@ import { deleteClubAction, leaveClubAction, updateClubAction } from '@/server/ac
 export function ClubSettingsForm({
   club,
   isOwner,
+  memberCount,
 }: {
   club: {
     id: string;
@@ -33,6 +35,7 @@ export function ClubSettingsForm({
     weeklyPickHour: number;
   };
   isOwner: boolean;
+  memberCount: number;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -80,9 +83,28 @@ export function ClubSettingsForm({
           });
         }}
       >
-        <h2 className="text-2xl">Club settings</h2>
+        <ClubCover
+          name={club.name}
+          imageAssetId={imageAssetId}
+          coverSeed={club.id}
+          className="min-h-48 rounded-xl border border-line"
+          sizes="(max-width: 768px) 100vw, 48rem"
+          priority
+        >
+          <div className="absolute inset-x-0 bottom-0 p-5">
+            <p className="font-display text-3xl leading-tight text-white drop-shadow-[0_2px_14px_rgb(0_0_0/0.8)]">
+              {name || club.name}
+            </p>
+            <p className="mt-1.5 text-sm text-white/75">
+              {memberCount} {memberCount === 1 ? 'member' : 'members'} ·{' '}
+              {CLUB_CADENCE_OPTIONS.find((option) => option.value === selectionCadence)?.label ?? 'Custom'} club
+            </p>
+          </div>
+        </ClubCover>
         <FormError>{error}</FormError>
 
+        <section className="rounded-xl border border-line p-4 sm:p-5" aria-labelledby="club-profile-heading">
+          <h2 id="club-profile-heading" className="mb-4 text-xl">Club profile</h2>
         <div className="flex gap-4">
           <ImageUpload kind="club_image" value={imageAssetId} onChange={setImageAssetId} shape="square" />
           <div className="min-w-0 flex-1">
@@ -99,7 +121,7 @@ export function ClubSettingsForm({
           </div>
         </div>
 
-        <Field label="Description" htmlFor="settings-description" optional>
+        <div className="mt-4"><Field label="Description" htmlFor="settings-description" optional>
           <textarea
             id="settings-description"
             value={description}
@@ -108,7 +130,8 @@ export function ClubSettingsForm({
             maxLength={600}
             className={cn(inputClass, 'resize-y')}
           />
-        </Field>
+        </Field></div>
+        </section>
 
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium">Movie selection frequency</legend>

@@ -95,6 +95,16 @@ export default async function ClubStageFixturePage({
 
   const cases = [
     {
+      name: 'Choose next movie',
+      card: resolveClubStageCard({
+        ...shared,
+        view: deriveClubDashboardView({ ...base }),
+      }),
+      picks: [],
+      members: members.slice(0, 5),
+      film: null,
+    },
+    {
       name: 'Picks open',
       card: resolveClubStageCard({
         ...shared,

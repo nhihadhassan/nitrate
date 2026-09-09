@@ -105,6 +105,17 @@ export default async function ClubLayout({
               cadenceLabel={cadenceLabel(club.selectionCadence, club.customCadenceDays)}
               coverSeed={club.id}
               posterPaths={coverPosters}
+              actions={
+                <ClubActionsMenu
+                  clubId={club.id}
+                  clubSlug={club.slug}
+                  clubName={club.name}
+                  inviteCode={club.inviteCode}
+                  role={isMember && membership ? membership.role : null}
+                  canManageSettings={permissions.has('manage_club_settings')}
+                  signedIn={Boolean(user)}
+                />
+              }
             />
           </div>
 

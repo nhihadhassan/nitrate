@@ -1,10 +1,11 @@
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 
 import { ClubSettingsForm } from '@/components/club/club-settings-form';
 import { PublicJoinSettings } from '@/components/club/public-join-settings';
 import { EmptyState } from '@/components/ui/primitives';
 import { getCurrentUser } from '@/server/auth/session';
-import { getClubBySlug, getClubPermissions, getMembership } from '@/server/services/clubs';
+import { getClubBySlug, getClubMembers, getClubPermissions, getMembership } from '@/server/services/clubs';
 import { listPendingClubJoinRequests } from '@/server/services/network-clubs';
 
 export const dynamic = 'force-dynamic';
@@ -25,10 +26,21 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
     );
   }
   const canManageJoining = membership.role !== 'member';
-  const requests = club.visibility === 'public' && user && canManageJoining ? await listPendingClubJoinRequests(club.id,user.id):[];
+  const [requests, members] = await Promise.all([
+    club.visibility === 'public' && user && canManageJoining ? listPendingClubJoinRequests(club.id, user.id) : Promise.resolve([]),
+    getClubMembers(club.id),
+  ]);
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
+      <Link href={`/club/${club.slug}`} className="inline-flex min-h-11 items-center text-sm text-muted hover:text-text">
+        <span aria-hidden className="mr-2 text-lg">‹</span>
+        Back to club
+      </Link>
+      <header className="mb-7 mt-2">
+        <h1 className="text-3xl sm:text-4xl">Members &amp; club settings</h1>
+        <p className="mt-2 text-sm text-muted">People, preferences, and everything in between.</p>
+      </header>
       <ClubSettingsForm
         club={{
           id: club.id,
@@ -46,6 +58,7 @@ export default async function ClubSettingsPage({ params }: { params: Promise<{ s
           weeklyPickHour: club.weeklyPickHour,
         }}
         isOwner={membership.role === 'owner'}
+        memberCount={members.length}
       />
       {canManageJoining ? <PublicJoinSettings clubId={club.id} visibility={club.visibility} initialPolicy={club.joinPolicy} requests={requests.map(({request,user})=>({id:request.id,username:user.username,displayName:user.displayName,message:request.message,createdAt:request.createdAt.toISOString()}))}/> : null}
     </div>

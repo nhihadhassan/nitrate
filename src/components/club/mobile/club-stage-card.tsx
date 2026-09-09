@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Press } from '@/components/motion/primitives';
 import { Poster, type PosterFilm } from '@/components/film/poster';
 import { Avatar, type AvatarUser } from '@/components/user/avatar';
-import { CheckIcon } from '@/components/ui/icons';
+import { CheckIcon, ChevronRightIcon, FilmIcon } from '@/components/ui/icons';
 import { backdropUrl } from '@/lib/images';
 import type { ClubStageCard } from '@/lib/club-stage';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,50 @@ export function ClubStageCardView({
   secondaryAction?: { label: string; href: string } | null;
 }) {
   const backdrop = backdropUrl(backdropPath, 'sm');
+
+  if (card.kind === 'new' && card.action) {
+    return (
+      <Press>
+        <Link
+          href={card.action.href}
+          className="group relative grid min-h-[6.25rem] grid-cols-[5.25rem_minmax(0,1fr)_2rem] items-center gap-3 overflow-hidden rounded-xl border border-iris/35 bg-canvas-raised p-2.5 pr-3 shadow-[0_18px_45px_rgb(0_0_0/0.24)] focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+          aria-labelledby="club-next-selection-headline"
+        >
+          <span
+            aria-hidden
+            className="absolute inset-0 bg-[radial-gradient(circle_at_84%_125%,rgb(94_64_210/0.32),transparent_48%),radial-gradient(circle_at_18%_-25%,rgb(234_88_50/0.15),transparent_42%)] opacity-90 transition-opacity duration-200 group-hover:opacity-100"
+          />
+          <span className="relative flex aspect-[1.12] h-full min-h-[4.75rem] items-center justify-center overflow-hidden rounded-lg border border-line/70 bg-[radial-gradient(circle_at_42%_38%,rgb(234_88_50/0.28),transparent_28%),linear-gradient(145deg,rgb(35_42_55),rgb(12_17_22))] text-ember shadow-inner">
+            <FilmIcon className="h-9 w-9 drop-shadow-[0_5px_14px_rgb(0_0_0/0.55)]" />
+          </span>
+          <span className="relative min-w-0">
+            <span className="eyebrow block text-[0.625rem] tracking-[0.22em] text-dim">Next selection</span>
+            <span
+              id="club-next-selection-headline"
+              className="mt-1 block font-display text-[1.35rem] leading-none text-text"
+            >
+              Choose next movie
+            </span>
+            <span className="mt-2 flex items-center gap-2">
+              {members.length ? (
+                <span className="flex -space-x-1.5" aria-hidden>
+                  {members.slice(0, 5).map((member) => (
+                    <Avatar key={member.id} user={member} size="xs" className="ring-2 ring-canvas-raised" />
+                  ))}
+                </span>
+              ) : null}
+              <span className="truncate text-xs text-muted">
+                {members.length
+                  ? `${members.length} ${members.length === 1 ? 'member' : 'members'}`
+                  : card.headline}
+              </span>
+            </span>
+          </span>
+          <ChevronRightIcon className="relative h-5 w-5 text-muted transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-text" />
+        </Link>
+      </Press>
+    );
+  }
 
   return (
     <section

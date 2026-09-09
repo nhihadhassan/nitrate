@@ -21,6 +21,7 @@ export function ClubMobileHeader({
   posterPath,
   coverSeed,
   posterPaths,
+  actions,
 }: {
   name: string;
   imageAssetId: string | null;
@@ -32,6 +33,8 @@ export function ClubMobileHeader({
   posterPath?: string | null;
   /** The club's own film artwork, for the mosaic fallback. */
   posterPaths?: string[];
+  /** Permission-aware club menu, placed over the cover like the reference. */
+  actions?: React.ReactNode;
 }) {
   return (
     <ClubCover
@@ -44,13 +47,14 @@ export function ClubMobileHeader({
       sizes="100vw"
       priority
     >
+      {actions ? <div className="absolute bottom-5 right-4 z-10">{actions}</div> : null}
       <div className="absolute inset-x-0 bottom-0 p-4 pb-5">
         {/* Club names run long — "Rachad Julijan Diyack Movie Club" is three
             lines at 375px — so the display size steps down and the name is
             clamped rather than allowed to fill the band. */}
         <h1
           className="font-display text-[1.5rem] leading-[1.08] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] xs:text-[1.75rem]"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', paddingRight: actions ? '4rem' : undefined }}
         >
           {name}
         </h1>

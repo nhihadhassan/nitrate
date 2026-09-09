@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -7,12 +8,13 @@ import { useState, useTransition } from 'react';
 import { Poster } from '@/components/film/poster';
 import { FilmPicker, type PickedFilm } from '@/components/log/film-picker';
 import { Button } from '@/components/ui/button';
-import { CheckIcon, TrashIcon } from '@/components/ui/icons';
+import { CheckIcon, PlusIcon, SearchIcon, SparkIcon, TrashIcon, UsersIcon } from '@/components/ui/icons';
 import { EmptyState, Field, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
 import { UserChip } from '@/components/user/avatar';
 import { filmHref } from '@/lib/links';
+import { posterUrl } from '@/lib/images';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import {
   addQueueItemAction,
@@ -47,6 +49,22 @@ type ActiveRound = {
   myPicks: { id: string; movieId: string }[];
 };
 
+type DiscoveryMovie = {
+  id: string;
+  slug: string;
+  title: string;
+  year: number | null;
+  posterPath: string | null;
+  runtime: number | null;
+};
+
+type DiscoverySection = {
+  id: string;
+  title: string;
+  subtitle: string;
+  items: { movie: DiscoveryMovie; reason: string }[];
+};
+
 export function QueueManager({
   clubId,
   clubSlug,
@@ -55,6 +73,7 @@ export function QueueManager({
   memberCount,
   items,
   activeRound,
+  discoverySections,
 }: {
   clubId: string;
   clubSlug: string;
@@ -63,12 +82,26 @@ export function QueueManager({
   memberCount: number;
   items: QueueItem[];
   activeRound: ActiveRound | null;
+  discoverySections: DiscoverySection[];
 }) {
   const router = useRouter();
   const toast = useToast();
   const [adding, setAdding] = useState(false);
   const [sort, setSort] = useState<Sort>('added');
   const [pending, startTransition] = useTransition();
+  const savedMovieIds = new Set(items.map((item) => item.movie.id));
+
+  function saveDiscoveryMovie(movie: DiscoveryMovie) {
+    startTransition(async () => {
+      const result = await addQueueItemAction({ clubId, movieId: movie.id });
+      if (!result.ok) {
+        toast({ message: result.error, tone: 'error' });
+        return;
+      }
+      toast({ message: `${movie.title} saved to Movie Ideas`, tone: 'success' });
+      router.refresh();
+    });
+  }
 
   function pickForRound(item: QueueItem) {
     if (!activeRound) return;
@@ -109,20 +142,61 @@ export function QueueManager({
 
   return (
     <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl">Movie Ideas</h2>
-          <p className="mt-0.5 text-sm text-muted">
-            {pluralize(items.length, 'movie')} saved for a future movie night.
-          </p>
+      <div className="mb-5 flex items-end justify-between gap-3">
+        <h1 className="font-display text-3xl sm:text-4xl">Movie ideas</h1>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            aria-label="Search movies"
+            className="flex min-h-11 items-center gap-2 rounded-full border border-line px-3 text-sm text-muted hover:border-line-strong hover:text-text sm:min-w-48 sm:justify-start"
+          >
+            <SearchIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Search movies</span>
+          </button>
+          <Button variant="primary" onClick={() => setAdding(true)} className="rounded-full">
+            <PlusIcon className="h-4 w-4" />
+            Add movie
+          </Button>
         </div>
-        <Button variant="iris" onClick={() => setAdding(true)}>
-          Save an idea
-        </Button>
       </div>
 
+      <nav aria-label="Movie idea sections" className="mobile-tabs -mx-4 mb-7 flex gap-2 overflow-x-auto px-4 pb-1 text-xs sm:mx-0 sm:px-0">
+        {discoverySections.filter((section) => section.items.length).map((section, index) => (
+          <a key={section.id} href={`#${section.id}`} className={cn('flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-4', index === 0 ? 'border-ember/70 bg-ember/10 text-ember' : 'border-line text-muted hover:text-text')}>
+            {index === 0 ? <SparkIcon className="h-4 w-4" /> : <UsersIcon className="h-4 w-4" />}
+            {section.title}
+          </a>
+        ))}
+        <a href="#saved-by-your-club" className="flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-line px-4 text-muted hover:text-text">
+          <CheckIcon className="h-4 w-4" /> Saved
+        </a>
+      </nav>
+
+      <div className="space-y-8">
+        {discoverySections.filter((section) => section.items.length).map((section) => (
+          <DiscoveryRail
+            key={section.id}
+            section={section}
+            savedMovieIds={savedMovieIds}
+            pending={pending}
+            onSave={saveDiscoveryMovie}
+          />
+        ))}
+      </div>
+
+      <section id="saved-by-your-club" className="mt-9 scroll-mt-24">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="font-display text-2xl sm:text-3xl">Saved by your club</h2>
+            <p className="mt-0.5 text-sm text-muted">
+              {pluralize(items.length, 'movie')} · sorted by {SORTS.find((item) => item.key === sort)?.label.toLowerCase()}
+            </p>
+          </div>
+        </div>
+
       {items.length > 1 ? (
-        <nav aria-label="Sort queue" className="mb-4 flex flex-wrap gap-1 text-xs">
+        <nav aria-label="Sort saved movies" className="mb-4 flex flex-wrap gap-1 text-xs">
           {SORTS.map((option) => (
             <button
               key={option.key}
@@ -236,6 +310,7 @@ export function QueueManager({
           }
         />
       )}
+      </section>
 
       {adding ? (
         <AddToQueueSheet
@@ -247,6 +322,59 @@ export function QueueManager({
         />
       ) : null}
     </div>
+  );
+}
+
+function DiscoveryRail({
+  section,
+  savedMovieIds,
+  pending,
+  onSave,
+}: {
+  section: DiscoverySection;
+  savedMovieIds: Set<string>;
+  pending: boolean;
+  onSave: (movie: DiscoveryMovie) => void;
+}) {
+  return (
+    <section id={section.id} className="scroll-mt-24">
+      <div className="mb-3">
+        <h2 className="font-display text-2xl sm:text-3xl">{section.title}</h2>
+        <p className="mt-0.5 text-sm text-muted">{section.subtitle}</p>
+      </div>
+      <ul className="scroll-rail -mx-4 px-4 pr-10 sm:mx-0 sm:px-0">
+        {section.items.slice(0, 8).map(({ movie, reason }) => {
+          const saved = savedMovieIds.has(movie.id);
+          const artwork = posterUrl(movie.posterPath, 'md');
+          return (
+            <li key={movie.id} className="scroll-rail-item w-[10.5rem]">
+              <article className="relative aspect-[4/5] overflow-hidden rounded-xl border border-line bg-canvas-raised">
+                <Link href={filmHref(movie)} className="absolute inset-0 focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2" aria-label={`${movie.title}, ${movie.year ?? 'year unknown'}`}>
+                  {artwork ? <Image src={artwork} alt="" fill sizes="168px" className="object-cover" unoptimized /> : null}
+                  <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/15 to-transparent" />
+                </Link>
+                <button
+                  type="button"
+                  disabled={pending || saved}
+                  onClick={() => onSave(movie)}
+                  aria-label={saved ? `${movie.title} is saved` : `Save ${movie.title} to Movie Ideas`}
+                  className="absolute right-2 top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/35 bg-canvas/75 text-white backdrop-blur-sm disabled:text-jade"
+                >
+                  {saved ? <CheckIcon className="h-4 w-4" /> : <PlusIcon className="h-5 w-5" />}
+                </button>
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
+                  <p className="truncate text-sm font-medium text-white">{movie.title}</p>
+                  <p className="mt-0.5 text-xs text-white/65">
+                    {[movie.year, movie.runtime ? formatRuntime(movie.runtime) : null].filter(Boolean).join(' · ')}
+                  </p>
+                  {reason ? <p className="mt-2 line-clamp-2 text-[0.6875rem] leading-tight text-iris">{reason}</p> : null}
+                </div>
+              </article>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

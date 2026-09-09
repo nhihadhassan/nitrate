@@ -9,7 +9,7 @@ import { DiscussionThread } from '@/components/club/discussion-thread';
 import { PostScreeningPanel } from '@/components/club/post-screening-panel';
 import { RsvpControls } from '@/components/club/rsvp-controls';
 import { MovieNightHero } from '@/components/club/mobile/movie-night-hero';
-import { MovieNightPlanner } from '@/components/club/movie-night-planner';
+import { MovieNightDateTrigger, MovieNightPlanner } from '@/components/club/movie-night-planner';
 import { ScreeningAdminControls } from '@/components/club/screening-admin-controls';
 import { Poster } from '@/components/film/poster';
 import { RatingNumber } from '@/components/film/stars';
@@ -133,6 +133,7 @@ export default async function ScreeningPage({
         <div className="lg:hidden">
           <MovieNightHero
             film={{ slug: movie.slug, title: movie.title, year: movie.year, posterPath: movie.posterPath }}
+            clubName={club.name}
             backdropPath={movie.backdropPath}
             dateLabel={formatClubDateTime(screening.scheduledAt)}
             location={screening.location}
@@ -150,6 +151,7 @@ export default async function ScreeningPage({
             inviteLink={screening.inviteLink}
             calendarHref={calendarHref}
             googleCalendarHref={googleHref}
+            canEditDate={canEditNight && screening.status === 'scheduled'}
           />
         </div>
 
@@ -178,9 +180,16 @@ export default async function ScreeningPage({
               ) : null}
             </div>
             <h1 className="mt-2 text-3xl leading-tight sm:text-4xl">{movie.title}</h1>
-            <p className="mt-1 text-sm text-muted tabular">
-              {formatClubDateTime(screening.scheduledAt)}
-            </p>
+            {canEditNight && screening.status === 'scheduled' ? (
+              <MovieNightDateTrigger
+                dateLabel={formatClubDateTime(screening.scheduledAt)}
+                className="mt-1 flex min-h-10 items-center gap-1.5 rounded-md text-sm text-muted tabular hover:text-ember focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+              />
+            ) : (
+              <p className="mt-1 text-sm text-muted tabular">
+                {formatClubDateTime(screening.scheduledAt)}
+              </p>
+            )}
             {movie.runtime ? (
               <p className="text-xs text-dim">{formatRuntime(movie.runtime)}</p>
             ) : null}

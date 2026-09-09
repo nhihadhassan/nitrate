@@ -45,7 +45,7 @@ export function ClubActionsMenu({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`More options for ${clubName}`}
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-muted transition-colors hover:border-line-strong hover:text-text"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-canvas/70 text-white shadow-[0_10px_30px_rgb(0_0_0/0.32)] backdrop-blur-md transition-colors hover:border-white/30 hover:bg-canvas/85"
       >
         <MoreIcon className="h-5 w-5" />
       </button>

@@ -208,8 +208,15 @@ export default async function ClubDashboard({
     nominations?.contendersVisible && (stageCard.kind === 'pick' || stageCard.kind === 'waiting' || stageCard.kind === 'wheel')
       ? nominations.nominations.map((nomination) => nomination.movie)
       : [];
-  const stageMembers =
-    stageCard.kind === 'pick' || stageCard.kind === 'waiting'
+  const stageMembers = stageCard.kind === 'new'
+    ? members.map((member) => ({
+        id: member.id,
+        username: member.username,
+        displayName: member.displayName,
+        avatarAssetId: member.avatarAssetId,
+        ready: true,
+      }))
+    : stageCard.kind === 'pick' || stageCard.kind === 'waiting'
       ? participatingMembers
           .map((participant) => members.find((member) => member.id === participant.userId))
           .filter((member): member is (typeof members)[number] => Boolean(member))

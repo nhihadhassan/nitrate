@@ -21,8 +21,18 @@ export function ClubShell({
 }) {
   const pathname = usePathname();
   const isReveal = /\/club\/[^/]+\/reveal\/[^/]+\/?$/.test(pathname);
+  const isScreening = /\/club\/[^/]+\/screening\/[^/]+\/?$/.test(pathname);
 
   if (isReveal) return <div className="min-h-[100dvh]">{children}</div>;
+
+  if (isScreening) {
+    return (
+      <>
+        <div className="hidden lg:block">{header}</div>
+        <div className="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6 lg:py-8">{children}</div>
+      </>
+    );
+  }
 
   return (
     <>

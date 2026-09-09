@@ -1,14 +1,33 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { CalendarIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { useToast } from '@/components/ui/toast';
 import { clubLocalInputValue, clubLocalToInstant } from '@/lib/utils';
 import { updateScreeningAction } from '@/server/actions/clubs';
+
+const EDIT_DATE_EVENT = 'nitrate:edit-movie-night-date';
+
+/** Opens the existing permission-checked planner directly at its date picker. */
+export function MovieNightDateTrigger({ dateLabel, className }: { dateLabel: string; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event(EDIT_DATE_EVENT))}
+      aria-label={`Change movie-night date, currently ${dateLabel}`}
+      className={className}
+    >
+      <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-ember" />
+      <span>{dateLabel}</span>
+      <span className="text-[0.6875rem] font-normal text-muted underline decoration-line-strong underline-offset-4">Change</span>
+    </button>
+  );
+}
 
 /**
  * Everything about a booked night that can still change.
@@ -51,7 +70,25 @@ export function MovieNightPlanner({
   const [notes, setNotes] = useState(initialNotes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [openDateOnExpand, setOpenDateOnExpand] = useState(false);
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    function openDatePicker() {
+      setOpenDateOnExpand(true);
+      setOpen(true);
+    }
+    window.addEventListener(EDIT_DATE_EVENT, openDatePicker);
+    return () => window.removeEventListener(EDIT_DATE_EVENT, openDatePicker);
+  }, []);
+
+  useEffect(() => {
+    if (!open || !openDateOnExpand) return;
+    const trigger = document.getElementById('night-when') as HTMLButtonElement | null;
+    trigger?.focus({ preventScroll: true });
+    trigger?.click();
+    setOpenDateOnExpand(false);
+  }, [open, openDateOnExpand]);
 
   return (
     <details

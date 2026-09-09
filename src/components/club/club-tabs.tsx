@@ -25,20 +25,23 @@ export function ClubTabs({
   ];
 
   return (
-    <nav aria-label="Club sections" className="mobile-tabs -mx-4 mt-5 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <ul className="flex min-w-max gap-1 rounded-lg bg-surface/65 p-1 sm:w-fit">
+    <nav aria-label="Club sections" className="mt-4 pb-3 sm:mt-5 sm:pb-0">
+      <ul
+        className="grid overflow-hidden rounded-xl border border-line bg-canvas/70 p-1 shadow-[inset_0_1px_0_rgb(255_255_255/0.025)] sm:w-full lg:w-fit lg:min-w-[30rem]"
+        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      >
         {tabs.map((tab) => {
           const active = pathname === tab.href;
           return (
-            <li key={tab.href}>
+            <li key={tab.href} className="min-w-0">
               <Link
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex min-h-10 items-center rounded-md px-3 py-2 text-sm transition-colors',
+                  'relative flex min-h-12 items-center justify-center rounded-lg px-2 py-2 text-sm transition-colors after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-ember after:transition-transform after:duration-200 after:ease-out',
                   active
-                    ? 'bg-canvas-raised font-medium text-text shadow-sm'
-                    : 'text-muted hover:text-text',
+                    ? 'bg-[radial-gradient(circle_at_50%_115%,rgb(234_88_50/0.2),transparent_68%)] font-medium text-text after:scale-x-100'
+                    : 'text-muted after:scale-x-0 hover:bg-surface/55 hover:text-text',
                 )}
               >
                 {tab.label}
