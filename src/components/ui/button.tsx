@@ -6,8 +6,8 @@ type Size = 'sm' | 'md' | 'lg' | 'icon';
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'bg-ember text-white hover:bg-ember-soft active:bg-ember disabled:bg-ember/50 shadow-[0_1px_0_rgba(255,255,255,0.12)_inset]',
-  iris: 'bg-iris text-white hover:brightness-110 active:brightness-95',
+    'bg-ember text-inverse hover:bg-ember-soft active:bg-ember disabled:bg-ember/50 shadow-[0_1px_0_rgba(255,255,255,0.12)_inset]',
+  iris: 'bg-iris text-inverse hover:brightness-110 active:brightness-95',
   secondary: 'bg-surface-strong text-text hover:bg-surface-hover border border-line',
   outline: 'border border-line-strong text-text hover:bg-surface-hover hover:border-line-strong',
   ghost: 'text-muted hover:text-text hover:bg-surface-hover',

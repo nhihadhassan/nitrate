@@ -107,7 +107,7 @@ export function ClubStageCardView({
           >
             {picks.map((pick, index) => (
               <li key={`${pick.slug}-${index}`} className="w-14 shrink-0">
-                <Poster film={pick} size="xs" linked={false} />
+                <Poster film={pick} size="xs" linked={false} priority={index === 0} />
               </li>
             ))}
           </ul>
@@ -142,7 +142,7 @@ export function ClubStageCardView({
           <Press className="mt-5">
             <Link
               href={card.action.href}
-              className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-white focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+              className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
             >
               {card.action.label}
             </Link>

@@ -179,7 +179,7 @@ export function VotingPanel({
             type="button"
             disabled={!selected || pending}
             onClick={vote}
-            className="min-h-12 rounded-lg bg-iris px-6 text-sm font-medium text-white shadow-pop transition-[filter,transform] hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+            className="min-h-12 rounded-lg bg-iris px-6 text-sm font-medium text-inverse shadow-pop transition-[filter,transform] hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
           >
             {pending ? 'Saving vote…' : viewerVoted ? 'Change vote' : 'Cast vote'}
           </button>

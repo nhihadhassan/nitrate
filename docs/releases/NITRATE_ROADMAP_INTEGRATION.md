@@ -1,5 +1,9 @@
 # Nitrate Roadmap Integration — 1.3 Through 2.0
 
+> Historical verification record. This train has since landed on `main`; the
+> publication fields below describe the state when this dossier was written,
+> not the current production state.
+
 ## Identity and boundary
 
 - Local branch: `codex/nitrate-roadmap-integration`

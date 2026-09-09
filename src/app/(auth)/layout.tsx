@@ -18,11 +18,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {children}
         <p className="mt-8 text-center text-xs text-dim">
           By continuing you agree to our{' '}
-          <Link href="/terms" className="underline underline-offset-2 hover:text-muted">
+          <Link href="/terms" className="inline-flex min-h-11 min-w-11 items-center justify-center underline underline-offset-2 hover:text-muted">
             Terms
           </Link>{' '}
           and{' '}
-          <Link href="/privacy" className="underline underline-offset-2 hover:text-muted">
+          <Link href="/privacy" className="inline-flex min-h-11 items-center justify-center underline underline-offset-2 hover:text-muted">
             Privacy Policy
           </Link>
           .

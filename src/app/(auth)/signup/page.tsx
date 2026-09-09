@@ -44,7 +44,7 @@ export default async function SignupPage({
 
       <p className="mt-6 text-center text-sm text-muted">
         Already have an account?{' '}
-        <Link href={loginHref(next)} className="font-medium text-ember hover:underline">
+        <Link href={loginHref(next)} className="inline-flex min-h-11 items-center font-medium text-ember hover:underline">
           Sign in
         </Link>
       </p>

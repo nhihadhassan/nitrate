@@ -175,7 +175,7 @@ export function FilmActions({
         </button>
       </div>
 
-      <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-surface px-3 py-2.5">
+      <div className="flex flex-col items-start gap-2 rounded-md border border-line bg-surface px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <span className="text-[0.8125rem] text-muted">Your rating</span>
         <StarInput
           value={optimistic.rating}
@@ -207,7 +207,7 @@ export function FilmActions({
             },
           });
         }}
-        className="tactile-button flex w-full items-center justify-center gap-2 rounded-md bg-ember px-4 py-2.5 text-sm font-medium text-white hover:bg-ember-soft"
+        className="tactile-button flex w-full items-center justify-center gap-2 rounded-md bg-ember px-4 py-2.5 text-sm font-medium text-inverse hover:bg-ember-soft"
       >
         <PlusIcon className="h-4 w-4" />
         {optimistic.watched ? 'Log a rewatch' : 'Log this film'}

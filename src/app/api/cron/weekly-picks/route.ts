@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 
 import { env } from '@/env';
+import { pruneExpiredSessions } from '@/server/auth/session';
 import { flushEmailQueue } from '@/server/email/queue';
+import { pruneRateLimits } from '@/server/rate-limit';
 import { dispatchScreeningReminders, openDueWeeklyRounds } from '@/server/services/clubs';
 
 export const runtime = 'nodejs';
@@ -9,12 +11,13 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * Hourly job behind the weekly ritual.
+ * Daily job behind the weekly ritual on Vercel Hobby.
  *
- * Runs hourly rather than weekly so each club's slot can land in its own
- * timezone; `openDueWeeklyRounds` decides what is actually due and is safe to
- * call repeatedly. It also drains the outbox, which doubles as the retry path
- * for anything a previous run could not deliver.
+ * `openDueWeeklyRounds` decides what is actually due by local weekday and is
+ * safe to call repeatedly. The stored hour remains reserved for an hourly
+ * schedule on Vercel Pro. This job also drains the outbox, the retry path
+ * for anything a previous run could not deliver, and prunes expired operational
+ * records so housekeeping does not depend on user traffic.
  */
 export async function GET(request: Request) {
   const secret = env.cronSecret;
@@ -33,6 +36,7 @@ export async function GET(request: Request) {
     const opened = await openDueWeeklyRounds();
     const reminders = await dispatchScreeningReminders();
     const mail = await flushEmailQueue(60);
+    await Promise.all([pruneExpiredSessions(), pruneRateLimits()]);
 
     return NextResponse.json({
       ok: true,
@@ -40,6 +44,7 @@ export async function GET(request: Request) {
       clubs: opened.map((o) => o.clubName),
       reminders,
       email: mail,
+      housekeeping: true,
       ms: Date.now() - started,
     });
   } catch (error) {

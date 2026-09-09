@@ -1,6 +1,6 @@
 # Features
 
-What is actually built and working, as of 11 August 2026. Everything listed here
+What is actually built and working, as of 9 September 2026. Everything listed here
 is wired end to end — no mock buttons, no placeholder data.
 
 ---
@@ -178,3 +178,15 @@ Keyboard navigation throughout, a real slider behind the star rating rather than
 ten buttons, focus trapping and restoration in the modal sheet, visible focus
 rings, semantic controls, state never signalled by colour alone, and a global
 `prefers-reduced-motion` override that also short-circuits the wheel animation.
+Mobile controls use at least 44px touch targets, native scrollbars remain
+available, and muted text plus accent-button foregrounds retain readable
+contrast in both themes.
+
+## Operations
+
+- GitHub `main` deploys to Vercel production automatically, with the CLI kept as
+  a manual fallback.
+- The daily Movie Club cron opens due rounds, sends reminders, retries queued
+  email, and prunes expired sessions and rate-limit counters.
+- The serverless runtime owns idle database connection teardown, avoiding
+  misleading timer warnings after frozen instances resume.

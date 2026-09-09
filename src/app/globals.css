@@ -24,7 +24,7 @@
 
   --text: #f4f4f5;
   --text-muted: #a1a7b0;
-  --text-dim: #6d7480;
+  --text-dim: #767e8a;
   --text-inverse: #0a0b0d;
 
   --ember: #ff5b2e;
@@ -71,7 +71,7 @@
 
   --text: #14151a;
   --text-muted: #5c6069;
-  --text-dim: #8b8f98;
+  --text-dim: #6d727c;
   --text-inverse: #ffffff;
 
   --ember: #d93c11;
@@ -230,25 +230,6 @@ a {
 input::placeholder,
 textarea::placeholder {
   color: var(--text-dim);
-}
-
-/* Firefox + WebKit scrollbars, tuned to disappear against the canvas. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
-}
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-thumb {
-  background: var(--line-strong);
-  border-radius: 999px;
-  border: 3px solid transparent;
-  background-clip: content-box;
-}
-*::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 /* -------------------------------------------------------------------------- */

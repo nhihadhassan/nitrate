@@ -294,7 +294,7 @@ export function DateTimePicker({
                   className={cn(
                     'flex h-10 items-center justify-center rounded-md text-sm tabular-nums transition-colors sm:h-8',
                     selected
-                      ? cn(accentBg, 'font-medium text-white')
+                      ? cn(accentBg, 'font-medium text-inverse')
                       : 'text-text hover:bg-canvas-raised',
                     !selected && today && cn('font-medium', accentText),
                   )}
@@ -381,7 +381,7 @@ export function DateTimePicker({
                 triggerRef.current?.focus();
               }}
               className={cn(
-                'min-h-11 rounded-md px-4 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 sm:min-h-0 sm:px-3',
+                'min-h-11 rounded-md px-4 py-1.5 text-sm font-medium text-inverse transition-opacity hover:opacity-90 sm:min-h-0 sm:px-3',
                 accentBg,
               )}
             >

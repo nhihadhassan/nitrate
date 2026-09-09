@@ -18,7 +18,7 @@ export function AppShell({
     <div className="flex min-h-dvh flex-col">
       <Link
         href="#main"
-        className="sr-only-focusable absolute left-4 top-4 z-[200] rounded-md bg-ember px-3 py-2 text-sm font-medium text-white"
+        className="sr-only-focusable absolute left-4 top-4 z-[200] rounded-md bg-ember px-3 py-2 text-sm font-medium text-inverse"
       >
         Skip to content
       </Link>

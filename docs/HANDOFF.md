@@ -101,21 +101,22 @@ npm run dev
 npm run verify                 # typecheck → lint → 43 tests → production build
 ```
 
-The Vitest suite includes `src/server/integration.test.ts`, which runs against
-the **real** `DATABASE_URL` when one is present. It namespaces everything it
-creates and cleans up after itself, but it does write to the live database — use
-a branch or a scratch project if that makes you nervous.
+The integration suite is opt-in and requires a distinct `TEST_DATABASE_URL`.
+It namespaces and cleans up everything it creates, but it still writes to that
+database. Use an isolated migrated branch or scratch project, then run
+`npm run test:integration`.
 
 ### Deploying
 
-Deploys are manual, via the Vercel CLI with a deploy-scoped token:
+GitHub is connected to Vercel. A push to `main` starts the production deploy.
+The Vercel CLI remains available as a manual fallback with a deploy-scoped token:
 
 ```bash
 npx vercel deploy --prod --token "$VERCEL_TOKEN" --yes
 ```
 
-There is no GitHub → Vercel auto-deploy hookup. Connecting the repo in the
-Vercel dashboard would give you push-to-deploy and is worth doing.
+For every release, verify the local commit matches `origin/main`, wait for the
+Vercel production deployment to become Ready, and smoke-test the canonical URL.
 
 ---
 

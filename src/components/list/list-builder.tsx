@@ -154,7 +154,7 @@ export function ListBuilder() {
                     onClick={() => move(index, -1)}
                     disabled={index === 0}
                     aria-label={`Move ${film.title} up`}
-                    className="flex h-7 w-7 items-center justify-center rounded-xs text-dim transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-30"
+                    className="flex h-11 w-11 items-center justify-center rounded-xs text-dim transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-30 sm:h-7 sm:w-7"
                   >
                     ↑
                   </button>
@@ -163,7 +163,7 @@ export function ListBuilder() {
                     onClick={() => move(index, 1)}
                     disabled={index === films.length - 1}
                     aria-label={`Move ${film.title} down`}
-                    className="flex h-7 w-7 items-center justify-center rounded-xs text-dim transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-30"
+                    className="flex h-11 w-11 items-center justify-center rounded-xs text-dim transition-colors hover:bg-surface-hover hover:text-text disabled:opacity-30 sm:h-7 sm:w-7"
                   >
                     ↓
                   </button>
@@ -171,7 +171,7 @@ export function ListBuilder() {
                     type="button"
                     onClick={() => setFilms((current) => current.filter((_, i) => i !== index))}
                     aria-label={`Remove ${film.title}`}
-                    className="flex h-7 w-7 items-center justify-center rounded-xs text-dim transition-colors hover:bg-surface-hover hover:text-rose"
+                    className="flex h-11 w-11 items-center justify-center rounded-xs text-dim transition-colors hover:bg-surface-hover hover:text-rose sm:h-7 sm:w-7"
                   >
                     <TrashIcon className="h-3.5 w-3.5" />
                   </button>

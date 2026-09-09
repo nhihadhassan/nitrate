@@ -236,7 +236,7 @@ export function WheelExperience({
               <Press>
                 <Link
                   href={`/club/${clubSlug}#club-schedule-m`}
-                  className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-white"
+                  className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse"
                 >
                   Plan movie night
                 </Link>
@@ -322,7 +322,7 @@ export function WheelExperience({
                 type="button"
                 onClick={() => loadAndSpin('spin')}
                 disabled={!canSpin || !allReady || pending || previews.length < 2}
-                className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-white disabled:opacity-45"
+                className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse disabled:opacity-45"
               >
                 {pending ? 'Starting…' : 'Spin the wheel'}
               </button>
@@ -344,7 +344,7 @@ export function WheelExperience({
                 type="button"
                 onClick={() => loadAndSpin('reveal')}
                 disabled={pending}
-                className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-white"
+                className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse"
               >
                 {pending ? 'Opening…' : 'Watch the reveal'}
               </button>

@@ -47,7 +47,7 @@ export default async function ClubCalendarPage({ params }: { params: Promise<{ s
               const isScreening = Boolean(day && upcoming && upcoming.screening.scheduledAt.getFullYear() === year && upcoming.screening.scheduledAt.getMonth() === month && upcoming.screening.scheduledAt.getDate() === day);
               return (
                 <div key={index} role="gridcell" className="relative aspect-square border-b border-r border-line/70 p-1.5 text-sm last:border-r-0">
-                  {day ? <span className={isToday ? 'flex h-7 w-7 items-center justify-center rounded-full bg-iris text-white' : 'text-muted'}>{day}</span> : null}
+                  {day ? <span className={isToday ? 'flex h-7 w-7 items-center justify-center rounded-full bg-iris text-inverse' : 'text-muted'}>{day}</span> : null}
                   {isScreening ? <span className="absolute inset-x-1 bottom-1 truncate rounded-xs bg-ember/15 px-1 py-0.5 text-[0.6rem] text-ember">Movie night</span> : null}
                 </div>
               );

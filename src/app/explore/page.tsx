@@ -261,7 +261,7 @@ export default async function ExplorePage() {
                   <Link
                     key={genre.providerId}
                     href={`/films?genre=${genre.providerId}`}
-                    className="rounded-md border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
+                    className="inline-flex min-h-11 items-center rounded-md border border-line px-3 py-1.5 text-sm text-muted transition-colors hover:border-line-strong hover:text-text"
                   >
                     {genre.name}
                   </Link>
@@ -290,7 +290,7 @@ export default async function ExplorePage() {
                       </div>
                       <Link
                         href={filmHref(review.film)}
-                        className="mt-2.5 inline-block font-medium hover:text-ember"
+                        className="mt-2.5 inline-flex min-h-11 items-center font-medium hover:text-ember sm:min-h-0"
                       >
                         {review.film.title}
                         {review.film.year ? (
@@ -346,7 +346,7 @@ export default async function ExplorePage() {
             action={
               <Link
                 href="/signup"
-                className="inline-block rounded-md bg-ember px-4 py-2 text-sm font-medium text-white hover:bg-ember-soft"
+                className="inline-flex min-h-11 items-center rounded-md bg-ember px-4 py-2 text-sm font-medium text-inverse hover:bg-ember-soft"
               >
                 Join Nitrate
               </Link>
@@ -435,7 +435,7 @@ function ReviewSpotlight({
           {review.liked ? <LikeMark className="text-sm text-rose" label="Liked this film" /> : null}
         </div>
       </div>
-      <Link href={filmHref(review.film)} className="mt-4 inline-block text-xl hover:text-ember">
+      <Link href={filmHref(review.film)} className="mt-4 inline-flex min-h-11 items-center text-xl hover:text-ember sm:min-h-0">
         {review.film.title}
         {review.film.year ? <span className="ml-2 text-sm text-dim tabular">{review.film.year}</span> : null}
       </Link>

@@ -40,7 +40,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
     <header className="nav-shell sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-xl">
       <QuickSearch open={searchOpen} onClose={closeSearch} />
       <div className="mx-auto flex h-14 max-w-[86rem] items-center gap-1.5 px-3 min-[360px]:gap-2 sm:gap-3 sm:px-6">
-        <Link href="/" className="flex items-center gap-2 pr-1" aria-label={`${BRAND.name} home`}>
+        <Link href="/" className="flex min-h-11 min-w-11 items-center gap-2 pr-1" aria-label={`${BRAND.name} home`}>
           <Wordmark />
         </Link>
 
@@ -90,7 +90,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
               >
                 <BellIcon />
                 {unreadCount > 0 ? (
-                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ember px-1 text-[0.5625rem] font-bold text-white tabular">
+                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-ember px-1 text-[0.5625rem] font-bold text-inverse tabular">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 ) : null}
@@ -108,7 +108,7 @@ export function TopNav({ user, unreadCount }: { user: NavUser | null; unreadCoun
               </Link>
               <Link
                 href="/signup"
-                className="flex min-h-11 items-center rounded-md bg-ember px-3 text-sm font-medium text-white transition-colors active:scale-[0.98] hover:bg-ember-soft sm:min-h-0 sm:py-1.5"
+                className="flex min-h-11 items-center rounded-md bg-ember px-3 text-sm font-medium text-inverse transition-colors active:scale-[0.98] hover:bg-ember-soft sm:min-h-0 sm:py-1.5"
               >
                 Join
               </Link>

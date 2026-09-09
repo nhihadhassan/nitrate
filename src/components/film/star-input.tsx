@@ -33,9 +33,9 @@ export function StarInput({
   const shown = hover ?? value ?? 0;
 
   const starSize = {
-    sm: 'h-8 w-8 sm:h-5 sm:w-5',
-    md: 'h-9 w-9 sm:h-7 sm:w-7',
-    lg: 'h-10 w-10 sm:h-9 sm:w-9',
+    sm: 'h-12 w-12 sm:h-5 sm:w-5',
+    md: 'h-12 w-12 sm:h-7 sm:w-7',
+    lg: 'h-12 w-12 sm:h-9 sm:w-9',
   }[size];
 
   function commit(next: number) {
@@ -44,7 +44,7 @@ export function StarInput({
   }
 
   return (
-    <div className={cn('flex items-center gap-3', className)}>
+    <div className={cn('flex max-w-full flex-wrap items-center gap-x-3 gap-y-1 sm:flex-nowrap', className)}>
       <div className="flex items-center" onPointerLeave={() => setHover(null)} aria-hidden>
         {[1, 2, 3, 4, 5].map((star) => {
           const half = star * 2 - 1;

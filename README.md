@@ -97,11 +97,12 @@ npm run dev
 npm run verify               # typecheck → lint → 43 tests → production build
 ```
 
-The Vitest suite includes an integration file that runs against `DATABASE_URL`
-when one is present, covering the full club cycle (submit → spin → email, and
+The opt-in integration suite runs only against a distinct `TEST_DATABASE_URL`,
+covering the full club cycle (submit → spin → email, and
 nominate → vote → reveal → schedule → RSVP → complete → blind-rate → discuss),
 privacy enforcement, blocking, aggregate correctness, rate limiting and import
-idempotency. It namespaces and cleans up everything it creates.
+idempotency. It namespaces and cleans up everything it creates; run it with
+`npm run test:integration` after supplying an isolated migrated database.
 
 ## Attribution
 

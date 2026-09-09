@@ -111,7 +111,7 @@ export async function requireAdmin(): Promise<User> {
   return user;
 }
 
-/** Housekeeping; called opportunistically rather than on a cron for the MVP. */
+/** Housekeeping run by the daily Movie Club cron. */
 export async function pruneExpiredSessions(): Promise<void> {
   await db.delete(sessions).where(lt(sessions.expiresAt, new Date()));
 }

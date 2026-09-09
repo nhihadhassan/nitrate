@@ -74,7 +74,7 @@ export function UserChip({
   return (
     <Link
       href={`/@${user.username}`}
-      className={cn('group flex min-w-0 items-center gap-2', className)}
+      className={cn('group flex min-h-11 min-w-0 items-center gap-2 sm:min-h-0', className)}
     >
       <Avatar user={user} size={size} />
       <span className="min-w-0">

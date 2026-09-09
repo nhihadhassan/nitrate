@@ -43,7 +43,7 @@ export function BottomNav({ user, unreadCount }: { user: NavUser | null; unreadC
               <button
                 type="button"
                 onClick={() => (user ? open({}) : (window.location.href = '/login'))}
-                className="-mt-5 flex h-[3.25rem] w-[3.25rem] touch-manipulation items-center justify-center rounded-full bg-ember text-white shadow-pop transition-transform active:scale-95"
+                className="-mt-5 flex h-[3.25rem] w-[3.25rem] touch-manipulation items-center justify-center rounded-full bg-ember text-inverse shadow-pop transition-transform active:scale-95"
                 aria-label="Log a film"
               >
                 <PlusIcon className="h-6 w-6" strokeWidth={2} />
@@ -68,7 +68,9 @@ export function BottomNav({ user, unreadCount }: { user: NavUser | null; unreadC
                     className={item.active ? 'ring-2 ring-ember' : undefined}
                   />
                 ) : null}
-                <span className="max-w-full truncate">{item.label}</span>
+                <span className={cn('max-w-full truncate', item.active && 'text-text')}>
+                  {item.label}
+                </span>
                 {index === 4 && unreadCount > 0 ? (
                   <span className="absolute left-1/2 top-2.5 ml-2 h-2 w-2 rounded-full bg-ember ring-2 ring-canvas" />
                 ) : null}

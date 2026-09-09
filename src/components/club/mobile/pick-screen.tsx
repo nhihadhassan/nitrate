@@ -344,7 +344,7 @@ export function PickScreen({
                               className={cn(
                                 'absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
                                 selected
-                                  ? 'border-ember bg-ember text-white'
+                                  ? 'border-ember bg-ember text-inverse'
                                   : 'border-white/60 bg-black/35',
                               )}
                             >

@@ -1,5 +1,11 @@
 # Nitrate 1.3–2.0 Claude Release Handoff
 
+> **Historical release record.** The 1.3–2.0 train described below has since
+> landed on `main` and later Movie Club releases build on it. Keep this file for
+> migration order, rollback history, and privacy constraints; do not use its
+> local-only publication status as the current deployment state. Current
+> operations and priorities live in `docs/HANDOFF.md` and `docs/ROADMAP.md`.
+
 ## Purpose and hard boundary
 
 Codex completed the roadmap as a local, stacked release train. Claude owns review, production migration, GitHub publication, Vercel promotion, and live validation. Codex did not push a branch or tag, merge into `main`, apply a production migration, change Vercel configuration, or mutate the live website.

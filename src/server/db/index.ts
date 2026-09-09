@@ -22,7 +22,10 @@ function createClient() {
   return postgres(env.databaseUrl, {
     prepare: false,
     max: 3,
-    idle_timeout: 20,
+    // Let the serverless runtime own connection teardown. An application idle
+    // timer can resume late after an instance freeze and emit noisy negative-
+    // timeout warnings even though the query completed successfully.
+    idle_timeout: 0,
     connect_timeout: 15,
     ssl: 'require',
     onnotice: () => {},

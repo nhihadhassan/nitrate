@@ -159,7 +159,7 @@ themes swap CSS variables on `:root`, so components carry **no `dark:` variants*
 | `--surface` | `#14171b` | `#ffffff` | Cards |
 | `--surface-hover` / `--surface-strong` | `#1b1f24` / `#22262d` | `#f3f2ef` / `#e9e7e2` | Card states |
 | `--line` / `--line-strong` | `#24282f` / `#333942` | `#e2e0da` / `#cbc8c0` | Borders |
-| `--text` / `--text-muted` / `--text-dim` | `#f4f4f5` / `#a1a7b0` / `#6d7480` | `#14151a` / `#5c6069` / `#8b8f98` | Text hierarchy |
+| `--text` / `--text-muted` / `--text-dim` | `#f4f4f5` / `#a1a7b0` / `#767e8a` | `#14151a` / `#5c6069` / `#6d727c` | Text hierarchy |
 | `--ember` / `--ember-soft` / `--ember-dim` | `#ff5b2e` / `#ff7a54` / `#7a2a15` | `#d93c11` / `#ef5a2c` / `#fbd9cd` | Primary accent, focus, selection |
 | `--iris` / `--iris-dim` | `#8b7bff` / `#362f6b` | `#5b48d6` / `#e3dffa` | **Club surfaces only** |
 | `--jade` / `--rose` / `--amber` | `#34d399` / `#fb7185` / `#f5b13d` | `#0f855c` / `#d94a63` / `#b57a0a` | Success / alert / caution |
