@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { CalendarIcon, FilmIcon, ShareIcon } from '@/components/ui/icons';
+import { CalendarIcon, ChevronDownIcon, FilmIcon, ShareIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
@@ -106,10 +106,18 @@ export function MovieNightMobileActions(props: Props) {
         <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); save(); }}>
           <FormError>{error}</FormError>
           <Field label="When"><DateTimePicker value={when} onChange={setWhen} clearable={false} required defaultOpen={openCalendar} /></Field>
-          <Field label="Where" optional><input value={location} onChange={(event) => setLocation(event.target.value)} maxLength={200} className={inputClass} placeholder="Sam's flat / the Rio / a call" /></Field>
-          <Field label="Invite link" optional><input type="url" value={inviteLink} onChange={(event) => setInviteLink(event.target.value)} maxLength={500} className={inputClass} placeholder="https://partiful.com/e/…" /></Field>
-          <Field label="Watch link" optional><input type="url" value={watchLink} onChange={(event) => setWatchLink(event.target.value)} maxLength={500} className={inputClass} placeholder="https://" /></Field>
-          <Field label="Notes" optional><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} maxLength={1000} className={inputClass} /></Field>
+          <details className="group rounded-lg border border-line bg-canvas/40">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-medium text-muted hover:text-text">
+              <span>More details</span>
+              <ChevronDownIcon className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
+            </summary>
+            <div className="space-y-4 border-t border-line p-3">
+              <Field label="Where" optional><input value={location} onChange={(event) => setLocation(event.target.value)} maxLength={200} className={inputClass} placeholder="Sam's flat / the Rio / a call" /></Field>
+              <Field label="Invite link" optional><input type="url" value={inviteLink} onChange={(event) => setInviteLink(event.target.value)} maxLength={500} className={inputClass} placeholder="https://partiful.com/e/…" /></Field>
+              <Field label="Watch link" optional><input type="url" value={watchLink} onChange={(event) => setWatchLink(event.target.value)} maxLength={500} className={inputClass} placeholder="https://" /></Field>
+              <Field label="Notes" optional><textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} maxLength={1000} className={inputClass} /></Field>
+            </div>
+          </details>
         </form>
       </Sheet>
     </div>

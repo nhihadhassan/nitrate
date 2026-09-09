@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
-import { CalendarIcon } from '@/components/ui/icons';
+import { CalendarIcon, ChevronDownIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
@@ -196,57 +196,26 @@ export function MovieNightPlanner({
           />
         </Field>
 
-        <Field label="Where" htmlFor="night-where" optional>
-          <input
-            id="night-where"
-            value={location}
-            onChange={(event) => setLocation(event.target.value)}
-            maxLength={200}
-            placeholder="Sam's flat / the Rio / a call"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field
-          label="Invite link"
-          htmlFor="night-invite"
-          optional
-          hint="Partiful, an event page, wherever people RSVP outside Nitrate."
-        >
-          <input
-            id="night-invite"
-            type="url"
-            value={inviteLink}
-            onChange={(event) => setInviteLink(event.target.value)}
-            maxLength={500}
-            placeholder="https://partiful.com/e/…"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Watch link" htmlFor="night-watch" optional hint="Streaming link, call link, ticket page.">
-          <input
-            id="night-watch"
-            type="url"
-            value={watchLink}
-            onChange={(event) => setWatchLink(event.target.value)}
-            maxLength={500}
-            placeholder="https://"
-            className={inputClass}
-          />
-        </Field>
-
-        <Field label="Details" htmlFor="night-notes" optional>
-          <textarea
-            id="night-notes"
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            rows={3}
-            maxLength={1000}
-            placeholder="Bring snacks. Starting on time for once."
-            className={inputClass}
-          />
-        </Field>
+        <details className="group rounded-lg border border-line bg-canvas/40">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-3 text-sm font-medium text-muted hover:text-text">
+            <span>More details</span>
+            <ChevronDownIcon className="h-4 w-4 transition-transform duration-200 group-open:rotate-180" />
+          </summary>
+          <div className="space-y-4 border-t border-line p-3">
+            <Field label="Where" htmlFor="night-where" optional>
+              <input id="night-where" value={location} onChange={(event) => setLocation(event.target.value)} maxLength={200} placeholder="Sam's flat / the Rio / a call" className={inputClass} />
+            </Field>
+            <Field label="Invite link" htmlFor="night-invite" optional>
+              <input id="night-invite" type="url" value={inviteLink} onChange={(event) => setInviteLink(event.target.value)} maxLength={500} placeholder="https://partiful.com/e/…" className={inputClass} />
+            </Field>
+            <Field label="Watch link" htmlFor="night-watch" optional>
+              <input id="night-watch" type="url" value={watchLink} onChange={(event) => setWatchLink(event.target.value)} maxLength={500} placeholder="https://" className={inputClass} />
+            </Field>
+            <Field label="Details" htmlFor="night-notes" optional>
+              <textarea id="night-notes" value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} maxLength={1000} placeholder="Bring snacks. Starting on time for once." className={inputClass} />
+            </Field>
+          </div>
+        </details>
 
         <Button type="submit" variant="iris" size="sm" disabled={pending}>
           {pending ? 'Saving…' : 'Save changes'}
