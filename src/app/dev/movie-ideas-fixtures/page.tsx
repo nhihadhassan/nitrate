@@ -40,8 +40,8 @@ export default async function MovieIdeasFixturePage() {
         activeRound={null}
         discoverySections={[
           { id: 'for-your-club', title: 'For your club', subtitle: 'Picked for your shared taste', items: rows.slice(0, 4).map((movie) => discoveryItem(movie, 'Matches your club’s taste')) },
-          { id: 'on-your-radar', title: 'On everyone’s radar', subtitle: 'Saved by more than one member', items: rows.slice(4, 8).map((movie) => discoveryItem(movie, '2 members want it')) },
-          { id: 'unseen-by-the-club', title: 'Nobody has seen it', subtitle: 'Fresh territory for movie night', items: rows.slice(8, 12).map((movie) => discoveryItem(movie, 'Unseen by everyone')) },
+          { id: 'popular-now', title: 'Popular now', subtitle: 'Trending with moviegoers this week', items: rows.slice(4, 8).map((movie) => discoveryItem(movie, 'Trending this week')) },
+          { id: 'top-rated', title: 'Top rated', subtitle: 'All-time favourites with substantial audience ratings', items: rows.slice(8, 12).map((movie) => discoveryItem(movie, 'Highly rated by moviegoers')) },
         ]}
         items={rows.slice(0, 2).map((movie, index) => ({
           id: `idea-${index}`,

@@ -55,7 +55,7 @@ type DiscoveryMovie = {
   title: string;
   year: number | null;
   posterPath: string | null;
-  runtime: number | null;
+  runtime?: number | null;
 };
 
 type DiscoverySection = {
@@ -173,7 +173,7 @@ export function QueueManager({
         </a>
       </nav>
 
-      <div className="space-y-8">
+      <div className="space-y-7">
         {discoverySections.filter((section) => section.items.length).map((section) => (
           <DiscoveryRail
             key={section.id}
@@ -338,8 +338,8 @@ function DiscoveryRail({
 }) {
   return (
     <section id={section.id} className="scroll-mt-24">
-      <div className="mb-3">
-        <h2 className="font-display text-2xl sm:text-3xl">{section.title}</h2>
+      <div className="mb-2.5">
+        <h2 className="font-display text-[1.65rem] leading-none sm:text-3xl">{section.title}</h2>
         <p className="mt-0.5 text-sm text-muted">{section.subtitle}</p>
       </div>
       <ul className="scroll-rail -mx-4 px-4 pr-10 sm:mx-0 sm:px-0">
@@ -347,10 +347,10 @@ function DiscoveryRail({
           const saved = savedMovieIds.has(movie.id);
           const artwork = posterUrl(movie.posterPath, 'md');
           return (
-            <li key={movie.id} className="scroll-rail-item w-[10.5rem]">
-              <article className="relative aspect-[4/5] overflow-hidden rounded-xl border border-line bg-canvas-raised">
+            <li key={movie.id} className="scroll-rail-item w-[8.75rem] sm:w-[9.5rem]">
+              <article className="relative aspect-[4/5] overflow-hidden rounded-lg border border-line bg-canvas-raised">
                 <Link href={filmHref(movie)} className="absolute inset-0 focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2" aria-label={`${movie.title}, ${movie.year ?? 'year unknown'}`}>
-                  {artwork ? <Image src={artwork} alt="" fill sizes="168px" className="object-cover" unoptimized /> : null}
+                  {artwork ? <Image src={artwork} alt="" fill sizes="(max-width: 640px) 140px, 152px" className="object-cover" unoptimized /> : null}
                   <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-canvas via-canvas/15 to-transparent" />
                 </Link>
                 <button
@@ -362,7 +362,7 @@ function DiscoveryRail({
                 >
                   {saved ? <CheckIcon className="h-4 w-4" /> : <PlusIcon className="h-5 w-5" />}
                 </button>
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 p-2.5">
                   <p className="truncate text-sm font-medium text-white">{movie.title}</p>
                   <p className="mt-0.5 text-xs text-white/65">
                     {[movie.year, movie.runtime ? formatRuntime(movie.runtime) : null].filter(Boolean).join(' · ')}

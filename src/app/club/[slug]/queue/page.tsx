@@ -4,6 +4,7 @@ import { QueueManager } from '@/components/club/queue-manager';
 import { EmptyState } from '@/components/ui/primitives';
 import { recommendationReasonLabel } from '@/lib/recommendations';
 import { getCurrentUser } from '@/server/auth/session';
+import { getEditorialRails } from '@/server/services/explore';
 import {
   getActiveRound,
   getClubBySlug,
@@ -31,14 +32,36 @@ export default async function ClubQueuePage({ params }: { params: Promise<{ slug
     );
   }
 
-  const [queue, round, intelligence] = await Promise.all([
+  const [queue, round, intelligence, editorial] = await Promise.all([
     getClubQueue(club.id, 100),
     getActiveRound(club.id),
     getClubIntelligence(club.id),
+    getEditorialRails(),
   ]);
   const roundPicks = round?.status === 'nominations_open'
     ? await getRoundNominations(round.id, user!.id)
     : null;
+
+  // Keep each rail distinct. The provider's weekly trend and vote-weighted
+  // canon refresh whenever this dynamic page is requested, while the first
+  // row remains grounded in this club's own watchlists, history, and taste.
+  const usedMovieIds = new Set<string>();
+  const unique = <T extends { id: string }>(movies: T[], limit = 12): T[] => {
+    const result: T[] = [];
+    for (const movie of movies) {
+      if (usedMovieIds.has(movie.id)) continue;
+      usedMovieIds.add(movie.id);
+      result.push(movie);
+      if (result.length === limit) break;
+    }
+    return result;
+  };
+  const forYourClub = unique(intelligence.shortlist.map((item) => item.movie), 8);
+  // A saved idea may still be the club's strongest personalized suggestion,
+  // but broad discovery rows should introduce something new.
+  queue.forEach((item) => usedMovieIds.add(item.movie.id));
+  const popularNow = unique(editorial.trending, 12);
+  const topRated = unique(editorial.canon, 12);
 
   return (
     <QueueManager
@@ -60,22 +83,22 @@ export default async function ClubQueuePage({ params }: { params: Promise<{ slug
           id: 'for-your-club',
           title: 'For your club',
           subtitle: 'Picked for your shared taste',
-          items: intelligence.shortlist.map((item) => ({
-            movie: item.movie,
-            reason: item.reasons.map(recommendationReasonLabel).join(' · '),
-          })),
+          items: forYourClub.map((movie) => {
+            const suggestion = intelligence.shortlist.find((item) => item.movie.id === movie.id)!;
+            return { movie, reason: suggestion.reasons.map(recommendationReasonLabel).join(' · ') };
+          }),
         },
         {
-          id: 'on-your-radar',
-          title: 'On everyone’s radar',
-          subtitle: 'Saved by more than one member',
-          items: intelligence.onEveryonesRadar.map((item) => ({ movie: item.movie, reason: recommendationReasonLabel(item.reason) })),
+          id: 'popular-now',
+          title: 'Popular now',
+          subtitle: 'Trending with moviegoers this week',
+          items: popularNow.map((movie) => ({ movie, reason: 'Trending this week' })),
         },
         {
-          id: 'unseen-by-the-club',
-          title: 'Nobody has seen it',
-          subtitle: 'Fresh territory for movie night',
-          items: intelligence.nobodyHasSeen.map((item) => ({ movie: item.movie, reason: recommendationReasonLabel(item.reason) })),
+          id: 'top-rated',
+          title: 'Top rated',
+          subtitle: 'All-time favourites with substantial audience ratings',
+          items: topRated.map((movie) => ({ movie, reason: 'Highly rated by moviegoers' })),
         },
       ]}
       items={queue.map((item) => ({
