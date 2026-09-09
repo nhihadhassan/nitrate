@@ -68,6 +68,7 @@ export function DateTimePicker({
   accent = 'ember',
   required,
   clearable = true,
+  defaultOpen = false,
 }: {
   id?: string;
   value: string;
@@ -77,8 +78,10 @@ export function DateTimePicker({
   accent?: 'ember' | 'iris';
   required?: boolean;
   clearable?: boolean;
+  /** Open the calendar as soon as the picker mounts. */
+  defaultOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);

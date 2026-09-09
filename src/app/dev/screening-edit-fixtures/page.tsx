@@ -25,6 +25,7 @@ export default async function ScreeningEditFixturePage() {
         clubName="Velvet Frame"
         backdropPath={movie?.backdropPath ?? null}
         dateLabel="Sat Sept 5, 8:00 PM"
+        scheduledAt="2026-09-06T00:00:00.000Z"
         location={null}
         watchLink={null}
         notes={null}

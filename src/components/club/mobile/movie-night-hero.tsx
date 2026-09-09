@@ -21,6 +21,7 @@ export function MovieNightHero({
   clubName,
   backdropPath,
   dateLabel,
+  scheduledAt,
   location,
   watchLink,
   notes,
@@ -42,6 +43,7 @@ export function MovieNightHero({
   clubName: string;
   backdropPath: string | null;
   dateLabel: string;
+  scheduledAt: string;
   location: string | null;
   watchLink: string | null;
   notes: string | null;
@@ -108,6 +110,9 @@ export function MovieNightHero({
             {canEditDate ? (
               <MovieNightDateTrigger
                 dateLabel={dateLabel}
+                scheduledAt={scheduledAt}
+                screeningId={screeningId}
+                clubSlug={clubSlug}
                 className="flex min-h-11 max-w-full flex-wrap items-center gap-2 rounded-md pr-1 text-left text-base font-medium tabular text-white hover:text-ember focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
               />
             ) : (

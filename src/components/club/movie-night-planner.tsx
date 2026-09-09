@@ -1,31 +1,99 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { CalendarIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
+import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
 import { clubLocalInputValue, clubLocalToInstant } from '@/lib/utils';
 import { updateScreeningAction } from '@/server/actions/clubs';
 
-const EDIT_DATE_EVENT = 'nitrate:edit-movie-night-date';
+/** A direct, permission-checked date editor attached to the date people can see. */
+export function MovieNightDateTrigger({
+  dateLabel,
+  scheduledAt,
+  screeningId,
+  clubSlug,
+  className,
+}: {
+  dateLabel: string;
+  scheduledAt: string;
+  screeningId: string;
+  clubSlug: string;
+  className?: string;
+}) {
+  const router = useRouter();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [when, setWhen] = useState(() => clubLocalInputValue(new Date(scheduledAt)));
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
-/** Opens the existing permission-checked planner directly at its date picker. */
-export function MovieNightDateTrigger({ dateLabel, className }: { dateLabel: string; className?: string }) {
+  function saveDate() {
+    const instant = clubLocalToInstant(when);
+    if (Number.isNaN(instant.getTime())) {
+      setError('Choose a date and time.');
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const result = await updateScreeningAction({
+        screeningId,
+        clubSlug,
+        scheduledAt: instant.toISOString(),
+      });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      toast({ message: 'Movie night moved', tone: 'success' });
+      setOpen(false);
+      router.refresh();
+    });
+  }
+
   return (
-    <button
-      type="button"
-      onClick={() => window.dispatchEvent(new Event(EDIT_DATE_EVENT))}
-      aria-label={`Change movie-night date, currently ${dateLabel}`}
-      className={className}
-    >
-      <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-ember" />
-      <span>{dateLabel}</span>
-      <span className="text-[0.6875rem] font-normal text-muted underline decoration-line-strong underline-offset-4">Change</span>
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Change movie-night date, currently ${dateLabel}`}
+        className={className}
+      >
+        <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-ember" />
+        <span>{dateLabel}</span>
+        <span className="text-[0.6875rem] font-normal text-muted underline decoration-line-strong underline-offset-4">Change</span>
+      </button>
+      <Sheet
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Change movie-night date"
+        description="Toronto time (ET)"
+        size="sm"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setOpen(false)} disabled={pending}>Cancel</Button>
+            <Button variant="iris" size="sm" onClick={saveDate} disabled={pending}>
+              {pending ? 'Saving…' : 'Save date'}
+            </Button>
+          </div>
+        }
+      >
+        <FormError>{error}</FormError>
+        <DateTimePicker
+          value={when}
+          onChange={setWhen}
+          accent="iris"
+          clearable={false}
+          required
+          defaultOpen
+        />
+      </Sheet>
+    </>
   );
 }
 
@@ -70,25 +138,7 @@ export function MovieNightPlanner({
   const [notes, setNotes] = useState(initialNotes ?? '');
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [openDateOnExpand, setOpenDateOnExpand] = useState(false);
   const [pending, startTransition] = useTransition();
-
-  useEffect(() => {
-    function openDatePicker() {
-      setOpenDateOnExpand(true);
-      setOpen(true);
-    }
-    window.addEventListener(EDIT_DATE_EVENT, openDatePicker);
-    return () => window.removeEventListener(EDIT_DATE_EVENT, openDatePicker);
-  }, []);
-
-  useEffect(() => {
-    if (!open || !openDateOnExpand) return;
-    const trigger = document.getElementById('night-when') as HTMLButtonElement | null;
-    trigger?.focus({ preventScroll: true });
-    trigger?.click();
-    setOpenDateOnExpand(false);
-  }, [open, openDateOnExpand]);
 
   return (
     <details

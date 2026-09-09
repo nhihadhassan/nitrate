@@ -136,6 +136,7 @@ export default async function ScreeningPage({
             clubName={club.name}
             backdropPath={movie.backdropPath}
             dateLabel={formatClubDateTime(screening.scheduledAt)}
+            scheduledAt={screening.scheduledAt.toISOString()}
             location={screening.location}
             watchLink={screening.watchLink}
             notes={screening.notes}
@@ -183,6 +184,9 @@ export default async function ScreeningPage({
             {canEditNight && screening.status === 'scheduled' ? (
               <MovieNightDateTrigger
                 dateLabel={formatClubDateTime(screening.scheduledAt)}
+                scheduledAt={screening.scheduledAt.toISOString()}
+                screeningId={screening.id}
+                clubSlug={club.slug}
                 className="mt-1 flex min-h-10 items-center gap-1.5 rounded-md text-sm text-muted tabular hover:text-ember focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
               />
             ) : (
