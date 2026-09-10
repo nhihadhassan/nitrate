@@ -24,6 +24,7 @@ import { getCurrentUser } from '@/server/auth/session';
 import { getMovieById } from '@/server/movies/catalog';
 import {
   getClubBySlug,
+  getClubMembers,
   getClubPermissions,
   getClubRatings,
   getDiscussion,
@@ -89,7 +90,7 @@ export default async function ScreeningPage({
     );
   }
 
-  const [movie, attendance, ratings, discussion, context, hasSeen, filmState, permissions] =
+  const [movie, attendance, ratings, discussion, context, hasSeen, filmState, permissions, members] =
     await Promise.all([
       getMovieById(screening.movieId),
       getScreeningAttendance(screening.id),
@@ -99,6 +100,7 @@ export default async function ScreeningPage({
       viewerHasSeenScreeningFilm(screening, user!.id),
       getUserMovieState(user!.id, screening.movieId),
       getClubPermissions(club.id, user!.id),
+      getClubMembers(club.id),
     ]);
 
   const going = attendance.filter((a) => a.rsvp === 'going');
@@ -143,7 +145,7 @@ export default async function ScreeningPage({
             attendees={going}
             goingCount={going.length}
             maybeCount={maybe.length}
-            invitedCount={attendance.length || going.length}
+            invitedCount={members.length}
             viewerRsvp={context.attendance?.rsvp ?? null}
             screeningId={screening.id}
             clubSlug={club.slug}

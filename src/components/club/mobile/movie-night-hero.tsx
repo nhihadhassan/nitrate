@@ -125,7 +125,7 @@ export function MovieNightHero({
                 <AvatarStack users={attendees} max={5} />
                 <p className="mt-2 text-xs text-white/60">
                   <span className="text-white/85">{goingCount} going{maybeCount ? ` · ${maybeCount} maybe` : ''}</span>
-                  {' · '}{invitedCount} invited
+                  {' · '}{invitedCount} {invitedCount === 1 ? 'person' : 'people'} invited
                 </p>
               </div>
             ) : null}
