@@ -22,6 +22,7 @@ import type { RsvpStatus } from '@/lib/types';
 export function MovieNightCard({
   href,
   title,
+  theme,
   posterPath,
   backdropPath,
   dateLabel,
@@ -39,6 +40,7 @@ export function MovieNightCard({
 }: {
   href: string;
   title: string;
+  theme: string | null;
   posterPath: string | null;
   backdropPath: string | null;
   dateLabel: string | null;
@@ -92,8 +94,13 @@ export function MovieNightCard({
           className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-canvas-raised via-canvas-raised/85 to-transparent"
         />
 
-        <p className="absolute left-4 top-4 text-[0.6875rem] font-medium uppercase tracking-[0.18em] text-ember">
+        <p className="absolute left-4 top-4 flex items-center gap-2 text-[0.6875rem] font-medium uppercase tracking-[0.18em] text-ember">
           Movie night
+          {theme ? (
+            <span className="rounded-full border border-ember/50 bg-black/35 px-2 py-0.5 normal-case tracking-normal text-white/90">
+              {theme}
+            </span>
+          ) : null}
         </p>
 
         <span className="absolute inset-x-4 bottom-4">

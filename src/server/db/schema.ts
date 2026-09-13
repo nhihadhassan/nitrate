@@ -1056,6 +1056,7 @@ export const selectionRounds = nitrate.table(
       .references(() => clubs.id, { onDelete: 'cascade' }),
     roundNumber: integer('round_number').notNull(),
     title: text('title'),
+    theme: text('theme'),
     status: roundStatus('status').notNull().default('draft'),
     mode: selectionMode('mode').notNull().default('vote'),
     nominationLimitPerMember: smallint('nomination_limit_per_member').notNull().default(1),
