@@ -24,7 +24,6 @@ export default async function ScreeningEditFixturePage() {
       <MovieNightHero
         film={movie ?? { slug: 'sinners-2025', title: 'Sinners', year: 2025, posterPath: null }}
         clubName="Velvet Frame"
-        theme="Horror"
         backdropPath={movie?.backdropPath ?? null}
         dateLabel="Sat Sept 5, 8:00 PM"
         scheduledAt="2026-09-06T00:00:00.000Z"

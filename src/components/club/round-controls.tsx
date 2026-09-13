@@ -310,7 +310,6 @@ function StartRoundSheet({
   const router = useRouter();
   const toast = useToast();
   const [title, setTitle] = useState('');
-  const [theme, setTheme] = useState('');
   const [mode, setMode] = useState<'vote' | 'wheel'>('wheel');
   const [limit, setLimit] = useState(1);
   const [nominationsClose, setNominationsClose] = useState(localDateTimeValue(3));
@@ -338,7 +337,6 @@ function StartRoundSheet({
                 const result = await startRoundAction({
                   clubId,
                   title: title.trim() || null,
-                  theme: theme.trim() || null,
                   mode,
                   nominationLimitPerMember: limit,
                   nominationsCloseAt: nominationsClose
@@ -395,34 +393,6 @@ function StartRoundSheet({
             placeholder="October horror"
             className={inputClass}
           />
-        </Field>
-
-        <Field
-          label="Theme"
-          htmlFor="round-theme"
-          optional
-          hint="Give the club something to be inspired by — a genre, a decade, an actor."
-        >
-          <input
-            id="round-theme"
-            value={theme}
-            onChange={(event) => setTheme(event.target.value)}
-            maxLength={80}
-            placeholder="Horror"
-            className={inputClass}
-          />
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {['Horror', 'Action', '80s', 'Leonardo DiCaprio'].map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setTheme(chip)}
-                className="rounded-full border border-line px-2.5 py-1 text-xs text-muted hover:border-line-strong hover:text-text"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
         </Field>
 
         <Field label="Movies per person" htmlFor="round-limit">

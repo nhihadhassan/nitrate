@@ -421,13 +421,11 @@ suite('nitrate integration', () => {
       clubId: club.id,
       userId: alex.id,
       title: 'Round one',
-      theme: 'Horror month',
       nominationLimitPerMember: 1,
       nominationsCloseAt: null,
       votingCloseAt: null,
     });
     expect(round.status).toBe('nominations_open');
-    expect(round.theme).toBe('Horror month');
 
     await nominate({ roundId: round.id, userId: alex.id, movieId: heat.id, pitch: 'Obviously' });
     await nominate({ roundId: round.id, userId: maya.id, movieId: stalker.id, pitch: 'Slow burn' });
@@ -579,7 +577,6 @@ suite('nitrate integration', () => {
       clubId: club.id,
       userId: alex.id,
       title: 'Round two',
-      theme: null,
       nominationLimitPerMember: 2,
       nominationsCloseAt: null,
       votingCloseAt: null,
@@ -590,7 +587,6 @@ suite('nitrate integration', () => {
         clubId: club.id,
         userId: alex.id,
         title: 'Round three',
-      theme: null,
         nominationLimitPerMember: 1,
         nominationsCloseAt: null,
         votingCloseAt: null,
@@ -639,7 +635,6 @@ suite('nitrate integration', () => {
       clubId: rePickClub.id,
       userId: alex.id,
       title: 'Re-pick test',
-      theme: null,
       mode: 'wheel',
       nominationLimitPerMember: 2,
       nominationsCloseAt: null,
@@ -690,7 +685,6 @@ suite('nitrate integration', () => {
       clubId: deadlineClub.id,
       userId: alex.id,
       title: 'Deadline test',
-      theme: null,
       mode: 'wheel',
       nominationLimitPerMember: 1,
       nominationsCloseAt: new Date(Date.now() + 60_000),
@@ -733,7 +727,6 @@ suite('nitrate integration', () => {
       clubId: wheelClub.id,
       userId: alex.id,
       title: 'Vote round',
-      theme: null,
       mode: 'vote',
       nominationLimitPerMember: 1,
       nominationsCloseAt: null,
@@ -746,7 +739,6 @@ suite('nitrate integration', () => {
       clubId: wheelClub.id,
       userId: alex.id,
       title: 'This week',
-      theme: null,
       mode: 'wheel',
       nominationLimitPerMember: 1,
       nominationsCloseAt: null,

@@ -274,7 +274,6 @@ export async function removeQueueItemAction(
 const startRoundSchema = z.object({
   clubId: z.string().uuid(),
   title: z.string().trim().max(80).nullable(),
-  theme: z.string().trim().max(80).nullable(),
   mode: z.enum(['vote', 'wheel']).default('vote'),
   nominationLimitPerMember: z.number().int().min(1).max(5),
   nominationsCloseAt: z.string().datetime().nullable(),
@@ -291,7 +290,6 @@ export async function startRoundAction(
       clubId: parsed.clubId,
       userId: user.id,
       title: parsed.title,
-      theme: parsed.theme,
       mode: parsed.mode,
       nominationLimitPerMember: parsed.nominationLimitPerMember,
       nominationsCloseAt: parsed.nominationsCloseAt ? new Date(parsed.nominationsCloseAt) : null,
