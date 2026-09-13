@@ -244,6 +244,7 @@ export default async function ClubDashboard({
           <MovieNightCard
             href={`/club/${club.slug}/screening/${upcoming.screening.id}`}
             title={upcoming.movie.title}
+            theme={upcoming.theme}
             posterPath={upcoming.movie.posterPath}
             backdropPath={upcoming.movie.backdropPath}
             dateLabel={formatClubDateTime(upcoming.screening.scheduledAt)}

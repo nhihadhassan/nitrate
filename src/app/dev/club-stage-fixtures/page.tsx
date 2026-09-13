@@ -228,6 +228,7 @@ export default async function ClubStageFixturePage({
   const nightProps = {
     href: '/club/velvet-frame/screening/screening-1',
     title: rows[0]?.title ?? 'A film',
+    theme: 'Horror',
     posterPath: rows[0]?.posterPath ?? null,
     backdropPath: rows[0]?.backdropPath ?? null,
     dateLabel: 'Sat Sept 5, 8:00 PM',

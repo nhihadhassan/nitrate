@@ -138,6 +138,7 @@ export default async function ScreeningPage({
           <MovieNightHero
             film={{ slug: movie.slug, title: movie.title, year: movie.year, posterPath: movie.posterPath }}
             clubName={club.name}
+            theme={provenance?.theme ?? null}
             backdropPath={movie.backdropPath}
             dateLabel={formatClubDateTime(screening.scheduledAt)}
             scheduledAt={screening.scheduledAt.toISOString()}
@@ -193,6 +194,7 @@ export default async function ScreeningPage({
                   {provenance.roundNumber}
                 </Badge>
               ) : null}
+              {provenance?.theme ? <Badge tone="ember">{provenance.theme}</Badge> : null}
             </div>
             <h1 className="mt-2 text-3xl leading-tight sm:text-4xl">{movie.title}</h1>
             {canEditNight && screening.status === 'scheduled' ? (

@@ -757,6 +757,7 @@ export async function startRound(input: {
   clubId: string;
   userId: string;
   title: string | null;
+  theme: string | null;
   mode?: 'vote' | 'wheel';
   nominationLimitPerMember: number;
   nominationsCloseAt: Date | null;
@@ -790,6 +791,7 @@ export async function startRound(input: {
         clubId: input.clubId,
         roundNumber: last + 1,
         title: input.title,
+        theme: input.theme,
         status: 'nominations_open',
         mode: input.mode ?? 'vote',
         nominationLimitPerMember: input.nominationLimitPerMember,
@@ -2252,9 +2254,10 @@ export async function getClubMembers(clubId: string) {
 
 export async function getUpcomingScreening(clubId: string) {
   const [row] = await db
-    .select({ screening: screenings, movie: movies })
+    .select({ screening: screenings, movie: movies, theme: selectionRounds.theme })
     .from(screenings)
     .innerJoin(movies, eq(movies.id, screenings.movieId))
+    .leftJoin(selectionRounds, eq(selectionRounds.id, screenings.roundId))
     .where(and(eq(screenings.clubId, clubId), eq(screenings.status, 'scheduled')))
     .orderBy(asc(screenings.scheduledAt))
     .limit(1);
@@ -2339,6 +2342,7 @@ export async function getRecentlyCompleted(
 export type ScreeningProvenance = {
   roundNumber: number;
   mode: 'vote' | 'wheel';
+  theme: string | null;
   nominatedBy: { username: string; displayName: string } | null;
   pitch: string | null;
   voteCount: number;
@@ -2390,6 +2394,7 @@ export async function getScreeningProvenance(
   return {
     roundNumber: round.roundNumber,
     mode: round.mode,
+    theme: round.theme,
     nominatedBy: winner ? { username: winner.username, displayName: winner.displayName } : null,
     pitch: winner?.pitch ?? null,
     voteCount: winner?.voteCount ?? 0,
@@ -3503,6 +3508,7 @@ export async function openDueWeeklyRounds(now = new Date()): Promise<WeeklyOpenR
         clubId: club.id,
         userId: club.ownerId,
         title: null,
+        theme: null,
         mode: 'wheel',
         nominationLimitPerMember: 1,
         // Picks close just before the next weekly slot.

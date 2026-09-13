@@ -19,6 +19,7 @@ import type { RsvpStatus } from '@/lib/types';
 export function MovieNightHero({
   film,
   clubName,
+  theme,
   backdropPath,
   dateLabel,
   scheduledAt,
@@ -38,6 +39,7 @@ export function MovieNightHero({
 }: {
   film: PosterFilm;
   clubName: string;
+  theme: string | null;
   backdropPath: string | null;
   dateLabel: string;
   scheduledAt: string;
@@ -89,6 +91,11 @@ export function MovieNightHero({
         <div className="pt-20 sm:pt-28">
           <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-canvas/45 px-3 py-2 text-[0.6875rem] font-medium uppercase tracking-[0.22em] text-white/80 backdrop-blur-sm">
             <CalendarIcon className="h-3.5 w-3.5 text-ember" /> Movie night
+            {theme ? (
+              <span className="rounded-full border border-white/20 bg-black/25 px-2 py-0.5 normal-case tracking-normal text-white/90">
+                {theme}
+              </span>
+            ) : null}
           </p>
           <h1 className="mt-4 max-w-[20rem] font-display text-[2.65rem] leading-[0.98] text-white drop-shadow-[0_4px_22px_rgb(0_0_0/0.8)]">
             {film.title}
