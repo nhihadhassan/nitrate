@@ -10,6 +10,7 @@ import { ChevronRightIcon, FilmIcon } from '@/components/ui/icons';
 import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
+import { ThemeBadge } from '@/components/club/theme-badge';
 import type { RoundStatus } from '@/lib/types';
 import {
   cancelRoundAction,
@@ -66,7 +67,6 @@ export function RoundControls({
   const router = useRouter();
   const toast = useToast();
   const [pending, startTransition] = useTransition();
-  const [starting, setStarting] = useState(false);
   const [extending, setExtending] = useState(false);
   const [deadline, setDeadline] = useState(localDateTimeValue(2));
   const [winner, setWinner] = useState<{ title: string; slug: string; votes: number; tied: boolean } | null>(
@@ -79,7 +79,7 @@ export function RoundControls({
         {idleVariant === 'next-selection' ? (
           <button
             type="button"
-            onClick={() => setStarting(true)}
+            onClick={() => router.push(`/club/${clubSlug}/round/new`)}
             className="group relative grid min-h-[6.25rem] w-full grid-cols-[5.25rem_minmax(0,1fr)_2rem] items-center gap-3 overflow-hidden rounded-xl border border-ember/45 bg-canvas-raised p-2.5 pr-3 text-left shadow-[0_18px_45px_rgb(0_0_0/0.24)] transition-[border-color,transform] duration-200 ease-out hover:border-ember/75 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
             aria-label="Choose the next movie"
           >
@@ -116,13 +116,10 @@ export function RoundControls({
             <ChevronRightIcon className="relative h-5 w-5 text-muted transition-transform duration-200 ease-out group-hover:translate-x-0.5 group-hover:text-text" />
           </button>
         ) : (
-          <Button variant="iris" onClick={() => setStarting(true)}>
+          <Button variant="iris" onClick={() => router.push(`/club/${clubSlug}/round/new`)}>
             Choose the next movie
           </Button>
         )}
-        {starting ? (
-          <StartRoundSheet clubId={clubId} clubSlug={clubSlug} onClose={() => setStarting(false)} />
-        ) : null}
       </>
     );
   }
@@ -298,14 +295,25 @@ export function RoundControls({
   );
 }
 
-function StartRoundSheet({
+export type StartRoundTheme = {
+  themeId: string | null;
+  themeName: string | null;
+  themeDescription: string | null;
+  themeType: 'genre' | 'actor' | 'director' | 'decade' | 'seasonal' | 'custom' | null;
+  themeCriteria: Record<string, unknown> | null;
+};
+
+export function StartRoundSheet({
   clubId,
   clubSlug,
   onClose,
+  theme = null,
 }: {
   clubId: string;
   clubSlug: string;
   onClose: () => void;
+  /** Set when arriving from the theme picker — shown read-only above the fields below. */
+  theme?: StartRoundTheme | null;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -346,6 +354,7 @@ function StartRoundSheet({
                     mode === 'wheel' || !votingClose
                       ? null
                       : new Date(votingClose).toISOString(),
+                  theme,
                 });
                 if (!result.ok) {
                   setError(result.error);
@@ -365,6 +374,13 @@ function StartRoundSheet({
     >
       <div className="space-y-4">
         <FormError>{error}</FormError>
+
+        {theme?.themeName ? (
+          <div className="flex items-center gap-2 rounded-md border border-ember/25 bg-ember/[0.06] px-3 py-2">
+            <ThemeBadge theme={theme} />
+            <span className="text-xs text-dim">This round&apos;s theme</span>
+          </div>
+        ) : null}
 
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium">How should we choose?</legend>

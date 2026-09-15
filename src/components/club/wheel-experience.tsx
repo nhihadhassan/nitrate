@@ -11,10 +11,12 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { Avatar, AvatarStack, type AvatarUser } from '@/components/user/avatar';
 import { CommentIcon, SparkIcon } from '@/components/ui/icons';
+import { ThemeBadge, type ThemeInfo } from '@/components/club/theme-badge';
 import { filmHref, userHref } from '@/lib/links';
 import { backdropUrl } from '@/lib/images';
 import { WHEEL, WHEEL_TOTAL_MS } from '@/lib/motion';
-import { formatRuntime } from '@/lib/utils';
+import { themeAccent } from '@/lib/movie-themes';
+import { cn, formatRuntime } from '@/lib/utils';
 import {
   beginWheelRevealAction,
   completeWheelRevealAction,
@@ -55,6 +57,7 @@ export function WheelExperience({
   canPlanMovieNight = false,
   members = [],
   memberLine,
+  theme = null,
 }: {
   clubId: string;
   clubSlug: string;
@@ -72,6 +75,8 @@ export function WheelExperience({
   members?: AvatarUser[];
   /** "8 members · Monthly". */
   memberLine?: string;
+  /** The round's theme, if it has one. Lightly tints the wheel's ambience. */
+  theme?: ThemeInfo | null;
 }) {
   const toast = useToast();
   const router = useRouter();
@@ -278,17 +283,27 @@ export function WheelExperience({
         ? selectionMovieLabel
         : selectionMovieLabel;
 
+  const accent = themeAccent(theme?.themeId ? { id: theme.themeId, type: theme.themeType ?? 'custom' } : null);
+
   return (
     <section className="flex flex-col items-center py-2 text-center" aria-label="Movie Club wheel">
       <p className="eyebrow text-iris">{clubName}</p>
+      {theme?.themeName && phase !== 'revealed' ? (
+        <div className="mt-2 flex justify-center">
+          <ThemeBadge theme={theme} />
+        </div>
+      ) : null}
       <h1 className="mt-1.5 font-display text-[2rem] leading-none">{heading}</h1>
       {phase === 'ready' ? (
         <p className="mt-2 text-sm text-muted">
-          {previews.length} {previews.length === 1 ? 'pick' : 'picks'}
+          {theme?.themeName ? "Everyone's picks are in. " : ''}
+          {previews.length} {previews.length === 1 ? 'pick' : 'picks'}. One movie night.
         </p>
       ) : null}
 
-      <div className="mt-7 w-full">
+      <div
+        className={cn('mt-7 w-full rounded-full', accent === 'ember' && !revealed && 'drop-shadow-[0_0_70px_rgba(234,88,50,0.32)]')}
+      >
         <PosterWheel
           items={cards.map((card) => ({ nominationId: card.nominationId, movie: card.movie }))}
           winnerIndex={spinning && payload ? payload.winnerIndex : null}

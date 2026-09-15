@@ -416,7 +416,8 @@ suite('nitrate integration', () => {
     expect(queue[0].onWatchlistCount).toBe(1);
     expect(queue[0].watchedByCount).toBe(1); // alex logged Stalker earlier
 
-    // Nomination round.
+    // Nomination round. Carries a theme end to end — purely additive, so a
+    // round started without one (every other call in this file) still works.
     const round = await startRound({
       clubId: club.id,
       userId: alex.id,
@@ -424,8 +425,18 @@ suite('nitrate integration', () => {
       nominationLimitPerMember: 1,
       nominationsCloseAt: null,
       votingCloseAt: null,
+      theme: {
+        themeId: 'spooky-season',
+        themeName: '🎃 Spooky Season',
+        themeDescription: 'Horror, thrillers, and creepy classics.',
+        themeType: 'seasonal',
+        themeCriteria: { genreIds: [27, 53, 9648] },
+      },
     });
     expect(round.status).toBe('nominations_open');
+    expect(round.themeId).toBe('spooky-season');
+    expect(round.themeName).toBe('🎃 Spooky Season');
+    expect(round.themeCriteria).toEqual({ genreIds: [27, 53, 9648] });
 
     await nominate({ roundId: round.id, userId: alex.id, movieId: heat.id, pitch: 'Obviously' });
     await nominate({ roundId: round.id, userId: maya.id, movieId: stalker.id, pitch: 'Slow burn' });

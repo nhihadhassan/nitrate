@@ -5,6 +5,7 @@ import { ClubInvitePanel } from '@/components/club/invite-panel';
 import { ClubStageCardView } from '@/components/club/mobile/club-stage-card';
 import { ClubShelves, NextMovieNightCard } from '@/components/club/mobile/club-home-sections';
 import { MovieNightCard } from '@/components/club/mobile/movie-night-card';
+import { RateNightCard } from '@/components/club/mobile/rate-night-card';
 import { ClubCurrentHero } from '@/components/club/club-current-hero';
 import { ClubPulseWatcher } from '@/components/club/club-pulse';
 import { ClubShortlist } from '@/components/club/club-shortlist';
@@ -40,6 +41,7 @@ import {
   getRoundParticipants,
   getScreeningAttendance,
   getScreeningPoll,
+  getThemeMatchedMovies,
   getUpcomingScreening,
   getWheelRevealState,
 } from '@/server/services/clubs';
@@ -84,6 +86,22 @@ export default async function ClubDashboard({
     ? await getWheelRevealState(round.id, user.id)
     : null;
   const poll = round && isMember && user ? await getScreeningPoll(round.id, user.id) : null;
+  const themeMovies = round?.themeId && isMember
+    ? await getThemeMatchedMovies(
+        {
+          id: round.themeId,
+          name: round.themeName ?? round.themeId,
+          emoji: '',
+          description: round.themeDescription ?? '',
+          type: round.themeType ?? 'custom',
+          criteria: round.themeCriteria ?? {},
+        },
+        club.id,
+        12,
+      )
+    : [];
+  const fitsTheme = themeMovies.slice(0, 6);
+  const needInspiration = themeMovies.slice(6, 12);
   const pickCounts = new Map<string, number>();
   Object.entries(nominations?.memberPickCounts ?? {}).forEach(([memberId, count]) => pickCounts.set(memberId, count));
   const allMembersPicked = Boolean(
@@ -240,7 +258,20 @@ export default async function ClubDashboard({
         {/* The booked night is the one stage that is an event rather than a
             task, so it gets its own card: the film's artwork, and an RSVP that
             can be answered here instead of one screen away. */}
-        {stageCard.kind === 'screening' && upcoming && viewerCanSeeWheelWinner ? (
+        {/* The 'new' stage (no round in progress) is a plain teaser that just
+            jump-scrolls to the real "Choose next movie" action rendered by
+            `RoundControls` a few lines down. Showing both stacks two
+            near-identical cards where the first one visibly does nothing, so
+            it is skipped here and `RoundControls`'s own idle card carries the
+            whole stage instead. */}
+        {stageCard.kind === 'new' ? null : stageCard.kind === 'rate' && dueRating ? (
+          <RateNightCard
+            href={`/club/${club.slug}/screening/${dueRating.screening.id}`}
+            title={dueRating.movie.title}
+            posterPath={dueRating.movie.posterPath}
+            backdropPath={dueRating.movie.backdropPath}
+          />
+        ) : stageCard.kind === 'screening' && upcoming && viewerCanSeeWheelWinner ? (
           <MovieNightCard
             href={`/club/${club.slug}/screening/${upcoming.screening.id}`}
             title={upcoming.movie.title}
@@ -281,6 +312,7 @@ export default async function ClubDashboard({
               ? { label: 'See the picks', href: `/club/${club.slug}/reveal/${round.id}` }
               : null
           }
+          theme={round ? { themeName: round.themeName, themeId: round.themeId, themeCriteria: round.themeCriteria } : null}
         />
         )}
 
@@ -362,6 +394,20 @@ export default async function ClubDashboard({
           />
         ) : null}
 
+        {fitsTheme.length ? (
+          <section>
+            <SectionHeading title="Fits the theme" subtitle={`${round?.themeName ?? 'This round'}'s picks`} />
+            <PosterRail label="Fits the theme" films={fitsTheme} showFeedback={false} showReason={false} />
+          </section>
+        ) : null}
+
+        {needInspiration.length ? (
+          <section>
+            <SectionHeading title="Need inspiration?" subtitle="Popular picks from the community" />
+            <PosterRail label="Need inspiration" films={needInspiration} showFeedback={false} showReason={false} />
+          </section>
+        ) : null}
+
         {isMember ? (
           <ClubShelves
             clubSlug={club.slug}
@@ -381,6 +427,7 @@ export default async function ClubDashboard({
           dateLabel={viewerCanSeeWheelWinner && upcoming ? formatClubDateTime(upcoming.screening.scheduledAt) : null}
           location={viewerCanSeeWheelWinner ? upcoming?.screening.location : null}
           going={going}
+          theme={round ? { themeName: round.themeName, themeId: round.themeId, themeCriteria: round.themeCriteria } : null}
         />
 
         {/* Current decision */}
@@ -411,6 +458,7 @@ export default async function ClubDashboard({
                 clubSlug={club.slug}
                 roundId={round.id}
                 mode={round.mode}
+                theme={{ themeName: round.themeName, themeId: round.themeId, themeCriteria: round.themeCriteria, themeDescription: round.themeDescription }}
                 justJoined={welcome === 'joined'}
                 viewerId={user?.id ?? null}
                 canSubmitForOthers={clubPermissions.has('submit_picks_for_others')}
@@ -475,6 +523,7 @@ export default async function ClubDashboard({
                   allMembersPicked={canAdvanceFromPicks}
                   spun={Boolean(round.winnerNominationId)}
                   selectionMovieLabel={selectionMovieLabel ?? selectionLabel ?? 'This selection’s movie'}
+                  theme={{ themeName: round.themeName, themeId: round.themeId, themeType: round.themeType, themeCriteria: round.themeCriteria }}
                   contenders={(!round.winnerNominationId || viewerCanSeeWheelWinner) ? nominations.nominations.map((n) => ({
                     nominationId: n.id,
                     pitch: n.pitch,
@@ -635,6 +684,20 @@ export default async function ClubDashboard({
       </div>
 
       <aside className="space-y-8">
+        {fitsTheme.length ? (
+          <section>
+            <SectionHeading title="Fits the theme" subtitle={`${round?.themeName ?? 'This round'}'s picks`} />
+            <PosterRail label="Fits the theme" films={fitsTheme.slice(0, 4)} size="sm" showFeedback={false} showReason={false} />
+          </section>
+        ) : null}
+
+        {needInspiration.length ? (
+          <section>
+            <SectionHeading title="Need inspiration?" subtitle="Popular picks from the community" />
+            <PosterRail label="Need inspiration" films={needInspiration.slice(0, 4)} size="sm" showFeedback={false} showReason={false} />
+          </section>
+        ) : null}
+
         {/* A brand-new club used to get a full-width "Your club is live" banner
             above the fold, repeating the invite panel that already lives here.
             The welcome now just adds a line of guidance to the real panel. */}

@@ -15,6 +15,8 @@
  *    transaction as the mutation that changes them.
  */
 import { relations, sql } from 'drizzle-orm';
+
+import type { ThemeCriteria, ThemeType } from '@/lib/movie-themes';
 import {
   boolean,
   customType,
@@ -1056,6 +1058,18 @@ export const selectionRounds = nitrate.table(
       .references(() => clubs.id, { onDelete: 'cascade' }),
     roundNumber: integer('round_number').notNull(),
     title: text('title'),
+    /**
+     * A round's optional theme — "Spooky Season", "Leonardo DiCaprio Night",
+     * or something a club typed in themselves. Purely additive: existing
+     * rounds read as no theme, which is the same "no theme" every round had
+     * before this feature. See `src/lib/movie-themes.ts` for the catalog and
+     * matching logic.
+     */
+    themeId: text('theme_id'),
+    themeName: text('theme_name'),
+    themeDescription: text('theme_description'),
+    themeType: text('theme_type').$type<ThemeType>(),
+    themeCriteria: jsonb('theme_criteria').$type<ThemeCriteria | null>(),
     status: roundStatus('status').notNull().default('draft'),
     mode: selectionMode('mode').notNull().default('vote'),
     nominationLimitPerMember: smallint('nomination_limit_per_member').notNull().default(1),
