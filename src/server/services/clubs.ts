@@ -16,6 +16,17 @@ import {
 import type { ClubCadence } from '@/lib/types';
 import type { RecommendationReason } from '@/lib/recommendations';
 import { CLUB_TIME_ZONE, formatClubDateTime, formatRuntime, slugify } from '@/lib/utils';
+import {
+  suggestThemesForClub,
+  themeMatchScore,
+  type MovieTheme,
+  type RankedTheme,
+  type ThemeCriteria,
+  type ThemeType,
+} from '@/lib/movie-themes';
+import { ensureMoviesFromSummaries } from '@/server/movies/catalog';
+import { primaryProvider } from '@/server/movies/provider';
+import type { ProviderMovieSummary } from '@/server/movies/provider/types';
 import { db, type DbOrTx } from '@/server/db';
 import {
   activityEvents,
@@ -761,6 +772,13 @@ export async function startRound(input: {
   nominationLimitPerMember: number;
   nominationsCloseAt: Date | null;
   votingCloseAt: Date | null;
+  theme?: {
+    themeId: string | null;
+    themeName: string | null;
+    themeDescription: string | null;
+    themeType: ThemeType | null;
+    themeCriteria: ThemeCriteria | null;
+  } | null;
 }): Promise<SelectionRound> {
   await requireMembership(input.clubId, input.userId, 'admin');
 
@@ -790,6 +808,11 @@ export async function startRound(input: {
         clubId: input.clubId,
         roundNumber: last + 1,
         title: input.title,
+        themeId: input.theme?.themeId ?? null,
+        themeName: input.theme?.themeName ?? null,
+        themeDescription: input.theme?.themeDescription ?? null,
+        themeType: input.theme?.themeType ?? null,
+        themeCriteria: input.theme?.themeCriteria ?? null,
         status: 'nominations_open',
         mode: input.mode ?? 'vote',
         nominationLimitPerMember: input.nominationLimitPerMember,
@@ -2252,9 +2275,18 @@ export async function getClubMembers(clubId: string) {
 
 export async function getUpcomingScreening(clubId: string) {
   const [row] = await db
-    .select({ screening: screenings, movie: movies })
+    .select({
+      screening: screenings,
+      movie: movies,
+      themeId: selectionRounds.themeId,
+      themeName: selectionRounds.themeName,
+      themeDescription: selectionRounds.themeDescription,
+      themeType: selectionRounds.themeType,
+      themeCriteria: selectionRounds.themeCriteria,
+    })
     .from(screenings)
     .innerJoin(movies, eq(movies.id, screenings.movieId))
+    .leftJoin(selectionRounds, eq(selectionRounds.id, screenings.roundId))
     .where(and(eq(screenings.clubId, clubId), eq(screenings.status, 'scheduled')))
     .orderBy(asc(screenings.scheduledAt))
     .limit(1);
@@ -2339,6 +2371,7 @@ export async function getRecentlyCompleted(
 export type ScreeningProvenance = {
   roundNumber: number;
   mode: 'vote' | 'wheel';
+  themeName: string | null;
   nominatedBy: { username: string; displayName: string } | null;
   pitch: string | null;
   voteCount: number;
@@ -2390,6 +2423,7 @@ export async function getScreeningProvenance(
   return {
     roundNumber: round.roundNumber,
     mode: round.mode,
+    themeName: round.themeName,
     nominatedBy: winner ? { username: winner.username, displayName: winner.displayName } : null,
     pitch: winner?.pitch ?? null,
     voteCount: winner?.voteCount ?? 0,
@@ -3072,6 +3106,105 @@ export async function getClubStats(
           }
         : null,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Round themes                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Ranked theme suggestions for a club's next round — deterministic, no AI.
+ * Feeds `suggestThemesForClub` with things the app already knows: the
+ * calendar, the club's own watch history, and which themes it ran recently.
+ */
+export async function getThemeSuggestions(clubId: string): Promise<RankedTheme[]> {
+  const [stats, recentRounds] = await Promise.all([
+    getClubStats(clubId),
+    db
+      .select({ themeId: selectionRounds.themeId })
+      .from(selectionRounds)
+      .where(and(eq(selectionRounds.clubId, clubId), eq(selectionRounds.status, 'completed')))
+      .orderBy(desc(selectionRounds.completedAt))
+      .limit(2),
+  ]);
+
+  const month = Number(
+    new Intl.DateTimeFormat('en-US', { timeZone: CLUB_TIME_ZONE, month: 'numeric' }).format(new Date()),
+  );
+
+  return suggestThemesForClub({
+    month,
+    topGenreNames: stats.topGenres.map((genre) => genre.name),
+    recentThemeIds: recentRounds.map((round) => round.themeId).filter((id): id is string => Boolean(id)),
+  });
+}
+
+/**
+ * Real TMDB movies that fit a theme, for the "Fits the theme" / "Need
+ * inspiration?" rails and for prioritizing nomination suggestions. Guidance
+ * only — this never filters what a member is allowed to submit.
+ *
+ * Results are upserted into the local `movies` table via the same
+ * `ensureMoviesFromSummaries` helper every other TMDB-backed surface uses, so
+ * they get a slug and render through the existing `Poster`/`PosterRail`
+ * components unmodified.
+ */
+/** The raw TMDB summaries behind a theme, shared by the full "fits the theme" rail and the lightweight thumbnail lookup below, so there is one place that knows how to turn a theme's criteria into a provider call. */
+async function fetchThemeSummaries(theme: MovieTheme): Promise<ProviderMovieSummary[]> {
+  const provider = primaryProvider();
+  if (theme.criteria.personId) {
+    const person = await provider.getPerson(String(theme.criteria.personId));
+    return person?.knownFor ?? [];
+  }
+  const page = await provider.discover({
+    genreId: theme.criteria.genreIds?.join('|'),
+    yearFrom: theme.criteria.yearRange?.from,
+    yearTo: theme.criteria.yearRange?.to,
+    sortBy: 'popularity',
+  });
+  return page.results;
+}
+
+/**
+ * A representative image for a theme card. Provider-only, no DB read or
+ * write. Used for the theme picker's thumbnails, where a dozen cards render
+ * at once and none of them need a local `movies` row (no linking, no slug).
+ */
+export async function getThemeThumbnail(theme: MovieTheme): Promise<string | null> {
+  const summaries = await fetchThemeSummaries(theme);
+  const best = [...summaries].sort((a, b) => b.popularity - a.popularity)[0];
+  return best ? (best.backdropPath ?? best.posterPath ?? null) : null;
+}
+
+export async function getThemeMatchedMovies(
+  theme: MovieTheme,
+  clubId: string,
+  limit = 8,
+): Promise<Movie[]> {
+  const summaries = await fetchThemeSummaries(theme);
+  if (!summaries.length) return [];
+
+  const screened = await db
+    .select({ movieId: screenings.movieId })
+    .from(screenings)
+    .where(and(eq(screenings.clubId, clubId), ne(screenings.status, 'cancelled')));
+  const screenedIds = new Set(screened.map((row) => row.movieId));
+
+  const ranked = summaries
+    .map((summary) => ({
+      summary,
+      score:
+        themeMatchScore(theme, {
+          genreIds: summary.genreIds?.map(Number),
+          year: summary.year,
+        }) + summary.popularity / 100,
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit * 2)
+    .map((entry) => entry.summary);
+
+  const movieRows = await ensureMoviesFromSummaries(ranked);
+  return movieRows.filter((movie) => !screenedIds.has(movie.id)).slice(0, limit);
 }
 
 /* -------------------------------------------------------------------------- */

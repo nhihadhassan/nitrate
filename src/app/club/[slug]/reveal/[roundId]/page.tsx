@@ -84,6 +84,12 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         canPlanMovieNight={permissions.has('edit_movie_night')}
         members={members}
         memberLine={`${members.length} ${members.length === 1 ? 'member' : 'members'} · ${cadenceLabel(club.selectionCadence, club.customCadenceDays)}`}
+        theme={{
+          themeName: round.themeName,
+          themeId: round.themeId,
+          themeType: round.themeType,
+          themeCriteria: round.themeCriteria,
+        }}
       />
     </div>
   );

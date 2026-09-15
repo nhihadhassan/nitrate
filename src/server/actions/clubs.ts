@@ -271,6 +271,17 @@ export async function removeQueueItemAction(
 /* Rounds                                                                     */
 /* -------------------------------------------------------------------------- */
 
+const themeSchema = z
+  .object({
+    themeId: z.string().max(80).nullable(),
+    themeName: z.string().trim().max(80).nullable(),
+    themeDescription: z.string().trim().max(280).nullable(),
+    themeType: z.enum(['genre', 'actor', 'director', 'decade', 'seasonal', 'custom']).nullable(),
+    themeCriteria: z.record(z.string(), z.unknown()).nullable(),
+  })
+  .nullable()
+  .optional();
+
 const startRoundSchema = z.object({
   clubId: z.string().uuid(),
   title: z.string().trim().max(80).nullable(),
@@ -278,6 +289,7 @@ const startRoundSchema = z.object({
   nominationLimitPerMember: z.number().int().min(1).max(5),
   nominationsCloseAt: z.string().datetime().nullable(),
   votingCloseAt: z.string().datetime().nullable(),
+  theme: themeSchema,
 });
 
 export async function startRoundAction(
@@ -294,6 +306,7 @@ export async function startRoundAction(
       nominationLimitPerMember: parsed.nominationLimitPerMember,
       nominationsCloseAt: parsed.nominationsCloseAt ? new Date(parsed.nominationsCloseAt) : null,
       votingCloseAt: parsed.votingCloseAt ? new Date(parsed.votingCloseAt) : null,
+      theme: parsed.theme as Parameters<typeof startRound>[0]['theme'],
     });
 
     const club = await getClubById(parsed.clubId);

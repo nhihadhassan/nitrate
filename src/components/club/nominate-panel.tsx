@@ -12,6 +12,7 @@ import { Field, FormError, inputClass } from '@/components/ui/primitives';
 import { Sheet } from '@/components/ui/sheet';
 import { useToast } from '@/components/ui/toast';
 import { Avatar, UserChip } from '@/components/user/avatar';
+import { ThemeBadge, type ThemeInfo } from '@/components/club/theme-badge';
 import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import {
   nominateAction,
@@ -59,6 +60,7 @@ export function NominatePanel({
   canSubmitForOthers = false,
   viewerId,
   participating = true,
+  theme = null,
 }: {
   clubId: string;
   clubSlug: string;
@@ -76,6 +78,8 @@ export function NominatePanel({
   canSubmitForOthers?: boolean;
   viewerId: string | null;
   participating?: boolean;
+  /** The active round's theme, shown as a banner above the pick UI. */
+  theme?: (ThemeInfo & { themeDescription?: string | null }) | null;
 }) {
   const [open, setOpen] = useState(false);
   const [replacingId, setReplacingId] = useState<string | null>(null);
@@ -101,6 +105,14 @@ export function NominatePanel({
       <section className="rounded-lg border border-iris/40 bg-iris/[0.06] p-4 sm:p-5" aria-labelledby="current-pick-title">
         <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(14rem,0.72fr)]">
           <div className="min-w-0">
+            {theme?.themeName ? (
+              <div className="mb-3 flex flex-col items-start gap-1">
+                <ThemeBadge theme={theme} />
+                {theme.themeDescription ? (
+                  <p className="text-sm text-muted">{theme.themeDescription}</p>
+                ) : null}
+              </div>
+            ) : null}
             <p className="eyebrow text-iris">
               {justJoined && !mine.length ? "You're in. Your turn" : mine.length ? 'Your pick' : 'Your turn'}
             </p>
