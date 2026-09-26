@@ -1118,6 +1118,10 @@ select:focus {
     display: none;
   }
 
+  .club-pick-action {
+    bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
   main#main {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
