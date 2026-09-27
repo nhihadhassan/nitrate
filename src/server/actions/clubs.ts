@@ -29,7 +29,9 @@ import {
   createInvite,
   deleteClub,
   deleteDiscussionPost,
+  type DiscussionPost,
   getClubById,
+  getDiscussion,
   getScreeningById,
   joinClubByCode,
   nominate,
@@ -38,6 +40,7 @@ import {
   replaceNomination,
   removeFromQueue,
   removeMember,
+  replaceWheelPool,
   respondToScreeningPoll,
   requireMembership,
   scheduleScreening,
@@ -45,9 +48,12 @@ import {
   setMemberRole,
   setRsvp,
   setWeeklyPick,
+  setWheelWinnerManually,
   spinWheel,
   startRound,
   submitClubRating,
+  toggleDiscussionReaction,
+  updateDiscussionPost,
   transferOwnership,
   updateClub,
   updateScreening,
@@ -589,6 +595,51 @@ export async function beginWheelRevealAction(roundId: string, clubId: string): P
   });
 }
 
+const wheelPoolSchema = z.object({
+  roundId: z.string().uuid(),
+  clubId: z.string().uuid(),
+  movies: z.array(z.object({ movieId: z.string().uuid().optional(), providerId: z.string().trim().min(1).optional() })
+    .refine((movie) => Boolean(movie.movieId || movie.providerId), 'Choose a movie.'))
+    .min(2, 'Choose at least two movies for the wheel.')
+    .max(20, 'The wheel can hold up to 20 movies.'),
+});
+
+export async function replaceWheelPoolAction(input: z.infer<typeof wheelPoolSchema>): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = wheelPoolSchema.parse(input);
+    const movies = await Promise.all(parsed.movies.map((movie) => resolveFilm(movie)));
+    const movieIds = movies.map((movie) => movie.id);
+    if (new Set(movieIds).size !== movieIds.length) throw new ValidationError('Choose each movie only once.');
+    await replaceWheelPool(parsed.roundId, parsed.clubId, user.id, movieIds);
+    const club = await getClubById(parsed.clubId);
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/reveal/${parsed.roundId}`);
+    return null;
+  });
+}
+
+const manualWheelWinnerSchema = z.object({ roundId: z.string().uuid(), clubId: z.string().uuid(), nominationId: z.string().uuid() });
+
+export async function setWheelWinnerManuallyAction(input: z.infer<typeof manualWheelWinnerSchema>): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = manualWheelWinnerSchema.parse(input);
+    const corrected = await setWheelWinnerManually(parsed.roundId, parsed.clubId, user.id, parsed.nominationId);
+    const club = await getClubById(parsed.clubId);
+    await notifyClub(club.id, {
+      actorId: user.id,
+      type: 'club_winner_selected',
+      url: `/club/${club.slug}/reveal/${parsed.roundId}`,
+      body: corrected ? `The movie result was corrected for ${club.name}` : `A movie was chosen for ${club.name}`,
+      dedupeKey: corrected ? `winner-corrected:${parsed.roundId}:${parsed.nominationId}` : `winner:${parsed.roundId}`,
+    });
+    revalidatePath(`/club/${club.slug}`);
+    revalidatePath(`/club/${club.slug}/reveal/${parsed.roundId}`);
+    return null;
+  });
+}
+
 export async function completeWheelRevealAction(input: { roundId: string; clubId: string; method: 'animated' | 'skipped' }): Promise<ActionResult<null>> {
   return actionGuard(async () => {
     const user = await requireUser();
@@ -907,10 +958,13 @@ export async function postDiscussionAction(input: {
   parentId?: string | null;
   body: string;
   containsSpoilers?: boolean;
+  isReview?: boolean;
+    gifUrl?: string | null;
 }): Promise<ActionResult<{ id: string }>> {
   return actionGuard(async () => {
     const user = await requireUser();
     await consumeRateLimit('club_post', user.id);
+    const gifUrl = z.string().max(2048).nullable().optional().parse(input.gifUrl);
     if (/(?:^|\s)@[a-zA-Z0-9_]{3,24}\b/.test(input.body)) {
       await consumeRateLimit('mention', user.id);
     }
@@ -923,6 +977,8 @@ export async function postDiscussionAction(input: {
       userId: user.id,
       body: input.body,
       containsSpoilers: input.containsSpoilers ?? false,
+      isReview: input.isReview ?? false,
+      gifUrl: gifUrl ?? null,
     });
 
     await track('club_discussion_posted', user.id, {
@@ -944,6 +1000,110 @@ export async function postDiscussionAction(input: {
 
     revalidatePath(`/club/${input.clubSlug}/screening/${input.screeningId}`);
     return post;
+  });
+}
+
+export async function toggleDiscussionReactionAction(input: { postId: string; emoji: string; screeningId: string; clubSlug: string }): Promise<ActionResult<{
+  reactions: { emoji: string; count: number; mine: boolean }[];
+}>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z.object({ postId: z.string().uuid(), emoji: z.string().max(8), screeningId: z.string().uuid(), clubSlug: z.string().min(1).max(100) }).parse(input);
+    const reactions = await toggleDiscussionReaction(parsed.postId, user.id, parsed.emoji);
+    revalidatePath(`/club/${parsed.clubSlug}/screening/${parsed.screeningId}`);
+    return { reactions };
+  });
+}
+
+export async function updateDiscussionPostAction(input: { postId: string; body: string; containsSpoilers: boolean; screeningId: string; clubSlug: string }): Promise<ActionResult<null>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z.object({
+      postId: z.string().uuid(),
+      body: z.string().max(5000),
+      containsSpoilers: z.boolean(),
+      screeningId: z.string().uuid(),
+      clubSlug: z.string().min(1).max(100),
+    }).parse(input);
+    await updateDiscussionPost({ postId: parsed.postId, userId: user.id, body: parsed.body, containsSpoilers: parsed.containsSpoilers });
+    revalidatePath(`/club/${parsed.clubSlug}/screening/${parsed.screeningId}`);
+    return null;
+  });
+}
+
+export async function searchDiscussionGifsAction(input: { screeningId: string; query?: string }): Promise<ActionResult<{
+  configured: boolean;
+  gifs: { id: string; description: string; previewUrl: string; gifUrl: string }[];
+}>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsed = z.object({ screeningId: z.string().uuid(), query: z.string().trim().max(80).optional() }).parse(input);
+    await consumeRateLimit('search', user.id);
+    const screening = await getScreeningById(parsed.screeningId);
+    await requireMembership(screening.clubId, user.id, 'member');
+    if (screening.status !== 'completed') throw new ValidationError('GIFs open after this movie night is marked watched.');
+    if (!env.tenorApiKey) return { configured: false, gifs: [] };
+
+    const endpoint = parsed.query ? 'search' : 'featured';
+    const params = new URLSearchParams({
+      key: env.tenorApiKey,
+      client_key: 'nitrate_movie_club',
+      limit: '12',
+      contentfilter: 'high',
+      media_filter: 'tinygif,gif',
+      country: 'CA',
+      locale: 'en_CA',
+    });
+    if (parsed.query) params.set('q', parsed.query);
+    const response = await fetch(`https://tenor.googleapis.com/v2/${endpoint}?${params}`, {
+      signal: AbortSignal.timeout(6000),
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new ValidationError('GIF search is having trouble right now. Try again in a moment.');
+    const payload = await response.json() as {
+      results?: Array<{
+        id?: string;
+        content_description?: string;
+        media_formats?: { tinygif?: { url?: string }; gif?: { url?: string } };
+      }>;
+    };
+    const gifs = (payload.results ?? []).flatMap((item) => {
+      const gifUrl = item.media_formats?.gif?.url;
+      const previewUrl = item.media_formats?.tinygif?.url ?? gifUrl;
+      if (!item.id || !gifUrl || !previewUrl) return [];
+      try {
+        if (!['media.tenor.com', 'c.tenor.com'].includes(new URL(gifUrl).hostname) || !['media.tenor.com', 'c.tenor.com'].includes(new URL(previewUrl).hostname)) return [];
+      } catch { return []; }
+      return [{ id: item.id, description: item.content_description?.slice(0, 120) || 'Animated GIF', previewUrl, gifUrl }];
+    });
+    return { configured: true, gifs };
+  });
+}
+
+export async function revealScreeningDiscussionAction(screeningId: string): Promise<ActionResult<{
+  posts: Array<Omit<DiscussionPost, 'createdAt' | 'editedAt' | 'deletedAt'> & {
+    createdAt: string;
+    editedAt: string | null;
+    deletedAt: string | null;
+  }>;
+}>> {
+  return actionGuard(async () => {
+    const user = await requireUser();
+    const parsedId = z.string().uuid().parse(screeningId);
+    const screening = await getScreeningById(parsedId);
+    await requireMembership(screening.clubId, user.id, 'member');
+    if (screening.status !== 'completed') {
+      throw new ValidationError('Discussion opens after this movie night is marked watched.');
+    }
+    const posts = await getDiscussion(parsedId, user.id);
+    return {
+      posts: posts.map((post) => ({
+        ...post,
+        createdAt: post.createdAt.toISOString(),
+        editedAt: post.editedAt?.toISOString() ?? null,
+        deletedAt: post.deletedAt?.toISOString() ?? null,
+      })),
+    };
   });
 }
 

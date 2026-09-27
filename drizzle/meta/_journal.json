@@ -113,6 +113,20 @@
       "when": 1789400000000,
       "tag": "0015_round_theme",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790469007768,
+      "tag": "0016_club_wheel_overrides",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790473266128,
+      "tag": "0017_club_discussion_experience",
+      "breakpoints": true
     }
   ]
 }

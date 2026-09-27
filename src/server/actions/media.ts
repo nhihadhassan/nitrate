@@ -11,7 +11,7 @@ import { actionGuard, ValidationError, type ActionResult } from '@/server/errors
 import { consumeRateLimit } from '@/server/rate-limit';
 
 const MAX_BYTES = 2 * 1024 * 1024;
-const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
 const schema = z.object({
   kind: z.enum(['avatar', 'club_image', 'list_cover']),
@@ -71,6 +71,9 @@ export async function uploadImageAction(
  */
 function readDimensions(data: Buffer, mime: string): { width: number; height: number } {
   try {
+    if (mime === 'image/gif' && data.length > 10) {
+      return { width: data.readUInt16LE(6), height: data.readUInt16LE(8) };
+    }
     if (mime === 'image/png' && data.length > 24) {
       return { width: data.readUInt32BE(16), height: data.readUInt32BE(20) };
     }

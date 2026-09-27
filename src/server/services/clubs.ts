@@ -32,6 +32,7 @@ import {
   activityEvents,
   attendances,
   clubDiscussionPosts,
+  clubDiscussionReactions,
   discussionMentions,
   clubInvites,
   clubMemberPermissions,
@@ -40,6 +41,7 @@ import {
   clubRatings,
   clubs,
   diaryEntries,
+  diaryEntryTags,
   genres,
   movieGenres,
   movies,
@@ -52,6 +54,7 @@ import {
   selectionRoundParticipants,
   selectionRoundReveals,
   selectionRoundReactions,
+  tags,
   userMovieState,
   users,
   votes,
@@ -1317,6 +1320,8 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
         winnerNominationId: chosen.nomination.id,
         spunAt: new Date(),
         spinSeed: seed,
+        wheelResultMode: 'random',
+        wheelResultOverriddenByUserId: null,
         updatedAt: new Date(),
       })
       // Guard against a concurrent spin that beat us to the commit.
@@ -1373,6 +1378,166 @@ export async function spinWheel(roundId: string, userId: string): Promise<SpinRe
       order,
     };
   });
+}
+
+/** A wheel-authorized member may replace the round's pool with a shared shortlist. */
+export async function replaceWheelPool(roundId: string, clubId: string, userId: string, movieIds: string[]): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [round] = await tx.select().from(selectionRounds).where(eq(selectionRounds.id, roundId)).for('update').limit(1);
+    if (!round) throw new NotFoundError('That round no longer exists.');
+    if (round.clubId !== clubId) throw new NotFoundError('That round is not part of this club.');
+    await requireClubPermission(round.clubId, userId, 'start_wheel', tx);
+    if (round.mode !== 'wheel' || round.status !== 'nominations_open' || round.winnerNominationId) {
+      throw new ConflictError('The wheel pool can only be edited before the wheel is spun.');
+    }
+    const uniqueIds = [...new Set(movieIds)];
+    if (uniqueIds.length < 2 || uniqueIds.length > 20 || uniqueIds.length !== movieIds.length) {
+      throw new ValidationError('Choose between 2 and 20 different movies.');
+    }
+    const found = await tx.select({ id: movies.id }).from(movies).where(inArray(movies.id, uniqueIds));
+    if (found.length !== uniqueIds.length) throw new NotFoundError('One of those movies is no longer available.');
+    const alreadyScreened = await tx.select({ movieId: screenings.movieId }).from(screenings)
+      .where(and(eq(screenings.clubId, round.clubId), eq(screenings.status, 'completed'), inArray(screenings.movieId, uniqueIds)));
+    if (alreadyScreened.length) throw new ConflictError('Remove movies the club has already watched together.');
+
+    const now = new Date();
+    await tx.update(nominations).set({ withdrawnAt: now })
+      .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)));
+    await tx.insert(nominations).values(uniqueIds.map((movieId) => ({
+      roundId,
+      movieId,
+      nominatedByUserId: userId,
+      submittedByUserId: userId,
+      pitch: null,
+      createdAt: now,
+    })));
+    await tx.update(selectionRounds).set({
+      picksClosedAt: now,
+      wheelPoolOverriddenByUserId: userId,
+      updatedAt: now,
+    }).where(eq(selectionRounds.id, roundId));
+  });
+}
+
+/** Set a manual result before the wheel or correct a resolved wheel result. */
+export async function setWheelWinnerManually(roundId: string, clubId: string, userId: string, nominationId: string): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const [round] = await tx.select().from(selectionRounds).where(eq(selectionRounds.id, roundId)).for('update').limit(1);
+    if (!round) throw new NotFoundError('That round no longer exists.');
+    if (round.clubId !== clubId) throw new NotFoundError('That round is not part of this club.');
+    await requireClubPermission(round.clubId, userId, 'start_wheel', tx);
+    if (round.mode !== 'wheel') throw new ConflictError('This round does not use a wheel.');
+    const correctingResolvedResult = Boolean(round.winnerNominationId) &&
+      ['winner_selected', 'screening_scheduled', 'completed'].includes(round.status);
+    if (!correctingResolvedResult && (round.status !== 'nominations_open' || round.winnerNominationId)) {
+      throw new ConflictError('A result can only be set before the wheel is spun or corrected after it is resolved.');
+    }
+    if (!correctingResolvedResult && !(await mayAdvanceFromPicks(round, tx))) {
+      throw new ConflictError('Wait for everyone to pick, or close the picks before setting a result.');
+    }
+    const contenders = await tx.select({ id: nominations.id })
+      .from(nominations)
+      .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)));
+    if (contenders.length < 2) throw new ValidationError('Choose from at least two movie picks.');
+    if (!contenders.some((item) => item.id === nominationId)) throw new NotFoundError('That movie is no longer in the wheel pool.');
+
+    const now = new Date();
+    if (correctingResolvedResult) {
+      if (round.winnerNominationId === nominationId) throw new ValidationError('That movie is already the result.');
+      await tx.update(selectionRounds).set({
+        winnerNominationId: nominationId,
+        wheelResultMode: 'manual',
+        wheelResultOverriddenByUserId: userId,
+        updatedAt: now,
+      }).where(eq(selectionRounds.id, roundId));
+      const [chosen] = await tx.select({ movieId: nominations.movieId, movie: movies })
+        .from(nominations)
+        .innerJoin(movies, eq(movies.id, nominations.movieId))
+        .where(eq(nominations.id, nominationId)).limit(1);
+      if (!chosen) throw new NotFoundError('That movie is no longer in the wheel pool.');
+      await tx.update(screeningPolls).set({ movieId: chosen.movieId }).where(eq(screeningPolls.roundId, roundId));
+      await tx.update(screenings).set({ movieId: chosen.movieId }).where(and(
+        eq(screenings.roundId, roundId),
+        ne(screenings.status, 'cancelled'),
+      ));
+      await tx.insert(activityEvents).values({
+        actorId: userId,
+        type: 'club_movie_selected',
+        clubId: round.clubId,
+        movieId: chosen.movieId,
+        visibility: 'private',
+        metadata: { roundId, mode: 'wheel', result: 'manual_override', previousNominationId: round.winnerNominationId },
+      });
+      return true;
+    }
+    assertTransition(round.status, 'winner_selected');
+    const [updated] = await tx.update(selectionRounds).set({
+      status: 'winner_selected',
+      winnerNominationId: nominationId,
+      spunAt: now,
+      spinSeed: randomBytes(8).toString('hex'),
+      wheelResultMode: 'manual',
+      wheelResultOverriddenByUserId: userId,
+      updatedAt: now,
+    }).where(and(eq(selectionRounds.id, roundId), isNull(selectionRounds.winnerNominationId))).returning();
+    if (!updated) throw new ConflictError('Someone has already set the result.');
+
+    const [chosen] = await tx.select({ movie: movies, by: users.displayName })
+      .from(nominations)
+      .innerJoin(movies, eq(movies.id, nominations.movieId))
+      .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
+      .where(eq(nominations.id, nominationId)).limit(1);
+    if (chosen) {
+      await tx.insert(activityEvents).values({
+        actorId: userId,
+        type: 'club_movie_selected',
+        clubId: round.clubId,
+        movieId: chosen.movie.id,
+        visibility: 'private',
+        metadata: { roundId, mode: 'wheel', result: 'manual' },
+      });
+      const club = await getClubById(round.clubId, tx);
+      await queueClubEmail(
+        round.clubId,
+        'wheel_winner',
+        `🎬 The wheel is ready to reveal in ${club.name}`,
+        (member) => ({
+          clubName: club.name,
+          clubSlug: club.slug,
+          movieTitle: chosen.movie.title,
+          movieYear: chosen.movie.year,
+          movieSlug: chosen.movie.slug,
+          runtime: chosen.movie.runtime ? formatRuntime(chosen.movie.runtime) : null,
+          nominatedBy: chosen.by,
+          contenderCount: contenders.length,
+          recipientName: member.displayName,
+          selectionMovieLabel: roundMovieLabel(club.selectionCadence, round.roundStartAt),
+        }),
+        { dedupePrefix: `wheel:${roundId}`, preference: 'winnerSelected' },
+        tx,
+      );
+    }
+    return false;
+  });
+}
+
+/** Full pool for the authorized wheel manager; ordinary members keep sealed-pick behavior. */
+export async function getWheelPoolForManager(roundId: string, userId: string) {
+  const round = await loadRound(roundId);
+  await requireClubPermission(round.clubId, userId, 'start_wheel');
+  const rows = await db.select({ nomination: nominations, movie: movies, user: users })
+    .from(nominations)
+    .innerJoin(movies, eq(movies.id, nominations.movieId))
+    .innerJoin(users, eq(users.id, nominations.nominatedByUserId))
+    .where(and(eq(nominations.roundId, roundId), isNull(nominations.withdrawnAt)))
+    .orderBy(asc(nominations.createdAt), asc(nominations.id));
+  return rows.map((row) => ({
+    nominationId: row.nomination.id,
+    movieId: row.movie.id,
+    providerId: row.movie.providerId,
+    movie: { slug: row.movie.slug, title: row.movie.title, year: row.movie.year, posterPath: row.movie.posterPath, backdropPath: row.movie.backdropPath, runtime: row.movie.runtime },
+    nominatedBy: { id: row.user.id, displayName: row.user.displayName, username: row.user.username, avatarAssetId: row.user.avatarAssetId },
+  }));
 }
 
 export type WheelRevealMethod = 'animated' | 'skipped';
@@ -1973,6 +2138,9 @@ export async function submitClubRating(
   await db.transaction(async (tx) => {
     const screening = await getScreeningById(screeningId, tx);
     await requireMembership(screening.clubId, userId, 'member', tx);
+    if (screening.status !== 'completed') {
+      throw new ConflictError('Ratings open after an admin marks this movie night watched.');
+    }
 
     const [existing] = await tx
       .select()
@@ -2101,21 +2269,39 @@ export async function postDiscussion(input: {
   userId: string;
   body: string;
   containsSpoilers: boolean;
+  isReview?: boolean;
+  gifUrl?: string | null;
 }): Promise<{ id: string }> {
   const body = input.body.trim();
-  if (!body) throw new ValidationError('Write something first.');
+  const gifUrl = input.gifUrl ? validateDiscussionGifUrl(input.gifUrl) : null;
+  if (!body && !gifUrl) throw new ValidationError('Write something first or choose a GIF.');
   if (body.length > 5000) throw new ValidationError('That message is too long.');
+  if (input.isReview && input.parentId) throw new ValidationError('A review must start a new conversation.');
 
   return db.transaction(async (tx) => {
     await requireMembership(input.clubId, input.userId, 'member', tx);
 
+    if (input.screeningId) {
+      const [screening] = await tx
+        .select({ clubId: screenings.clubId, status: screenings.status })
+        .from(screenings)
+        .where(eq(screenings.id, input.screeningId))
+        .limit(1);
+      if (!screening || screening.clubId !== input.clubId) {
+        throw new NotFoundError('That movie night does not belong to this club.');
+      }
+      if (screening.status !== 'completed') {
+        throw new ConflictError('Discussion opens after an admin marks this movie night watched.');
+      }
+    }
+
     if (input.parentId) {
       const [parent] = await tx
-        .select({ clubId: clubDiscussionPosts.clubId })
+        .select({ clubId: clubDiscussionPosts.clubId, screeningId: clubDiscussionPosts.screeningId })
         .from(clubDiscussionPosts)
         .where(eq(clubDiscussionPosts.id, input.parentId))
         .limit(1);
-      if (!parent || parent.clubId !== input.clubId) {
+      if (!parent || parent.clubId !== input.clubId || parent.screeningId !== input.screeningId) {
         throw new NotFoundError('That message no longer exists.');
       }
       await tx
@@ -2132,6 +2318,8 @@ export async function postDiscussion(input: {
         parentId: input.parentId,
         userId: input.userId,
         body,
+        isReview: input.isReview ?? false,
+        gifUrl,
         containsSpoilers: input.containsSpoilers,
       })
       .returning({ id: clubDiscussionPosts.id });
@@ -2183,19 +2371,48 @@ export async function deleteDiscussionPost(postId: string, userId: string): Prom
     .where(eq(clubDiscussionPosts.id, postId));
 }
 
+export async function updateDiscussionPost(input: { postId: string; userId: string; body: string; containsSpoilers: boolean }): Promise<void> {
+  const body = input.body.trim().replace(/\[\[image:[0-9a-f-]{36}\]\]/gi, '').trim();
+  if (body.length > 5000) throw new ValidationError('That message is too long.');
+  await db.transaction(async (tx) => {
+    const [post] = await tx.select().from(clubDiscussionPosts).where(eq(clubDiscussionPosts.id, input.postId)).for('update').limit(1);
+    if (!post || post.deletedAt) throw new NotFoundError('That message is no longer available.');
+    await requireMembership(post.clubId, input.userId, 'member', tx);
+    if (post.userId !== input.userId) throw new PermissionError('Only the person who wrote this post can edit it.');
+    if (!post.screeningId) throw new ConflictError('Only movie night posts can be edited here.');
+    const [screening] = await tx.select({ status: screenings.status }).from(screenings).where(eq(screenings.id, post.screeningId)).limit(1);
+    if (!screening || screening.status !== 'completed') throw new ConflictError('This discussion is no longer open.');
+    const imageMarker = post.body.match(/\[\[image:[0-9a-f-]{36}\]\]/i)?.[0];
+    if (!body && !post.gifUrl && !imageMarker) throw new ValidationError('Write something before saving.');
+    const nextBody = [body, imageMarker].filter(Boolean).join('\n');
+    if (nextBody.length > 5000) throw new ValidationError('That message is too long.');
+    if (!nextBody && !post.gifUrl) throw new ValidationError('Write something before saving.');
+    await tx.update(clubDiscussionPosts).set({
+      body: nextBody,
+      containsSpoilers: input.containsSpoilers,
+      editedAt: new Date(),
+    }).where(eq(clubDiscussionPosts.id, input.postId));
+  });
+}
+
 export type DiscussionPost = {
   id: string;
   body: string;
+  isReview: boolean;
+  gifUrl: string | null;
   containsSpoilers: boolean;
   createdAt: Date;
   editedAt: Date | null;
   deletedAt: Date | null;
   parentId: string | null;
   replyCount: number;
+  reactions: { emoji: string; count: number; mine: boolean }[];
   author: { id: string; username: string; displayName: string; avatarAssetId: string | null };
 };
 
-export async function getDiscussion(screeningId: string, limit = 100): Promise<DiscussionPost[]> {
+const DISCUSSION_REACTIONS = ['❤️', '😂', '😮', '👏', '🎬'] as const;
+
+export async function getDiscussion(screeningId: string, viewerId: string): Promise<DiscussionPost[]> {
   const rows = await db
     .select({
       post: clubDiscussionPosts,
@@ -2207,18 +2424,42 @@ export async function getDiscussion(screeningId: string, limit = 100): Promise<D
     .from(clubDiscussionPosts)
     .innerJoin(users, eq(users.id, clubDiscussionPosts.userId))
     .where(eq(clubDiscussionPosts.screeningId, screeningId))
-    .orderBy(asc(clubDiscussionPosts.createdAt))
-    .limit(limit);
+    .orderBy(asc(clubDiscussionPosts.createdAt), asc(clubDiscussionPosts.id));
+
+  const reactionRows = rows.length
+    ? await db.select({ postId: clubDiscussionReactions.postId, userId: clubDiscussionReactions.userId, emoji: clubDiscussionReactions.emoji })
+      .from(clubDiscussionReactions)
+      .where(inArray(clubDiscussionReactions.postId, rows.map((row) => row.post.id)))
+    : [];
+  const reactionsByPost = new Map<string, DiscussionPost['reactions']>();
+  for (const row of reactionRows) {
+    const reactions = reactionsByPost.get(row.postId) ?? [];
+    const existing = reactions.find((reaction) => reaction.emoji === row.emoji);
+    if (existing) {
+      existing.count += 1;
+      existing.mine ||= row.userId === viewerId;
+    } else {
+      reactions.push({ emoji: row.emoji, count: 1, mine: row.userId === viewerId });
+    }
+    reactionsByPost.set(row.postId, reactions);
+  }
 
   return rows.map((row) => ({
     id: row.post.id,
     body: row.post.body,
+    isReview: row.post.isReview,
+    gifUrl: row.post.gifUrl,
     containsSpoilers: row.post.containsSpoilers,
     createdAt: row.post.createdAt,
     editedAt: row.post.editedAt,
     deletedAt: row.post.deletedAt,
     parentId: row.post.parentId,
     replyCount: row.post.replyCount,
+    reactions: DISCUSSION_REACTIONS.map((emoji) => ({
+      emoji,
+      count: reactionsByPost.get(row.post.id)?.find((reaction) => reaction.emoji === emoji)?.count ?? 0,
+      mine: reactionsByPost.get(row.post.id)?.find((reaction) => reaction.emoji === emoji)?.mine ?? false,
+    })),
     author: {
       id: row.userId,
       username: row.username,
@@ -2226,6 +2467,42 @@ export async function getDiscussion(screeningId: string, limit = 100): Promise<D
       avatarAssetId: row.avatarAssetId,
     },
   }));
+}
+
+function validateDiscussionGifUrl(value: string): string {
+  let parsed: URL;
+  try { parsed = new URL(value); } catch { throw new ValidationError('Choose a valid GIF.'); }
+  if (parsed.protocol !== 'https:' || !['media.tenor.com', 'c.tenor.com'].includes(parsed.hostname)) {
+    throw new ValidationError('Choose a GIF from the Movie Club GIF picker.');
+  }
+  return parsed.toString();
+}
+
+export async function toggleDiscussionReaction(postId: string, userId: string, emoji: string): Promise<DiscussionPost['reactions']> {
+  if (!DISCUSSION_REACTIONS.includes(emoji as (typeof DISCUSSION_REACTIONS)[number])) {
+    throw new ValidationError('Choose one of the available reactions.');
+  }
+  return db.transaction(async (tx) => {
+    const [post] = await tx.select().from(clubDiscussionPosts).where(eq(clubDiscussionPosts.id, postId)).limit(1);
+    if (!post || post.deletedAt || !post.screeningId) throw new NotFoundError('That post is no longer available.');
+    await requireMembership(post.clubId, userId, 'member', tx);
+    const [screening] = await tx.select({ status: screenings.status }).from(screenings).where(eq(screenings.id, post.screeningId)).limit(1);
+    if (!screening || screening.status !== 'completed') throw new ConflictError('Reactions open after this movie night is marked watched.');
+    const [existing] = await tx.select({ emoji: clubDiscussionReactions.emoji }).from(clubDiscussionReactions)
+      .where(and(eq(clubDiscussionReactions.postId, postId), eq(clubDiscussionReactions.userId, userId), eq(clubDiscussionReactions.emoji, emoji))).limit(1);
+    if (existing) {
+      await tx.delete(clubDiscussionReactions).where(and(eq(clubDiscussionReactions.postId, postId), eq(clubDiscussionReactions.userId, userId), eq(clubDiscussionReactions.emoji, emoji)));
+    } else {
+      await tx.insert(clubDiscussionReactions).values({ postId, userId, emoji }).onConflictDoNothing();
+    }
+    const rows = await tx.select({ emoji: clubDiscussionReactions.emoji, userId: clubDiscussionReactions.userId })
+      .from(clubDiscussionReactions).where(eq(clubDiscussionReactions.postId, postId));
+    return DISCUSSION_REACTIONS.map((reaction) => ({
+      emoji: reaction,
+      count: rows.filter((row) => row.emoji === reaction).length,
+      mine: rows.some((row) => row.userId === userId && row.emoji === reaction),
+    }));
+  });
 }
 
 /**
@@ -3536,9 +3813,9 @@ export async function getClubActivity(clubId: string, limit = 8, viewerId: strin
 
 export async function getViewerScreeningContext(screening: Screening, userId: string | null) {
   if (!userId) {
-    return { attendance: null, hasLogged: false, clubRating: null as number | null };
+    return { attendance: null, hasLogged: false, diaryEntry: null, clubRating: null as number | null };
   }
-  const [attendance, logged, rating] = await Promise.all([
+  const [attendance, screeningEntry, latestEntry, rating] = await Promise.all([
     db
       .select()
       .from(attendances)
@@ -3546,17 +3823,24 @@ export async function getViewerScreeningContext(screening: Screening, userId: st
       .limit(1)
       .then((rows) => rows[0] ?? null),
     db
-      .select({ id: diaryEntries.id })
+      .select()
       .from(diaryEntries)
       .where(
         and(
           eq(diaryEntries.userId, userId),
-          eq(diaryEntries.movieId, screening.movieId),
+          eq(diaryEntries.screeningId, screening.id),
           isNull(diaryEntries.deletedAt),
         ),
       )
       .limit(1)
-      .then((rows) => rows.length > 0),
+      .then((rows) => rows[0] ?? null),
+    db
+      .select()
+      .from(diaryEntries)
+      .where(and(eq(diaryEntries.userId, userId), eq(diaryEntries.movieId, screening.movieId), isNull(diaryEntries.deletedAt)))
+      .orderBy(desc(diaryEntries.watchedDate), desc(diaryEntries.createdAt))
+      .limit(1)
+      .then((rows) => rows[0] ?? null),
     db
       .select({ rating: clubRatings.rating })
       .from(clubRatings)
@@ -3565,7 +3849,31 @@ export async function getViewerScreeningContext(screening: Screening, userId: st
       .then((rows) => rows[0]?.rating ?? null),
   ]);
 
-  return { attendance, hasLogged: logged, clubRating: rating };
+  const diaryEntry = screeningEntry ?? latestEntry;
+  const entryTags = diaryEntry
+    ? await db.select({ name: tags.name })
+      .from(diaryEntryTags)
+      .innerJoin(tags, eq(tags.id, diaryEntryTags.tagId))
+      .where(eq(diaryEntryTags.diaryEntryId, diaryEntry.id))
+      .orderBy(asc(tags.name))
+    : [];
+
+  return {
+    attendance,
+    hasLogged: Boolean(diaryEntry),
+    diaryEntry: diaryEntry ? {
+      id: diaryEntry.id,
+      watchedDate: diaryEntry.watchedDate,
+      rating: diaryEntry.rating,
+      liked: diaryEntry.liked,
+      reviewText: diaryEntry.reviewText,
+      containsSpoilers: diaryEntry.containsSpoilers,
+      visibility: diaryEntry.visibility,
+      viewingContext: diaryEntry.viewingContext,
+      tags: entryTags.map((tag) => tag.name),
+    } : null,
+    clubRating: rating,
+  };
 }
 
 export async function discoverPublicClubs(limit = 24) {

@@ -1078,6 +1078,9 @@ export const selectionRounds = nitrate.table(
     picksClosedAt: timestamp('picks_closed_at', { withTimezone: true }),
     votingCloseAt: timestamp('voting_close_at', { withTimezone: true }),
     winnerNominationId: uuid('winner_nomination_id'),
+    wheelPoolOverriddenByUserId: uuid('wheel_pool_overridden_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    wheelResultMode: text('wheel_result_mode').$type<'random' | 'manual'>().notNull().default('random'),
+    wheelResultOverriddenByUserId: uuid('wheel_result_overridden_by_user_id').references(() => users.id, { onDelete: 'set null' }),
 
     /**
      * Set the instant the wheel resolves. Both are written in the same
@@ -1363,6 +1366,8 @@ export const clubDiscussionPosts = nitrate.table(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     body: text('body').notNull(),
+    isReview: boolean('is_review').notNull().default(false),
+    gifUrl: text('gif_url'),
     containsSpoilers: boolean('contains_spoilers').notNull().default(false),
     replyCount: integer('reply_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

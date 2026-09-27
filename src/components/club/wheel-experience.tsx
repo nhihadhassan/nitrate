@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 
 import { Poster } from '@/components/film/poster';
+import { FilmPicker, type PickedFilm } from '@/components/log/film-picker';
 import { PosterWheel } from '@/components/club/wheel/poster-wheel';
 import { Press, SharedPoster } from '@/components/motion/primitives';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { Sheet } from '@/components/ui/sheet';
 import { Avatar, AvatarStack, type AvatarUser } from '@/components/user/avatar';
 import { CommentIcon, SparkIcon } from '@/components/ui/icons';
 import { ThemeBadge, type ThemeInfo } from '@/components/club/theme-badge';
@@ -20,12 +22,15 @@ import { cn, formatRuntime } from '@/lib/utils';
 import {
   beginWheelRevealAction,
   completeWheelRevealAction,
+  replaceWheelPoolAction,
+  setWheelWinnerManuallyAction,
   spinWheelAction,
   type SpinWheelResponse,
 } from '@/server/actions/clubs';
 import type { WheelRevealPayload } from '@/server/services/clubs';
 
 type Preview = WheelRevealPayload['order'][number];
+type ManagerPoolItem = { nominationId: string; movieId: string; providerId: string; movie: Preview['movie'] };
 
 /** The winning poster morphs from the wheel into the hero; both ends share this. */
 const WINNER_SHARE_ID = 'club-wheel-winner';
@@ -35,8 +40,9 @@ const WINNER_SHARE_ID = 'club-wheel-winner';
  *
  * Four states, one screen: the picks waiting to be spun, the spin itself, a
  * held beat, and the film. The server owns the outcome throughout — the client
- * asks for a result, is told one, and animates towards it. Nothing here can
- * choose or change a winner, and a replay re-runs the same committed result.
+ * asks for a result, is told one, and animates towards it. Wheel-authorized
+ * members can also curate the pool or explicitly set a manual result before
+ * the round is resolved; a replay always uses the same committed result.
  *
  * A member who arrives after someone else has spun gets the same experience
  * rather than a spoiler: the page is not given the winner until they ask for
@@ -50,8 +56,15 @@ export function WheelExperience({
   previews,
   canSpin,
   allReady,
+  poolCount,
+  canEditPool,
+  canChooseWinnerManually,
+  canOverrideResult,
+  poolWasOverridden,
+  managerPool,
   spun,
   revealed,
+  resultMode,
   initialPayload,
   selectionMovieLabel,
   canPlanMovieNight = false,
@@ -66,8 +79,15 @@ export function WheelExperience({
   previews: Preview[];
   canSpin: boolean;
   allReady: boolean;
+  poolCount: number;
+  canEditPool: boolean;
+  canChooseWinnerManually: boolean;
+  canOverrideResult: boolean;
+  poolWasOverridden: boolean;
+  managerPool: ManagerPoolItem[];
   spun: boolean;
   revealed: boolean;
+  resultMode: 'random' | 'manual';
   initialPayload: WheelRevealPayload | null;
   selectionMovieLabel: string;
   canPlanMovieNight?: boolean;
@@ -82,9 +102,21 @@ export function WheelExperience({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [payload, setPayload] = useState<WheelRevealPayload | null>(initialPayload);
+  const [currentResultMode, setCurrentResultMode] = useState(resultMode);
   const [phase, setPhase] = useState<'ready' | 'waiting' | 'spinning' | 'settling' | 'revealed'>(
     revealed ? 'revealed' : spun ? 'waiting' : 'ready',
   );
+  const [poolEditorOpen, setPoolEditorOpen] = useState(false);
+  const [poolFilms, setPoolFilms] = useState<PickedFilm[]>(() => managerPool.map((item) => ({
+    movieId: item.movieId,
+    providerId: item.providerId,
+    slug: item.movie.slug,
+    title: item.movie.title,
+    year: item.movie.year,
+    posterPath: item.movie.posterPath,
+  })));
+  const [manualWinnerId, setManualWinnerId] = useState<string | null>(null);
+  const [choosingWinner, setChoosingWinner] = useState(false);
 
   const cards = payload?.order ?? previews;
   const winner = payload?.winner ?? null;
@@ -114,10 +146,10 @@ export function WheelExperience({
   );
 
   /** The wheel has stopped: hold a beat, then hand over to the film. */
-  function onSettled() {
+  const onSettled = useCallback(() => {
     setPhase('settling');
     window.setTimeout(() => finish('animated'), WHEEL.revealHold * 1000);
-  }
+  }, [finish]);
 
   /**
    * A safety net on wall-clock time.
@@ -163,7 +195,84 @@ export function WheelExperience({
         return;
       }
       setPayload(reveal.data);
-      setPhase('spinning');
+      if (mode === 'reveal' && currentResultMode === 'manual') {
+        const completed = await completeWheelRevealAction({ roundId, clubId, method: 'skipped' });
+        if (!completed.ok) {
+          toast({ message: completed.error, tone: 'error' });
+          return;
+        }
+        setPhase('revealed');
+        router.refresh();
+      } else {
+        setPhase('spinning');
+      }
+    });
+  }
+
+  function savePool() {
+    startTransition(async () => {
+      const result = await replaceWheelPoolAction({
+        roundId,
+        clubId,
+        movies: poolFilms.map((film) => ({ movieId: film.movieId, providerId: film.providerId })),
+      });
+      if (!result.ok) {
+        toast({ message: result.error, tone: 'error' });
+        return;
+      }
+      setPoolEditorOpen(false);
+      setManualWinnerId(null);
+      toast({ message: 'Wheel movies updated. Picks are now closed.', tone: 'success' });
+      router.refresh();
+    });
+  }
+
+  function chooseWinnerManually() {
+    if (!manualWinnerId) return;
+    setChoosingWinner(true);
+    startTransition(async () => {
+      const result = await setWheelWinnerManuallyAction({ roundId, clubId, nominationId: manualWinnerId });
+      if (!result.ok) {
+        setChoosingWinner(false);
+        toast({ message: result.error, tone: 'error' });
+        return;
+      }
+      const reveal = await beginWheelRevealAction(roundId, clubId);
+      setChoosingWinner(false);
+      if (!reveal.ok) {
+        toast({ message: reveal.error, tone: 'error' });
+        router.refresh();
+        return;
+      }
+      setPayload(reveal.data);
+      setCurrentResultMode('manual');
+      setPhase('waiting');
+      toast({ message: 'The result is set. You can reveal it to the club.', tone: 'success' });
+    });
+  }
+
+  function correctWinnerManually() {
+    if (!manualWinnerId) return;
+    setChoosingWinner(true);
+    startTransition(async () => {
+      const result = await setWheelWinnerManuallyAction({ roundId, clubId, nominationId: manualWinnerId });
+      if (!result.ok) {
+        setChoosingWinner(false);
+        toast({ message: result.error, tone: 'error' });
+        return;
+      }
+      const reveal = await beginWheelRevealAction(roundId, clubId);
+      setChoosingWinner(false);
+      if (!reveal.ok) {
+        toast({ message: reveal.error, tone: 'error' });
+        router.refresh();
+        return;
+      }
+      setPayload(reveal.data);
+      setCurrentResultMode('manual');
+      setManualWinnerId(null);
+      toast({ message: 'The result has been corrected for the club.', tone: 'success' });
+      router.refresh();
     });
   }
 
@@ -172,6 +281,28 @@ export function WheelExperience({
     if (!payload) return;
     finishing.current = false;
     setPhase('spinning');
+  }
+
+  function skipWaitingReveal() {
+    startTransition(async () => {
+      let revealPayload = payload;
+      if (!revealPayload) {
+        const reveal = await beginWheelRevealAction(roundId, clubId);
+        if (!reveal.ok) {
+          toast({ message: reveal.error, tone: 'error' });
+          return;
+        }
+        revealPayload = reveal.data;
+      }
+      const result = await completeWheelRevealAction({ roundId, clubId, method: 'skipped' });
+      if (!result.ok) {
+        toast({ message: result.error, tone: 'error' });
+        return;
+      }
+      setPayload(revealPayload);
+      setPhase('revealed');
+      router.refresh();
+    });
   }
 
   if (phase === 'revealed' && winner) {
@@ -206,6 +337,7 @@ export function WheelExperience({
           </SharedPoster>
 
           <p className="eyebrow mt-6 text-iris">{selectionMovieLabel}</p>
+          {currentResultMode === 'manual' ? <p className="mt-2 rounded-full border border-line px-3 py-1 text-xs text-muted">Chosen manually</p> : null}
           <h1 className="mt-1.5 font-display text-[2.5rem] leading-[1.05]">{winner.title}</h1>
           <p className="mt-1.5 text-sm text-muted">
             {[winner.year, winner.runtime ? formatRuntime(winner.runtime) : null]
@@ -259,6 +391,39 @@ export function WheelExperience({
             </button>
           </div>
 
+          {canOverrideResult && managerPool.length > 1 ? (
+            <div className="mt-8 w-full rounded-xl border border-line p-3 text-left">
+              <p className="text-sm font-medium">Correct the result</p>
+              <p className="mt-1 text-xs text-dim">Choose the movie your group actually selected. This also updates any movie night linked to this round.</p>
+              <ul className="mt-3 space-y-1.5">
+                {managerPool.map((item) => (
+                  <li key={item.nominationId}>
+                    <button
+                      type="button"
+                      disabled={pending || choosingWinner || item.nominationId === winner.nominationId}
+                      aria-pressed={manualWinnerId === item.nominationId}
+                      onClick={() => setManualWinnerId(item.nominationId)}
+                      className={`flex min-h-12 w-full items-center gap-3 rounded-lg border px-2.5 text-left disabled:opacity-55 ${manualWinnerId === item.nominationId ? 'border-iris bg-iris/10' : 'border-line hover:border-line-strong'}`}
+                    >
+                      <span className="w-8 shrink-0"><Poster film={item.movie} size="xs" linked={false} /></span>
+                      <span className="min-w-0 flex-1 truncate text-sm">{item.movie.title}</span>
+                      <span className="text-xs text-iris">{item.nominationId === winner.nominationId ? 'Current result' : manualWinnerId === item.nominationId ? 'Selected' : 'Choose'}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <Button
+                variant="outline"
+                size="lg"
+                className="mt-3 w-full justify-center"
+                disabled={!manualWinnerId || pending || choosingWinner}
+                onClick={correctWinnerManually}
+              >
+                {choosingWinner ? 'Updating result…' : 'Save corrected result'}
+              </Button>
+            </div>
+          ) : null}
+
           {others.length ? (
             <div className="mt-9 w-full text-left">
               <p className="eyebrow mb-2.5">Other picks</p>
@@ -278,7 +443,7 @@ export function WheelExperience({
 
   const heading =
     phase === 'waiting'
-      ? 'The wheel has spun'
+      ? currentResultMode === 'manual' ? 'The result is ready' : 'The wheel has spun'
       : spinning
         ? selectionMovieLabel
         : selectionMovieLabel;
@@ -295,10 +460,13 @@ export function WheelExperience({
       ) : null}
       <h1 className="mt-1.5 font-display text-[2rem] leading-none">{heading}</h1>
       {phase === 'ready' ? (
-        <p className="mt-2 text-sm text-muted">
-          {theme?.themeName ? "Everyone's picks are in. " : ''}
-          {previews.length} {previews.length === 1 ? 'pick' : 'picks'}. One movie night.
-        </p>
+        <div className="mt-2 space-y-1">
+          <p className="text-sm text-muted">
+            {poolCount} {poolCount === 1 ? 'movie' : 'movies'} on the wheel
+          </p>
+          {poolWasOverridden ? <p className="text-xs text-iris">Pool selected together</p> : null}
+          {theme?.themeName ? <p className="text-xs text-dim">{theme.themeName}</p> : null}
+        </div>
       ) : null}
 
       <div
@@ -349,6 +517,48 @@ export function WheelExperience({
             ) : !canSpin ? (
               <p className="text-xs text-dim">Anyone with wheel access can spin</p>
             ) : null}
+            {canEditPool ? (
+              <button
+                type="button"
+                onClick={() => setPoolEditorOpen(true)}
+                disabled={pending}
+                className="min-h-11 w-full rounded-full border border-line px-4 text-sm text-muted hover:border-iris hover:text-text"
+              >
+                Edit movies on the wheel
+              </button>
+            ) : null}
+            {canChooseWinnerManually ? (
+              <div className="rounded-xl border border-line p-3 text-left">
+                <p className="text-sm font-medium">Choose the result manually</p>
+                <p className="mt-1 text-xs text-dim">Pick one movie from the wheel pool. The result stays hidden until each member reveals it.</p>
+                <ul className="mt-3 space-y-1.5">
+                  {previews.map((item) => (
+                    <li key={item.nominationId}>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        aria-pressed={manualWinnerId === item.nominationId}
+                        onClick={() => setManualWinnerId(item.nominationId)}
+                        className={`flex min-h-12 w-full items-center gap-3 rounded-lg border px-2.5 text-left ${manualWinnerId === item.nominationId ? 'border-iris bg-iris/10' : 'border-line hover:border-line-strong'}`}
+                      >
+                        <span className="w-8 shrink-0"><Poster film={item.movie} size="xs" linked={false} /></span>
+                        <span className="min-w-0 flex-1 truncate text-sm">{item.movie.title}</span>
+                        <span className="text-xs text-iris">{manualWinnerId === item.nominationId ? 'Selected' : 'Choose'}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="mt-3 w-full justify-center"
+                  disabled={!manualWinnerId || pending || choosingWinner}
+                  onClick={chooseWinnerManually}
+                >
+                  {choosingWinner ? 'Setting result…' : 'Set this as the result'}
+                </Button>
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -361,17 +571,19 @@ export function WheelExperience({
                 disabled={pending}
                 className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse"
               >
-                {pending ? 'Opening…' : 'Watch the reveal'}
+                {pending ? 'Opening…' : currentResultMode === 'manual' ? 'Show the result' : 'Watch the reveal'}
               </button>
             </Press>
-            <button
-              type="button"
-              onClick={() => finish('skipped')}
-              disabled={pending}
-              className="min-h-11 w-full text-xs text-muted underline underline-offset-2 hover:text-text"
-            >
-              Skip to the result
-            </button>
+            {currentResultMode === 'random' ? (
+              <button
+                type="button"
+                onClick={skipWaitingReveal}
+                disabled={pending}
+                className="min-h-11 w-full text-xs text-muted underline underline-offset-2 hover:text-text"
+              >
+                Skip to the result
+              </button>
+            ) : null}
           </>
         ) : null}
 
@@ -386,6 +598,42 @@ export function WheelExperience({
           </button>
         ) : null}
       </div>
+
+      <Sheet
+        open={poolEditorOpen}
+        onClose={() => setPoolEditorOpen(false)}
+        title="Edit movies on the wheel"
+        description="Choose the movies your group agreed on. Saving replaces the current pool and closes picks."
+        size="md"
+        footer={(
+          <Button variant="iris" size="lg" className="w-full justify-center" disabled={pending || poolFilms.length < 2} onClick={savePool}>
+            {pending ? 'Saving…' : `Save ${poolFilms.length} movies and close picks`}
+          </Button>
+        )}
+      >
+        <FilmPicker
+          onPick={(film) => setPoolFilms((current) => {
+            const duplicate = current.some((item) =>
+              (film.providerId && item.providerId === film.providerId) ||
+              (film.movieId && item.movieId === film.movieId),
+            );
+            return duplicate || current.length >= 20 ? current : [...current, film];
+          })}
+          placeholder="Search for a movie to add…"
+        />
+        <div className="mt-5">
+          <p className="eyebrow">On the wheel · {poolFilms.length}/20</p>
+          <ul className="mt-2 space-y-2">
+            {poolFilms.map((film, index) => (
+              <li key={`${film.movieId ?? film.providerId ?? film.title}-${index}`} className="flex items-center gap-3 rounded-lg border border-line p-2.5">
+                <span className="w-10 shrink-0"><Poster film={{ slug: film.slug ?? film.movieId ?? '', title: film.title, year: film.year, posterPath: film.posterPath }} size="xs" linked={false} /></span>
+                <span className="min-w-0 flex-1 truncate text-sm">{film.title}</span>
+                <button type="button" onClick={() => setPoolFilms((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="min-h-11 px-2 text-xs text-muted underline underline-offset-2 hover:text-text">Remove</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Sheet>
     </section>
   );
 }

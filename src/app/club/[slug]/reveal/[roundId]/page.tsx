@@ -9,6 +9,7 @@ import {
   getClubBySlug,
   getClubMembers,
   getClubPermissions,
+  getWheelPoolForManager,
   getMembership,
   getRoundNominations,
   getRoundParticipants,
@@ -54,6 +55,11 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
   const allReady = activeParticipantIds.length > 0 && activeParticipantIds.every((id) => (pickCounts[id] ?? 0) >= round.nominationLimitPerMember);
   const deadlineReady = Boolean(round.nominationsCloseAt && round.nominationsCloseAt <= new Date() && nominations.nominationCount >= 2);
   const canSpin = permissions.has('start_wheel');
+  const managerPool = canSpin
+    ? await getWheelPoolForManager(round.id, user.id)
+    : [];
+  const canChooseWinnerManually = canSpin && round.status === 'nominations_open' &&
+    managerPool.length >= 2 && (allReady || deadlineReady || Boolean(round.picksClosedAt));
   const initialPayload = revealState.revealed ? await beginWheelReveal(round.id, user.id) : null;
 
   return (
@@ -63,8 +69,8 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         clubSlug={club.slug}
         clubName={club.name}
         roundId={round.id}
-        previews={revealState.spun && !revealState.revealed ? [] : nominations.nominations.map((nomination) => ({
-          nominationId: nomination.id,
+        previews={revealState.spun && !revealState.revealed ? [] : (canSpin && !revealState.spun ? managerPool : nominations.nominations).map((nomination) => ({
+          nominationId: 'nominationId' in nomination ? nomination.nominationId : nomination.id,
           movie: {
             slug: nomination.movie.slug,
             title: nomination.movie.title,
@@ -77,8 +83,15 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         }))}
         canSpin={canSpin}
         allReady={allReady || deadlineReady || Boolean(round.picksClosedAt)}
+        poolCount={nominations.nominationCount}
+        canEditPool={canSpin && round.status === 'nominations_open' && !revealState.spun}
+        canChooseWinnerManually={canChooseWinnerManually}
+        canOverrideResult={canSpin && Boolean(round.winnerNominationId) && ['winner_selected', 'screening_scheduled', 'completed'].includes(round.status)}
+        poolWasOverridden={Boolean(round.wheelPoolOverriddenByUserId)}
+        managerPool={managerPool.map((item) => ({ nominationId: item.nominationId, movieId: item.movieId, providerId: item.providerId, movie: item.movie }))}
         spun={revealState.spun}
         revealed={revealState.revealed}
+        resultMode={round.wheelResultMode}
         initialPayload={initialPayload}
         selectionMovieLabel={roundMovieLabel(club.selectionCadence, round.roundStartAt)}
         canPlanMovieNight={permissions.has('edit_movie_night')}
