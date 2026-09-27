@@ -126,6 +126,13 @@ export function WheelExperience({
   // paths below gets there first.
   const finishing = useRef(false);
 
+  function planMovieNight() {
+    const anchor = window.matchMedia('(min-width: 64rem)').matches
+      ? 'club-schedule'
+      : 'club-schedule-m';
+    router.push(`/club/${clubSlug}#${anchor}`);
+  }
+
   /** Records the reveal for this member, then shows the film. */
   const finish = useCallback(
     (method: 'animated' | 'skipped') => {
@@ -371,12 +378,13 @@ export function WheelExperience({
           <div className="mt-6 w-full space-y-2">
             {canPlanMovieNight ? (
               <Press>
-                <Link
-                  href={`/club/${clubSlug}#club-schedule-m`}
+                <button
+                  type="button"
+                  onClick={planMovieNight}
                   className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse"
                 >
                   Plan movie night
-                </Link>
+                </button>
               </Press>
             ) : null}
             <Button asChild variant="outline" size="lg" className="w-full justify-center">

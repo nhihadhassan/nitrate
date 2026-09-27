@@ -369,6 +369,7 @@ export default async function ClubDashboard({
               clubId={club.id}
               clubSlug={club.slug}
               roundId={round.id}
+              autoOpenHash="club-schedule-m"
               poll={poll ? {
                 ...poll,
                 options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),
@@ -576,6 +577,7 @@ export default async function ClubDashboard({
                   clubId={club.id}
                   clubSlug={club.slug}
                   roundId={round.id}
+                  autoOpenHash="club-schedule"
                   poll={poll ? {
                     ...poll,
                     options: poll.options.map((option) => ({ ...option, startsAt: option.startsAt.toISOString() })),

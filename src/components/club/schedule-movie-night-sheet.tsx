@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { ScheduleScreeningForm } from '@/components/club/schedule-screening-form';
 import { ScreeningPoll } from '@/components/club/screening-poll';
@@ -16,14 +16,27 @@ export function ScheduleMovieNightSheet({
   roundId,
   movie,
   poll,
+  autoOpenHash,
 }: {
   clubId: string;
   clubSlug: string;
   roundId: string;
   movie: { movieId: string; title: string; year: number | null; posterPath: string | null };
   poll: Poll;
+  autoOpenHash?: 'club-schedule' | 'club-schedule-m';
 }) {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (poll || !autoOpenHash) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (window.location.hash === `#${autoOpenHash}`) {
+        setOpen(true);
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [autoOpenHash, poll]);
   const [mode, setMode] = useState<'date' | 'poll'>('date');
 
   if (poll) {
