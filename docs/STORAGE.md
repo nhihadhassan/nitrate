@@ -82,3 +82,17 @@ TypeScript excludes `.claude` so old nested sources are not part of app checking
 
 Safety tests run in temporary Git repositories with `npm run test:storage`.
 See [STATUS](STATUS.md) for the latest cleanup measurement and verification.
+
+
+## 27 October 2026 cleanup result
+
+After GitHub backup and successful verification, the cleanup removed **2,565.5
+MiB (2.51 GiB)** of build output and duplicate worktree dependencies. All **1,684
+preserved files** matched their pre-cleanup content fingerprints, including
+source, environment files, design references and worktree files. No checkout
+was removed. Main dependencies remain installed.
+
+Measured folder size immediately before cleanup: **3162.6 MiB**;
+after: **597.1 MiB**, a **81.1%** reduction.
+The pre-cleanup figure includes the fresh verification build and saved Git
+checkpoint, which is why it exceeds the initial survey.

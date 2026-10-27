@@ -27,8 +27,9 @@ measured checks and unresolved defects belong in [STATUS](STATUS.md).
 - Audit test data and admin ownership before any account cleanup. Preserve live
   club history; do not assume the database still has a single test account.
 - Review a compatibility-tested dependency upgrade and migrate deprecated
-  `next lint` to the ESLint CLI before moving to Next 16. Take a fresh advisory
-  inventory as part of that work rather than carrying an old count forward.
+  `next lint` to the ESLint CLI before moving to Next 16. GitHub reported 18
+  default-branch vulnerability alerts during this publication (2 critical,
+  5 high, 11 moderate); take a fresh local advisory inventory during remediation.
 - Add actionable runtime error monitoring and alerts if required for operation.
 - Monitor PostgreSQL media volume before moving uploads to object storage.
 

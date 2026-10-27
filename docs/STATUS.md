@@ -49,12 +49,21 @@ eligibility, offline editing, VoiceOver or physical-device correctness.
   provider and verified sender. Console logging is not delivery.
 - **PWA scope:** install/service-worker/offline fallback exist; full offline
   data editing and push notifications do not.
-- `next lint` and the Vite CJS API emit deprecation notices; dependency advisory
-  counts were not refreshed as part of this documentation/storage task.
+- `next lint` and the Vite CJS API emit deprecation notices. GitHub reported
+  18 dependency vulnerability alerts during publication (2 critical, 5 high,
+  11 moderate). This is GitHub's default-branch alert report, not a new local
+  dependency audit. Compatibility-tested remediation remains separate work.
 
 ## Publication and cleanup record
 
 The pre-maintenance canonical deployment was Vercel `READY` at `a0b099d`.
 The verified maintenance source and documentation are saved on
-`codex/project-sync-2026-10-27` before local cleanup. Final main/deployment and
-disk measurements follow after that cleanup.
+`codex/project-sync-2026-10-27` before local cleanup. The cleanup removed **2,565.5 MiB (2.51 GiB)**; the folder measured
+**597.1 MiB** afterward. All **1,684 preserved files** matched their
+pre-cleanup fingerprints. Main dependencies and all worktree checkouts remain.
+See [STORAGE](STORAGE.md) for repeatable commands and recovery.
+
+The maintenance branch is fast-forwarded into `main` for normal GitHub/Vercel
+publication. Verify the current `main` SHA against the canonical deployment;
+that final remote state is reported with the handoff, avoiding a self-referential
+commit hash in this document.
