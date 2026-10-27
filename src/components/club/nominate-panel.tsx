@@ -150,7 +150,7 @@ export function NominatePanel({
                       <p className="truncate font-medium">{pick.movie.title}</p>
                       <p className="text-xs text-dim tabular">{pick.movie.year}</p>
                     </div>
-                    <button
+                    {pickingOpen ? <button
                       type="button"
                       disabled={pending}
                       onClick={() => {
@@ -170,7 +170,7 @@ export function NominatePanel({
                       className="min-h-11 shrink-0 touch-manipulation rounded-md px-2.5 text-xs font-medium text-muted hover:bg-surface-hover hover:text-text sm:min-h-0"
                     >
                       {limit === 1 ? 'Change pick' : 'Remove'}
-                    </button>
+                    </button> : null}
                   </li>
                 ))}
               </ul>

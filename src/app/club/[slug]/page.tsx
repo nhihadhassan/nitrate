@@ -275,12 +275,6 @@ export default async function ClubDashboard({
               ? { done: readyMembers, total: participatingMembers.length || members.length }
               : null
           }
-          // A quieter way to look at the wheel without committing to a pick.
-          secondaryAction={
-            stageCard.kind === 'pick' && round
-              ? { label: 'See the picks', href: `/club/${club.slug}/reveal/${round.id}` }
-              : null
-          }
         />
         )}
 

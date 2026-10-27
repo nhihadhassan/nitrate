@@ -30,6 +30,9 @@ export const env = {
   get tmdbApiKey() {
     return process.env.TMDB_API_KEY?.trim() || null;
   },
+  get tenorApiKey() {
+    return process.env.TENOR_API_KEY?.trim() || null;
+  },
   get resendApiKey() {
     return process.env.RESEND_API_KEY?.trim() || null;
   },

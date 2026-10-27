@@ -127,7 +127,8 @@ export function PosterCard({
       <div className="mt-1.5 min-w-0">
         <Link
           href={filmHref(film)}
-          className="block truncate text-[0.8125rem] font-medium leading-snug hover:text-ember"
+          title={film.title}
+          className="line-clamp-2 min-h-[2.35em] text-[0.8125rem] font-medium leading-snug hover:text-ember"
         >
           {film.title}
         </Link>

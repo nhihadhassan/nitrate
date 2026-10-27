@@ -9,13 +9,14 @@ import { ReviewBody } from '@/components/review/review-body';
 import { Divider, EmptyState, SectionHeading } from '@/components/ui/primitives';
 import { avatarUrl } from '@/lib/images';
 import { filmHref, personHref, reviewHref, userHref, userSectionHref } from '@/lib/links';
-import { formatRuntime, pluralize, truncate } from '@/lib/utils';
+import { formatDateOnly, formatRuntime, pluralize, truncate } from '@/lib/utils';
 import { loadUserByUsername } from '@/server/privacy';
 import { getUserActivity } from '@/server/services/feed';
 import { getProfilePins } from '@/server/services/profile-pins';
 import { loadProfileContext } from '@/server/services/profile-context';
 import {
   getProfileStats,
+  getDiary,
   getUserLists,
   getUserReviews,
   getWatchedFilms,
@@ -58,9 +59,10 @@ export default async function ProfileOverviewPage({ params }: Params) {
   const { username } = await params;
   const { profile, viewer, access } = await loadProfileContext(username);
 
-  const [stats, recentFilms, activity, reviews, lists, pins] = await Promise.all([
+  const [stats, recentFilms, diary, activity, reviews, lists, pins] = await Promise.all([
     getProfileStats(profile.id),
     getWatchedFilms(profile.id, { limit: 12 }),
+    getDiary(profile.id, viewer, { limit: 3 }),
     getUserActivity(profile.id, viewer, 6),
     getUserReviews(profile.id, viewer, { limit: 2 }),
     getUserLists(profile.id, viewer, 3),
@@ -120,6 +122,48 @@ export default async function ProfileOverviewPage({ params }: Params) {
           />
         )}
       </section>
+
+      {diary.length ? (
+        <section>
+          <SectionHeading
+            title="From the diary"
+            href={userSectionHref(profile, 'diary')}
+            linkLabel="Full diary"
+          />
+          <ol className="divide-y divide-line border-y border-line">
+            {diary.map(({ entry, movie, tags }) => (
+              <li key={entry.id} className="grid grid-cols-[auto_1fr] gap-x-3 py-3 sm:grid-cols-[5.5rem_auto_1fr] sm:items-center sm:gap-x-4">
+                <time dateTime={entry.watchedDate} className="hidden text-xs text-dim tabular sm:block">
+                  {formatDateOnly(entry.watchedDate, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </time>
+                <div className="row-span-2 w-11 sm:row-auto sm:w-12">
+                  <Poster
+                    film={{ slug: movie.slug, title: movie.title, year: movie.year, posterPath: movie.posterPath }}
+                    size="sm"
+                  />
+                </div>
+                <div className="min-w-0 self-center">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <Link href={filmHref(movie)} className="truncate font-medium hover:text-ember">
+                      {movie.title}
+                    </Link>
+                    {movie.year ? <span className="text-xs text-dim tabular">{movie.year}</span> : null}
+                    <Stars value={entry.rating} size="xs" labelPrefix={`${profile.displayName} rated this`} />
+                    {entry.liked ? <LikeMark className="text-[0.6875rem] text-rose" label={`${profile.displayName} liked this film`} /> : null}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim">
+                    <time dateTime={entry.watchedDate} className="sm:hidden">
+                      {formatDateOnly(entry.watchedDate, { month: 'short', day: 'numeric' })}
+                    </time>
+                    {tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
+                    {entry.reviewText ? <span className="truncate text-muted">{truncate(entry.reviewText, 76)}</span> : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
 
       {reviews.length ? (
         <section>

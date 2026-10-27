@@ -267,7 +267,9 @@ export function PickScreen({
                   <p className="truncate font-medium">{pick.title}</p>
                   {pick.year ? <p className="text-xs text-dim tabular">{pick.year}</p> : null}
                 </div>
-                {pickingOpen && limit > 1 ? (
+                {pickingOpen && limit === 1 ? (
+                  <span className="shrink-0 text-xs text-iris">Change below</span>
+                ) : pickingOpen && limit > 1 ? (
                   <button
                     type="button"
                     disabled={pending}
@@ -293,79 +295,74 @@ export function PickScreen({
         </p>
       ) : (
         <>
-          <section className="mt-7">
-            <FilmPicker onPick={setFilm} placeholder="Search for a movie…" />
-          </section>
-
-          {shelves.map((shelf) => (
-            <section key={shelf.title} className="mt-7">
-              <p className="eyebrow mb-2.5">{shelf.title}</p>
-              <ul className="grid grid-cols-2 gap-3">
-                {shelf.items.slice(0, 6).map((item) => {
-                  const selected = film?.movieId === item.movieId;
-                  return (
-                    <li key={item.movieId}>
-                      <Press>
-                        <button
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() =>
-                            setFilm(
-                              selected
-                                ? null
-                                : {
-                                    movieId: item.movieId,
-                                    title: item.title,
-                                    year: item.year,
-                                    posterPath: item.posterPath,
-                                  },
-                            )
-                          }
-                          className={cn(
-                            'block w-full rounded-md text-left transition-all',
-                            selected
-                              ? 'ring-2 ring-ember ring-offset-2 ring-offset-canvas'
-                              : 'ring-0',
-                          )}
-                        >
-                          <span className="relative block">
-                            <Poster
-                              size="md"
-                              film={{
-                                slug: item.movieId,
-                                title: item.title,
-                                year: item.year,
-                                posterPath: item.posterPath,
-                              }}
-                              linked={false}
-                            />
-                            <span
-                              aria-hidden
-                              className={cn(
-                                'absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full border transition-colors',
-                                selected
-                                  ? 'border-ember bg-ember text-inverse'
-                                  : 'border-white/60 bg-black/35',
-                              )}
-                            >
-                              {selected ? <CheckIcon className="h-3.5 w-3.5" /> : null}
-                            </span>
-                          </span>
-                          <span className="mt-1.5 block truncate text-xs">{item.title}</span>
-                        </button>
-                      </Press>
-                    </li>
-                  );
-                })}
-              </ul>
+          {film ? (
+            <section className="mt-6 rounded-xl border border-iris/40 bg-iris/[0.06] p-4" aria-live="polite" aria-label="Selected movie">
+              <p className="eyebrow text-iris">Selected for this round</p>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="w-14 shrink-0">
+                  <Poster film={{ slug: film.slug ?? film.movieId ?? '', title: film.title, year: film.year, posterPath: film.posterPath }} size="sm" linked={false} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{film.title}</p>
+                  {film.year ? <p className="mt-0.5 text-xs text-dim">{film.year}</p> : null}
+                </div>
+                <CheckIcon className="h-5 w-5 shrink-0 text-jade" />
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilm(null)}
+                className="mt-3 min-h-11 w-full rounded-lg border border-line text-sm text-muted hover:text-text"
+              >
+                Choose a different movie
+              </button>
             </section>
-          ))}
+          ) : (
+            <>
+              <section className="mt-7">
+                <p className="mb-2 text-sm text-muted">Search or choose a movie below. You can change your choice before confirming.</p>
+                <FilmPicker onPick={setFilm} placeholder="Search for a movie…" />
+              </section>
+
+              {shelves.map((shelf) => (
+                <section key={shelf.title} className="mt-7">
+                  <p className="eyebrow mb-2.5">{shelf.title}</p>
+                  <ul className="grid grid-cols-2 gap-3">
+                    {shelf.items.slice(0, 6).map((item) => (
+                      <li key={item.movieId}>
+                        <Press>
+                          <button
+                            type="button"
+                            onClick={() => setFilm({ movieId: item.movieId, title: item.title, year: item.year, posterPath: item.posterPath })}
+                            className="block w-full rounded-md text-left transition-all focus-visible:outline-2 focus-visible:outline-ember focus-visible:outline-offset-2"
+                          >
+                            <span className="relative block">
+                              <Poster
+                                size="md"
+                                film={{
+                                  slug: item.movieId,
+                                  title: item.title,
+                                  year: item.year,
+                                  posterPath: item.posterPath,
+                                }}
+                                linked={false}
+                              />
+                            </span>
+                            <span className="mt-1.5 block truncate text-xs">{item.title}</span>
+                          </button>
+                        </Press>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </>
+          )}
         </>
       )}
 
       {/* Selected film, note, and submit — pinned so the action is always one tap away. */}
       {film && pickingOpen ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-canvas/95 px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-3 backdrop-blur-xl">
+        <div className="club-pick-action fixed inset-x-0 bottom-[calc(4.125rem+max(env(safe-area-inset-bottom),0.25rem))] z-30 border-t border-line bg-canvas/95 px-4 pb-3 pt-3 backdrop-blur-xl">
           <div className="mx-auto max-w-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 shrink-0">
@@ -425,7 +422,7 @@ export function PickScreen({
                     ? `Submit for ${proxyFor.displayName}`
                     : replacingId
                       ? 'Change my pick'
-                      : 'Submit pick'}
+                      : 'Confirm pick'}
               </Button>
             </Press>
           </div>

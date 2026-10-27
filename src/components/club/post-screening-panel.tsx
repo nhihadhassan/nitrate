@@ -21,6 +21,7 @@ export function PostScreeningPanel({
   clubSlug,
   attended,
   hasLogged,
+  diaryEntry,
   film,
   personalState,
   screeningDate,
@@ -29,6 +30,17 @@ export function PostScreeningPanel({
   clubSlug: string;
   attended: boolean | null;
   hasLogged: boolean;
+  diaryEntry: {
+    id: string;
+    watchedDate: string;
+    rating: number | null;
+    liked: boolean;
+    reviewText: string | null;
+    containsSpoilers: boolean;
+    visibility: 'public' | 'followers' | 'private';
+    viewingContext: 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other' | null;
+    tags: string[];
+  } | null;
   film: { movieId: string; slug: string; title: string; year: number | null; posterPath: string | null };
   personalState: { rating: number | null; liked: boolean; watched: boolean };
   screeningDate: string;
@@ -108,12 +120,19 @@ export function PostScreeningPanel({
                 posterPath: film.posterPath,
               },
               initial: {
-                rating: personalState.rating,
-                liked: personalState.liked,
+                rating: diaryEntry?.rating ?? personalState.rating,
+                liked: diaryEntry?.liked ?? personalState.liked,
                 watched: personalState.watched,
+                visibility: diaryEntry?.visibility,
+                reviewText: diaryEntry?.reviewText,
+                containsSpoilers: diaryEntry?.containsSpoilers,
+                tags: diaryEntry?.tags,
+                viewingContext: diaryEntry?.viewingContext,
+                watchedDate: diaryEntry?.watchedDate,
               },
-              screeningId,
-              dateHint: screeningDate,
+              entryId: diaryEntry?.id,
+              screeningId: diaryEntry ? undefined : screeningId,
+              dateHint: diaryEntry?.watchedDate ?? screeningDate,
               title: hasLogged ? 'Update your entry' : 'Log this film',
             })
           }

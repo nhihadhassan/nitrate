@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { BrowseFilters } from '@/components/film/browse-filters';
 import { WatchlistNote } from '@/components/film/watchlist-note';
 import { RecommendationContext } from '@/components/discovery/recommendation-context';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { cn, formatRuntime, pluralize } from '@/lib/utils';
 import { getCurrentUser } from '@/server/auth/session';
 import { countWatchlist, getWatchlist, type WatchlistSort } from '@/server/services/profile';
 import { getMovieRecommendationContext } from '@/server/services/discovery';
+import { getGenres } from '@/server/services/explore';
 import { getOwnershipMap } from '@/server/services/ownership';
 
 export const metadata: Metadata = { title: 'Watchlist', robots: { index: false, follow: false } };
@@ -30,18 +32,19 @@ const DECADES = [2020, 2010, 2000, 1990, 1980, 1970, 1960];
 export default async function WatchlistPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sort?: string; decade?: string }>;
+  searchParams: Promise<{ sort?: string; decade?: string; genre?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect('/login?next=/watchlist');
 
-  const { sort, decade } = await searchParams;
+  const { sort, decade, genre } = await searchParams;
   const activeSort = (SORTS.find((s) => s.key === sort)?.key ?? 'added') as WatchlistSort;
   const activeDecade = decade ? Number(decade) : undefined;
 
-  const [films, total] = await Promise.all([
-    getWatchlist(user.id, { sort: activeSort, decade: activeDecade, limit: 120 }),
+  const [films, total, genres] = await Promise.all([
+    getWatchlist(user.id, { sort: activeSort, decade: activeDecade, genreId: genre, limit: 120 }),
     countWatchlist(user.id),
+    getGenres(),
   ]);
   const filmContext = await getMovieRecommendationContext(user.id, films.map(({ movie }) => movie.id));
   const ownership = await getOwnershipMap(user.id, films.map(({ movie }) => movie.id));
@@ -74,7 +77,7 @@ export default async function WatchlistPage({
           {SORTS.map((option) => (
             <Link
               key={option.key}
-              href={{ pathname: '/watchlist', query: { sort: option.key, decade } }}
+              href={{ pathname: '/watchlist', query: { sort: option.key, decade, genre } }}
               aria-current={activeSort === option.key ? 'true' : undefined}
               className={cn(
                 'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
@@ -88,34 +91,9 @@ export default async function WatchlistPage({
           ))}
         </nav>
 
-        <nav
-          aria-label="Filter by decade"
-          className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
-        >
-          <Link
-            href={{ pathname: '/watchlist', query: { sort: activeSort } }}
-            className={cn(
-              'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
-              !activeDecade ? 'border-line-strong text-text' : 'border-line text-muted hover:text-text',
-            )}
-          >
-            Any era
-          </Link>
-          {DECADES.map((d) => (
-            <Link
-              key={d}
-              href={{ pathname: '/watchlist', query: { sort: activeSort, decade: d } }}
-              className={cn(
-                'flex min-h-10 shrink-0 items-center rounded-md border px-3 tabular transition-colors',
-                activeDecade === d
-                  ? 'border-line-strong text-text'
-                  : 'border-line text-muted hover:text-text',
-              )}
-            >
-              {d}s
-            </Link>
-          ))}
-        </nav>
+        <BrowseFilters pathname="/watchlist" query={{ sort: activeSort, decade: activeDecade, genre }} decade={activeDecade} genre={genre}
+          decades={[{ value: '', label: 'Any era' }, ...DECADES.map((value) => ({ value: String(value), label: `${value}s` }))]}
+          genres={[{ value: '', label: 'Any genre' }, ...genres.map((value) => ({ value: value.providerId, label: value.name }))]} />
       </div>
 
       {films.length ? (
@@ -146,11 +124,11 @@ export default async function WatchlistPage({
         </PosterGrid>
       ) : (
         <EmptyState
-          title={activeDecade ? 'Nothing from that era' : 'Your watchlist is empty'}
-          description="Add films from any film page, a friend's review, or Explore."
+          title={activeDecade || genre ? 'Nothing matches these filters' : 'Your watchlist is empty'}
+          description={activeDecade || genre ? 'Try a different era or genre, or clear the filters to see everything waiting.' : 'Add films from any film page, a friend\'s review, or Explore.'}
           action={
             <Button asChild variant="primary">
-              <Link href="/explore">Find something to watch</Link>
+              <Link href={activeDecade || genre ? '/watchlist' : '/explore'}>{activeDecade || genre ? 'Clear filters' : 'Find something to watch'}</Link>
             </Button>
           }
         />

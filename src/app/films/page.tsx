@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { PosterCard, PosterGrid } from '@/components/film/poster';
+import { BrowseFilters } from '@/components/film/browse-filters';
 import { Button } from '@/components/ui/button';
 import { Container, EmptyState } from '@/components/ui/primitives';
 import { cn } from '@/lib/utils';
@@ -93,65 +94,9 @@ export default async function FilmsPage({
           ))}
         </nav>
 
-        <nav
-          aria-label="Decade"
-          className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
-        >
-          <Link
-            href={{ pathname: '/films', query: queryFor({ decade: undefined, page: undefined }) }}
-            className={cn(
-              'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
-              !activeDecade ? 'border-line-strong text-text' : 'border-line text-muted hover:text-text',
-            )}
-          >
-            Any era
-          </Link>
-          {DECADES.map((d) => (
-            <Link
-              key={d}
-              href={{ pathname: '/films', query: queryFor({ decade: d, page: undefined }) }}
-              className={cn(
-                'flex min-h-10 shrink-0 items-center rounded-md border px-3 tabular transition-colors',
-                activeDecade === d
-                  ? 'border-line-strong text-text'
-                  : 'border-line text-muted hover:text-text',
-              )}
-            >
-              {d}s
-            </Link>
-          ))}
-        </nav>
-
-        {genres.length ? (
-          <nav
-            aria-label="Genre"
-            className="mobile-tabs -mx-4 flex gap-1.5 overflow-x-auto px-4 text-xs sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
-          >
-            <Link
-              href={{ pathname: '/films', query: queryFor({ genre: undefined, page: undefined }) }}
-              className={cn(
-                'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
-                !genre ? 'border-line-strong text-text' : 'border-line text-muted hover:text-text',
-              )}
-            >
-              All genres
-            </Link>
-            {genres.map((g) => (
-              <Link
-                key={g.providerId}
-                href={{ pathname: '/films', query: queryFor({ genre: g.providerId, page: undefined }) }}
-                className={cn(
-                  'flex min-h-10 shrink-0 items-center rounded-md border px-3 transition-colors',
-                  genre === g.providerId
-                    ? 'border-line-strong text-text'
-                    : 'border-line text-muted hover:text-text',
-                )}
-              >
-                {g.name}
-              </Link>
-            ))}
-          </nav>
-        ) : null}
+        <BrowseFilters pathname="/films" query={{ sort: activeSort, decade: activeDecade, genre }} decade={activeDecade} genre={genre}
+          decades={[{ value: '', label: 'Any era' }, ...DECADES.map((value) => ({ value: String(value), label: `${value}s` }))]}
+          genres={[{ value: '', label: 'All genres' }, ...genres.map((value) => ({ value: value.providerId, label: value.name }))]} />
       </div>
 
       {result.degraded ? (

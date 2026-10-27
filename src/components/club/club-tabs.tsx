@@ -16,12 +16,13 @@ export function ClubTabs({
 }) {
   const pathname = usePathname();
   const base = `/club/${slug}`;
-
   void isAdmin;
+
   const tabs = [
     { href: base, label: 'Club' },
     ...(isMember ? [{ href: `${base}/queue`, label: 'Movies' }] : []),
-    { href: `${base}/history`, label: 'Past Movies' },
+    ...(isMember ? [{ href: `${base}/calendar`, label: 'Calendar' }] : []),
+    { href: `${base}/history`, label: 'History' },
   ];
 
   return (
@@ -31,7 +32,13 @@ export function ClubTabs({
         style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
       >
         {tabs.map((tab) => {
-          const active = pathname === tab.href;
+          const matchesTab = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+          const active = tab.href === base
+            ? pathname === base || (
+                pathname.startsWith(`${base}/`) &&
+                !tabs.slice(1).some((section) => matchesTab(section.href))
+              )
+            : matchesTab(tab.href);
           return (
             <li key={tab.href} className="min-w-0">
               <Link

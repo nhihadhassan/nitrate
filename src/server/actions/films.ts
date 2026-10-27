@@ -5,9 +5,10 @@ import { z } from 'zod';
 
 import { requireUser } from '@/server/auth/session';
 import { track, trackFirst } from '@/server/analytics';
-import { actionGuard, NotFoundError, type ActionResult } from '@/server/errors';
+import { actionGuard, ConflictError, NotFoundError, ValidationError, type ActionResult } from '@/server/errors';
 import { ensureMovieByProviderId, getMovieById } from '@/server/movies/catalog';
 import { consumeRateLimit } from '@/server/rate-limit';
+import { getScreeningById, requireMembership } from '@/server/services/clubs';
 import {
   deleteDiaryEntry,
   logFilm,
@@ -60,6 +61,16 @@ export async function logFilmAction(
     await consumeRateLimit('log_film', user.id);
     const parsed = logSchema.parse(input);
     const movie = await resolveFilm(parsed);
+    if (parsed.screeningId) {
+      const screening = await getScreeningById(parsed.screeningId);
+      await requireMembership(screening.clubId, user.id, 'member');
+      if (screening.status !== 'completed') {
+        throw new ConflictError('You can log a Movie Club film after the night is marked watched.');
+      }
+      if (screening.movieId !== movie.id) {
+        throw new ValidationError('That film does not match this Movie Club night.');
+      }
+    }
 
     const result = await logFilm({
       userId: user.id,

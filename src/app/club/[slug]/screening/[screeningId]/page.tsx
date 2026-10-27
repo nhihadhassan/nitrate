@@ -90,18 +90,20 @@ export default async function ScreeningPage({
     );
   }
 
-  const [movie, attendance, ratings, discussion, context, hasSeen, filmState, permissions, members] =
+  const [movie, attendance, ratings, context, hasSeen, filmState, permissions, members] =
     await Promise.all([
       getMovieById(screening.movieId),
       getScreeningAttendance(screening.id),
       getClubRatings(screening.id, user!.id),
-      getDiscussion(screening.id),
       getViewerScreeningContext(screening, user!.id),
       viewerHasSeenScreeningFilm(screening, user!.id),
       getUserMovieState(user!.id, screening.movieId),
       getClubPermissions(club.id, user!.id),
       getClubMembers(club.id),
     ]);
+  // Do not send discussion text to a member's browser until they have logged
+  // or confirmed seeing the film. The explicit spoiler opt-in loads it on demand.
+  const discussion = screening.status === 'completed' && hasSeen ? await getDiscussion(screening.id, user!.id) : [];
 
   const going = attendance.filter((a) => a.rsvp === 'going');
   const maybe = attendance.filter((a) => a.rsvp === 'maybe');
@@ -323,6 +325,7 @@ export default async function ScreeningPage({
               clubSlug={club.slug}
               attended={context.attendance?.attended ?? null}
               hasLogged={context.hasLogged}
+              diaryEntry={context.diaryEntry}
               film={{
                 movieId: movie.id,
                 slug: movie.slug,
@@ -381,9 +384,9 @@ export default async function ScreeningPage({
         <div className="hidden lg:block"><Divider /></div>
 
         <section className="rounded-xl border border-line bg-canvas-raised p-4 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0">
-          <div className="mb-3 flex items-center gap-2 lg:hidden"><CommentIcon className="h-5 w-5 text-ember" /><h2 className="font-display text-xl">Discussion</h2></div>
-          <div className="hidden lg:block"><SectionHeading title="Discussion" subtitle={`Private to ${club.name}.`} /></div>
-          <DiscussionThread
+          <div className="mb-3 flex items-center gap-2 lg:hidden"><CommentIcon className="h-5 w-5 text-ember" /><h2 className="font-display text-xl">The conversation</h2></div>
+          <div className="hidden lg:block"><SectionHeading title="The conversation" subtitle={`Reviews and replies, private to ${club.name}.`} /></div>
+          {isCompleted ? <DiscussionThread
             clubId={club.id}
             clubSlug={club.slug}
             screeningId={screening.id}
@@ -391,20 +394,21 @@ export default async function ScreeningPage({
             isAdmin={isAdmin}
             hasSeenFilm={hasSeen}
             movieTitle={movie.title}
-            compact
-            viewer={{ username: user!.username, displayName: user!.displayName, avatarAssetId: user!.avatarAssetId }}
             posts={discussion.map((post) => ({
               id: post.id,
               body: post.body,
+              isReview: post.isReview,
+              gifUrl: post.gifUrl,
               containsSpoilers: post.containsSpoilers,
               createdAt: post.createdAt.toISOString(),
               editedAt: post.editedAt?.toISOString() ?? null,
               deletedAt: post.deletedAt?.toISOString() ?? null,
               parentId: post.parentId,
               replyCount: post.replyCount,
+              reactions: post.reactions,
               author: post.author,
             }))}
-          />
+          /> : <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-sm text-dim">Discussion opens after this movie night is marked watched.</p>}
         </section>
 
         {isAdmin && screening.status !== 'completed' ? (

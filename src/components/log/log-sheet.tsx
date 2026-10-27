@@ -14,8 +14,7 @@ import { useToast } from '@/components/ui/toast';
 import { posterUrl } from '@/lib/images';
 import { VISIBILITY_HINTS, VISIBILITY_LABELS, type Visibility } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { logFilmAction } from '@/server/actions/films';
-import { updateFilmStateAction } from '@/server/actions/films';
+import { logFilmAction, updateEntryAction, updateFilmStateAction } from '@/server/actions/films';
 
 export type LogSheetSeed = {
   film?: PickedFilm;
@@ -25,7 +24,13 @@ export type LogSheetSeed = {
     liked?: boolean;
     watched?: boolean;
     visibility?: Visibility;
+    reviewText?: string | null;
+    containsSpoilers?: boolean;
+    tags?: string[];
+    viewingContext?: 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other' | null;
+    watchedDate?: string;
   };
+  entryId?: string;
   screeningId?: string;
   title?: string;
   dateHint?: string;
@@ -47,14 +52,14 @@ export function LogSheet({
   onLogged: (result: { entryId: string; movieSlug: string }) => void;
 }) {
   const [film, setFilm] = useState<PickedFilm | null>(seed.film ?? null);
-  const [watchedDate, setWatchedDate] = useState(seed.dateHint ?? todayLocalIso());
+  const [watchedDate, setWatchedDate] = useState(seed.initial?.watchedDate ?? seed.dateHint ?? todayLocalIso());
   const [rating, setRating] = useState<number | null>(seed.initial?.rating ?? null);
   const [liked, setLiked] = useState(seed.initial?.liked ?? false);
-  const [review, setReview] = useState('');
-  const [spoilers, setSpoilers] = useState(false);
-  const [tagInput, setTagInput] = useState('');
+  const [review, setReview] = useState(seed.initial?.reviewText ?? '');
+  const [spoilers, setSpoilers] = useState(seed.initial?.containsSpoilers ?? false);
+  const [tagInput, setTagInput] = useState(seed.initial?.tags?.join(', ') ?? '');
   const [visibility, setVisibility] = useState<Visibility>(seed.initial?.visibility ?? 'public');
-  const [viewingContext, setViewingContext] = useState<'' | 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other'>('');
+  const [viewingContext, setViewingContext] = useState<'' | 'cinema' | 'home' | 'friend_home' | 'club' | 'festival' | 'travel' | 'other'>(seed.initial?.viewingContext ?? '');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const toast = useToast();
@@ -69,6 +74,26 @@ export function LogSheet({
     if (!film) return;
     setError(null);
     startTransition(async () => {
+      if (seed.entryId) {
+        const result = await updateEntryAction({
+          entryId: seed.entryId,
+          watchedDate,
+          rating,
+          liked,
+          reviewText: review.trim() || null,
+          containsSpoilers: spoilers && Boolean(review.trim()),
+          visibility,
+          tags,
+          viewingContext: viewingContext || null,
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        toast({ message: 'Diary entry updated', tone: 'success' });
+        onLogged({ entryId: result.data.entryId, movieSlug: film.slug ?? '' });
+        return;
+      }
       const result = await logFilmAction({
         movieId: film.movieId,
         providerId: film.providerId,
@@ -133,7 +158,7 @@ export function LogSheet({
       footer={
         film ? (
           <div className="flex flex-col-reverse gap-2 min-[360px]:flex-row min-[360px]:items-center">
-            <Button
+            {!seed.entryId ? <Button
               variant="ghost"
               size="md"
               onClick={markWatchedOnly}
@@ -142,7 +167,7 @@ export function LogSheet({
               title="Adds it to your films without inventing a date"
             >
               Seen it, no date
-            </Button>
+            </Button> : null}
             <Button
               variant="primary"
               size="md"
@@ -150,7 +175,7 @@ export function LogSheet({
               disabled={pending}
               className="w-full justify-center min-[360px]:ml-auto min-[360px]:w-auto min-[360px]:min-w-28"
             >
-              {pending ? 'Saving…' : isRewatch ? 'Log rewatch' : 'Log film'}
+              {pending ? 'Saving…' : seed.entryId ? 'Save changes' : isRewatch ? 'Log rewatch' : 'Log film'}
             </Button>
           </div>
         ) : null

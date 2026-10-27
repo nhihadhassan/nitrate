@@ -55,17 +55,19 @@ through signup drops the new member straight into that club.
 - Reviews with likes, threaded comments, sharing, reporting, edit and delete
 - Spoiler protection that does not render the text until you ask — it cannot be
   read by selecting or inspecting the page
-- Ranked and unranked lists with per-item notes, reordering, likes and comments;
-  the schema already supports collaborators
-- Watchlist with sorting and decade filtering, and automatic removal on log
+- Ranked and unranked lists with per-item notes, version-safe reordering,
+  collaboration invitations, likes and comments
+- Watchlist with sorting plus decade and genre filters, private notes, and
+  automatic removal on log
 
 ## Profiles
 
 Avatar, display name, username, bio, location, link, pronouns, four favourite
-films front and centre, follower/following/film/club counts, and tabs for
-Films, Diary, Reviews, Lists, Likes and Clubs. Stats: films, this year,
-rewatches, diary entries, hours watched, average rating, rating distribution,
-most-watched genres and most-watched director.
+films front and centre, follower/following/film/club counts, a compact recent
+diary strip, recent writing, and tabs for Films, Diary, Reviews, Lists, Likes
+and Clubs. Stats: films, this year, rewatches, diary entries, hours watched,
+average rating, rating distribution, most-watched genres and most-watched
+director.
 
 ## Social
 

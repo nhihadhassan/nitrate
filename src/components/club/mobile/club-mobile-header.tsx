@@ -47,14 +47,14 @@ export function ClubMobileHeader({
       sizes="100vw"
       priority
     >
-      {actions ? <div className="absolute bottom-5 right-4 z-10">{actions}</div> : null}
+      {actions ? <div className="absolute right-4 top-4 z-10">{actions}</div> : null}
       <div className="absolute inset-x-0 bottom-0 p-4 pb-5">
         {/* Club names run long — "Rachad Julijan Diyack Movie Club" is three
             lines at 375px — so the display size steps down and the name is
             clamped rather than allowed to fill the band. */}
         <h1
-          className="font-display text-[1.5rem] leading-[1.08] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] xs:text-[1.75rem]"
-          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', paddingRight: actions ? '4rem' : undefined }}
+          className="max-w-[22rem] font-display text-[1.5rem] leading-[1.08] text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)] xs:text-[1.75rem]"
+          style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
         >
           {name}
         </h1>

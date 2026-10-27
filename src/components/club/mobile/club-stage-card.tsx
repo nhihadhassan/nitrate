@@ -28,7 +28,6 @@ export function ClubStageCardView({
   film,
   backdropPath,
   progress,
-  secondaryAction,
 }: {
   card: ClubStageCard;
   /** Submitted picks, for the stages where seeing them is the point. */
@@ -40,8 +39,6 @@ export function ClubStageCardView({
   backdropPath?: string | null;
   /** Ready/total, drawn as a bar so the count is readable at a glance. */
   progress?: { done: number; total: number } | null;
-  /** An optional second, quieter way out of this stage. */
-  secondaryAction?: { label: string; href: string } | null;
 }) {
   const backdrop = backdropUrl(backdropPath, 'sm');
 
@@ -191,15 +188,6 @@ export function ClubStageCardView({
               {card.action.label}
             </Link>
           </Press>
-        ) : null}
-
-        {secondaryAction ? (
-          <Link
-            href={secondaryAction.href}
-            className="mt-2 flex min-h-11 w-full items-center justify-center rounded-full border border-line text-sm text-muted hover:border-line-strong hover:text-text"
-          >
-            {secondaryAction.label}
-          </Link>
         ) : null}
 
         {card.waitingOn ? (
