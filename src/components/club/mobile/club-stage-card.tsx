@@ -4,6 +4,7 @@ import Link from 'next/link';
 
 import { Press } from '@/components/motion/primitives';
 import { Poster, type PosterFilm } from '@/components/film/poster';
+import { ThemeBadge, ThemeChips, type ThemeInfo } from '@/components/club/theme-badge';
 import { Avatar, type AvatarUser } from '@/components/user/avatar';
 import { CheckIcon, ChevronRightIcon, FilmIcon } from '@/components/ui/icons';
 import { backdropUrl } from '@/lib/images';
@@ -28,6 +29,7 @@ export function ClubStageCardView({
   film,
   backdropPath,
   progress,
+  theme = null,
 }: {
   card: ClubStageCard;
   /** Submitted picks, for the stages where seeing them is the point. */
@@ -39,6 +41,8 @@ export function ClubStageCardView({
   backdropPath?: string | null;
   /** Ready/total, drawn as a bar so the count is readable at a glance. */
   progress?: { done: number; total: number } | null;
+  /** The active round's theme, if it has one. No theme means no visual change. */
+  theme?: ThemeInfo | null;
 }) {
   const backdrop = backdropUrl(backdropPath, 'sm');
 
@@ -107,7 +111,10 @@ export function ClubStageCardView({
       ) : null}
 
       <div className="relative p-5">
-        <p className="eyebrow text-iris">{card.label}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="eyebrow text-iris">{card.label}</p>
+          {theme?.themeName ? <ThemeBadge theme={theme} /> : null}
+        </div>
 
         <div className={cn('mt-2 flex gap-4', film ? 'items-start' : 'items-baseline')}>
           {film ? (
@@ -123,6 +130,7 @@ export function ClubStageCardView({
               {card.headline}
             </h2>
             {card.meta ? <p className="mt-1.5 text-sm text-muted">{card.meta}</p> : null}
+            {theme?.themeName ? <ThemeChips theme={theme} className="mt-2.5" /> : null}
             {progress && progress.total > 0 ? (
               <div
                 className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-strong"

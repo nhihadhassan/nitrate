@@ -13,10 +13,12 @@ import { useToast } from '@/components/ui/toast';
 import { Sheet } from '@/components/ui/sheet';
 import { Avatar, AvatarStack, type AvatarUser } from '@/components/user/avatar';
 import { CommentIcon, SparkIcon } from '@/components/ui/icons';
+import { ThemeBadge, type ThemeInfo } from '@/components/club/theme-badge';
 import { filmHref, userHref } from '@/lib/links';
 import { backdropUrl } from '@/lib/images';
 import { WHEEL, WHEEL_TOTAL_MS } from '@/lib/motion';
-import { formatRuntime } from '@/lib/utils';
+import { themeAccent } from '@/lib/movie-themes';
+import { cn, formatRuntime } from '@/lib/utils';
 import {
   beginWheelRevealAction,
   completeWheelRevealAction,
@@ -68,6 +70,7 @@ export function WheelExperience({
   canPlanMovieNight = false,
   members = [],
   memberLine,
+  theme = null,
 }: {
   clubId: string;
   clubSlug: string;
@@ -92,6 +95,8 @@ export function WheelExperience({
   members?: AvatarUser[];
   /** "8 members · Monthly". */
   memberLine?: string;
+  /** The round's theme, if it has one. Lightly tints the wheel's ambience. */
+  theme?: ThemeInfo | null;
 }) {
   const toast = useToast();
   const router = useRouter();
@@ -120,6 +125,13 @@ export function WheelExperience({
   // The reveal must happen exactly once per attempt, whichever of the two
   // paths below gets there first.
   const finishing = useRef(false);
+
+  function planMovieNight() {
+    const anchor = window.matchMedia('(min-width: 64rem)').matches
+      ? 'club-schedule'
+      : 'club-schedule-m';
+    router.push(`/club/${clubSlug}#${anchor}`);
+  }
 
   /** Records the reveal for this member, then shows the film. */
   const finish = useCallback(
@@ -366,12 +378,13 @@ export function WheelExperience({
           <div className="mt-6 w-full space-y-2">
             {canPlanMovieNight ? (
               <Press>
-                <Link
-                  href={`/club/${clubSlug}#club-schedule-m`}
+                <button
+                  type="button"
+                  onClick={planMovieNight}
                   className="flex min-h-12 w-full items-center justify-center rounded-full bg-ember px-5 text-[0.9375rem] font-medium text-inverse"
                 >
                   Plan movie night
-                </Link>
+                </button>
               </Press>
             ) : null}
             <Button asChild variant="outline" size="lg" className="w-full justify-center">
@@ -443,9 +456,16 @@ export function WheelExperience({
         ? selectionMovieLabel
         : selectionMovieLabel;
 
+  const accent = themeAccent(theme?.themeId ? { id: theme.themeId, type: theme.themeType ?? 'custom' } : null);
+
   return (
     <section className="flex flex-col items-center py-2 text-center" aria-label="Movie Club wheel">
       <p className="eyebrow text-iris">{clubName}</p>
+      {theme?.themeName && phase !== 'revealed' ? (
+        <div className="mt-2 flex justify-center">
+          <ThemeBadge theme={theme} />
+        </div>
+      ) : null}
       <h1 className="mt-1.5 font-display text-[2rem] leading-none">{heading}</h1>
       {phase === 'ready' ? (
         <div className="mt-2 space-y-1">
@@ -453,10 +473,13 @@ export function WheelExperience({
             {poolCount} {poolCount === 1 ? 'movie' : 'movies'} on the wheel
           </p>
           {poolWasOverridden ? <p className="text-xs text-iris">Pool selected together</p> : null}
+          {theme?.themeName ? <p className="text-xs text-dim">{theme.themeName}</p> : null}
         </div>
       ) : null}
 
-      <div className="mt-7 w-full">
+      <div
+        className={cn('mt-7 w-full rounded-full', accent === 'ember' && !revealed && 'drop-shadow-[0_0_70px_rgba(234,88,50,0.32)]')}
+      >
         <PosterWheel
           items={cards.map((card) => ({ nominationId: card.nominationId, movie: card.movie }))}
           winnerIndex={spinning && payload ? payload.winnerIndex : null}

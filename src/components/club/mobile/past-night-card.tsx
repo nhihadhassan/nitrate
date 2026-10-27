@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Poster, type PosterFilm } from '@/components/film/poster';
 import { Stars } from '@/components/film/stars';
 import { CommentIcon } from '@/components/ui/icons';
+import { ThemeBadge, type ThemeInfo } from '@/components/club/theme-badge';
 import { AvatarStack, type AvatarUser } from '@/components/user/avatar';
 import { backdropUrl } from '@/lib/images';
 
@@ -25,6 +26,7 @@ export function FeaturedPastNight({
   average,
   ratingsHidden,
   postCount,
+  theme = null,
 }: {
   href: string;
   film: PosterFilm;
@@ -36,6 +38,7 @@ export function FeaturedPastNight({
   average: number | null;
   ratingsHidden: boolean;
   postCount: number;
+  theme?: ThemeInfo | null;
 }) {
   const backdrop = backdropUrl(backdropPath, 'sm');
 
@@ -61,7 +64,10 @@ export function FeaturedPastNight({
             <Poster film={film} size="sm" linked={false} priority />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="eyebrow">{dateLabel}</p>
+            <div className="flex items-center gap-2">
+              <p className="eyebrow">{dateLabel}</p>
+              {theme?.themeName ? <ThemeBadge theme={theme} /> : null}
+            </div>
             <h3 className="mt-1 font-display text-[1.5rem] leading-[1.1]">
               <Link href={href} className="hover:text-iris">
                 {film.title}

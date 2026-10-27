@@ -48,8 +48,6 @@ export default async function ClubsPage() {
         )}
       </header>
 
-      {!user ? <section className="mb-14"><p className="eyebrow mb-3 text-iris">How it works</p><ClubLoopPreview /></section> : null}
-
       {user ? (
         <section className="mb-14">
           {mine.length ? (
@@ -126,12 +124,10 @@ export default async function ClubsPage() {
         />
       ) : null}
 
-      {user ? (
-        <section className="border-t border-line pt-5" aria-labelledby="club-loop-heading">
-          <h2 id="club-loop-heading" className="text-sm text-muted">How Movie Clubs work</h2>
-          <div className="mt-4"><ClubLoopPreview /></div>
-        </section>
-      ) : null}
+      <section className="border-t border-line pt-5" aria-labelledby="club-loop-heading">
+        <h2 id="club-loop-heading" className="text-sm text-muted">How Movie Clubs work</h2>
+        <div className="mt-4"><ClubLoopPreview /></div>
+      </section>
     </Container>
   );
 }

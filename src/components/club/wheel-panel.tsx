@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { Poster } from '@/components/film/poster';
 import { Button } from '@/components/ui/button';
+import { ThemeBadge, type ThemeInfo } from '@/components/club/theme-badge';
 import { inlineSelectionLabel } from '@/lib/club-cadence';
 import { pluralize } from '@/lib/utils';
 
@@ -20,6 +21,7 @@ export function WheelPanel({
   allMembersPicked,
   spun = false,
   selectionMovieLabel = 'This selection’s movie',
+  theme = null,
 }: {
   clubId: string;
   clubSlug?: string;
@@ -29,6 +31,7 @@ export function WheelPanel({
   canSpin: boolean;
   allMembersPicked: boolean;
   selectionMovieLabel?: string;
+  theme?: ThemeInfo | null;
 }) {
   const href = clubSlug ? `/club/${clubSlug}/reveal/${roundId}` : '#club-decision';
   return (
@@ -38,7 +41,10 @@ export function WheelPanel({
           {contenders.slice(0, 5).map((contender) => <div key={contender.nominationId} className="w-12 shrink-0"><Poster film={contender.movie} size="xs" linked={false} /></div>)}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="eyebrow text-iris">{spun ? 'The wheel has been spun' : allMembersPicked ? 'The picks are in' : 'Movie Club picks'}</p>
+          <div className="flex items-center gap-2">
+            <p className="eyebrow text-iris">{spun ? 'The wheel has been spun' : allMembersPicked ? 'The picks are in' : 'Movie Club picks'}</p>
+            {theme?.themeName ? <ThemeBadge theme={theme} /> : null}
+          </div>
           <p className="mt-1 text-sm text-muted">{spun ? `Tap to reveal ${inlineSelectionLabel(selectionMovieLabel)}.` : `${pluralize(contenders.length, 'movie')} in. One movie night.`}</p>
         </div>
         <Button asChild variant="iris" size="lg"><Link href={href}>{spun ? 'Reveal result' : canSpin && allMembersPicked ? 'Open the wheel' : 'View picks'}</Link></Button>

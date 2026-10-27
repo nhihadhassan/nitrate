@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Poster } from '@/components/film/poster';
 import { RatingNumber } from '@/components/film/stars';
 import { Badge, EmptyState } from '@/components/ui/primitives';
+import { ThemeBadge } from '@/components/club/theme-badge';
 import { filmHref, screeningHref } from '@/lib/links';
 import { roundPeriodLabel } from '@/lib/club-cadence';
 import { formatClubDateTime, formatRuntime, pluralize } from '@/lib/utils';
@@ -121,6 +122,7 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
             average={featured.average}
             ratingsHidden={featured.ratingsHidden}
             postCount={featured.screening.postCount}
+            theme={featured.round}
           />
         </div>
       ) : null}
@@ -171,6 +173,7 @@ export default async function ClubHistoryPage({ params }: { params: Promise<{ sl
                       {round.mode === 'wheel' ? 'Wheel' : 'Vote'}
                     </Badge>
                   ) : null}
+                  {round?.themeName ? <ThemeBadge theme={round} /> : null}
                 </p>
               </div>
               <div className="shrink-0 text-right">

@@ -94,9 +94,15 @@ export default async function ClubRevealPage({ params }: { params: Promise<{ slu
         resultMode={round.wheelResultMode}
         initialPayload={initialPayload}
         selectionMovieLabel={roundMovieLabel(club.selectionCadence, round.roundStartAt)}
-        canPlanMovieNight={permissions.has('edit_movie_night')}
+        canPlanMovieNight={permissions.has('edit_movie_night') && round.status === 'winner_selected'}
         members={members}
         memberLine={`${members.length} ${members.length === 1 ? 'member' : 'members'} · ${cadenceLabel(club.selectionCadence, club.customCadenceDays)}`}
+        theme={{
+          themeName: round.themeName,
+          themeId: round.themeId,
+          themeType: round.themeType,
+          themeCriteria: round.themeCriteria,
+        }}
       />
     </div>
   );
