@@ -27,3 +27,7 @@ next-env.d.ts
 # test
 coverage/
 .env*
+!.env.example
+
+# Local agent checkouts (each retains its own Git history)
+.claude/worktrees/

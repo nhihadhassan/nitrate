@@ -2,9 +2,10 @@
 
 The name has changed twice already, so this is written down properly.
 
-**The whole job is five files and one environment variable, and takes about
-five minutes.** Everything a user reads comes from one constant; the exceptions
-below exist only because those files cannot import TypeScript.
+Reviewed 27 October 2026. Start with the brand constant, then review static
+assets, sender configuration, package metadata and documentation. Search for
+remaining strings and verify the affected surfaces; infrastructure identifiers
+have separate migration and compatibility costs.
 
 ---
 
@@ -25,8 +26,8 @@ export const BRAND = {
 
 That single edit covers **every screen and every email**: page titles, the
 nav wordmark, the landing page, onboarding, terms and guidelines, share sheets,
-email headers and footers, and Open Graph metadata. Nothing else in `src/` hard-codes
-the name — `grep -rn "BRAND\." src` shows the ~20 places that read it.
+email headers and footers, and Open Graph metadata. Use `rg 'BRAND\.' src` to find callers and search for the old name to catch
+remaining literal copy, static metadata and test fixtures.
 
 ---
 
@@ -97,3 +98,11 @@ npx vercel deploy --prod --token "$VERCEL_TOKEN" --yes
 Then load the site and check three surfaces, because they read from three
 different places: the **browser tab** (metadata), the **top-left wordmark**
 (component), and the **sender name on a test email** (env var).
+
+
+Also update [README](../README.md), [Product](../PRODUCT.md),
+[Design & Product](../DESIGN_AND_PRODUCT.md), and living operating docs.
+Preserve original names in historical release records. The local LetterCube
+folder name can remain independent of the product brand. Use the release
+checks in [HANDOFF](HANDOFF.md); never infer live sender verification from an
+example address in this document.

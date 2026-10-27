@@ -1,5 +1,9 @@
 # Design & Product — Nitrate
 
+Reviewed 27 October 2026. This document states product and design intent.
+[Features](docs/FEATURES.md) records implementation; [Status](docs/STATUS.md)
+records verification and known gaps.
+
 **Your films. Their films. Our films.**
 
 A social film diary, and the Movie Club that runs itself. This document is the
@@ -67,8 +71,9 @@ voting, spinning the wheel, revealing ratings, choosing the next film — feel
   the clock, so the club reads the calendar as well as the row: six hours after
   a booked night starts it stops asking who is coming and starts asking whether
   it happened.
-- **Blind means blind.** While a vote or club rating is open, the server does not
-  send totals to the client at all. The reveal is a real reveal.
+- **Blind means blind.** Vote and rating totals must respect the viewer's
+  reveal state on every surface. This is the required contract; the unresolved
+  club aggregate gap is tracked in [Status](docs/STATUS.md).
 - **Nothing is silently dropped.** The Letterboxd importer surfaces every
   ambiguous or unmatched row for a human decision.
 
@@ -233,3 +238,12 @@ Everything else stays quiet so these land.
   moment, or everyday chrome that should stay restrained?
 - New surface? It should feel like it was designed by the same hand as the rest:
   reuse the depth scale, the motion tokens and the component vocabulary.
+
+### Current workflow details
+
+Optional round themes guide picks without enforcing a genre restriction. A
+random wheel result is committed on the server and replayed consistently;
+manager-selected pools/results are explicit and attributed. Result corrections
+stop when a night is completed. Club state refreshes through adaptive polling.
+On phones, secondary catalogue filters use a sheet; desktop keeps visible rows.
+Preserve diary snippet spoiler labels and the existing privacy predicates.

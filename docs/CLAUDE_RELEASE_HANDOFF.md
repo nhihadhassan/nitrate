@@ -5,6 +5,9 @@
 > migration order, rollback history, and privacy constraints; do not use its
 > local-only publication status as the current deployment state. Current
 > operations and priorities live in `docs/HANDOFF.md` and `docs/ROADMAP.md`.
+> Reviewed 27 October 2026: [current verification](STATUS.md),
+> [release index](releases/README.md), and the canonical journal through `0017`
+> supersede this document as operating instructions.
 
 ## Purpose and hard boundary
 

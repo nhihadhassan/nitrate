@@ -22,3 +22,14 @@ The core distinction is: **Movie Ideas are for later. Your pick is for this roun
 A second one, for a booked night: **an invite link is where people gather, a
 watch link is where the film plays.** A club that meets in a living room has
 one and not the other; a club that meets on a call may use the same URL twice.
+
+
+## Themes and overrides
+
+A **theme** guides the current round; it does not replace the club name or block
+an otherwise valid pick. Use **Edit movies on the wheel** for a manager-selected
+pool and **Set this as the result** for a manual winner. A manual result must
+not be described as a random spin. **Replay** replays the same committed result.
+Corrections are allowed only before the movie night is marked watched.
+
+Reviewed 27 October 2026; see [Features](FEATURES.md) and [Status](STATUS.md).

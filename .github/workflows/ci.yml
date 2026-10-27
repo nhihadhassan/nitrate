@@ -31,3 +31,6 @@ jobs:
 
       - name: Verify (typecheck, lint, unit tests, build)
         run: npm run verify
+
+      - name: Verify local storage safeguards
+        run: npm run test:storage

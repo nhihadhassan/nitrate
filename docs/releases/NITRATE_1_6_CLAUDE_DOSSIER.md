@@ -1,5 +1,9 @@
 # Nitrate 1.6 — Shared Curation
 
+> **Historical record, reviewed 27 October 2026.** Publication status and checks
+> below describe the original release session. Use [current status](../STATUS.md)
+> and [handoff](../HANDOFF.md) for current operation and migration order.
+
 ## Release identity
 
 - Local branch: `codex/nitrate-1-6-curation`

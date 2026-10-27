@@ -20,7 +20,10 @@
     "db:migrate:test": "tsx scripts/migrate-test.ts",
     "db:studio": "drizzle-kit studio",
     "seed": "tsx scripts/seed.ts",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run build"
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "storage:report": "node scripts/storage.mjs",
+    "storage:clean": "node scripts/storage.mjs --apply",
+    "test:storage": "node --test test/storage.test.mjs"
   },
   "dependencies": {
     "archiver": "^7.0.1",

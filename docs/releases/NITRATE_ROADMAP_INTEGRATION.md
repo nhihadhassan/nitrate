@@ -1,5 +1,9 @@
 # Nitrate Roadmap Integration — 1.3 Through 2.0
 
+> **Historical record, reviewed 27 October 2026.** Publication status and checks
+> below describe the original release session. Use [current status](../STATUS.md)
+> and [handoff](../HANDOFF.md) for current operation and migration order.
+
 > Historical verification record. This train has since landed on `main`; the
 > publication fields below describe the state when this dossier was written,
 > not the current production state.

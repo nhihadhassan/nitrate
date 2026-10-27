@@ -1,193 +1,160 @@
 # Handoff
 
-Everything you need to run, operate and hand off **Nitrate**.
-Written to be read by someone who has never seen the project.
+Operational reference reviewed 27 October 2026. For the checks actually performed
+and their limits, read [STATUS](STATUS.md). Historical release records describe
+past observations; they are not proof of current provider configuration.
 
----
+## Project map
 
-## 1. Where everything lives
-
-| Thing | Where |
+| Concern | Location |
 | --- | --- |
-| Source | GitHub — `nhihadhassan/nitrate` (public) |
+| Product | Nitrate; local folder retains the LetterCube name |
+| Repository | [nhihadhassan/nitrate](https://github.com/nhihadhassan/nitrate) |
+| Production | [nitrate-iota.vercel.app](https://nitrate-iota.vercel.app) |
 | Hosting | Vercel project `nitrate`, team `nhihadhassan-2432s-projects` |
-| Live URL | `https://nitrate-iota.vercel.app` |
-| Database | Supabase project `rachel-tracker` (`zgafubhzhxikuknihmnu`), ca-central-1 |
-| Film data | TMDB API |
-| Email | Resend, sending as `noreply@your-domain.example` |
+| Data | PostgreSQL, dedicated `nitrate` schema, 63 application tables |
+| Auth | Custom sessions and scrypt; no Supabase Auth |
+| Catalogue | TMDB provider plus local fallback |
+| Email | Resend or console transport with a durable outbox |
+| GIF search | Optional Tenor v2 |
 
-> **The repo, Vercel project, URL and product name are all `nitrate` again.**
-> The product briefly carried a club's name; that is now separated — `BRAND` in
-> `src/lib/brand.ts` names the application, clubs name only themselves.
+Source routes live under `src/app`, business rules in `src/server/services`,
+validated entry points in `src/server/actions`, and SQL in `drizzle`.
+Profiles are implemented at `/u/[username]`; `/@username` URLs are rewrites.
 
----
+## Local setup
 
-## 2. The database is a guest in a shared project
-
-`rachel-tracker` already hosts ~48 tables for other apps (expenses, concerts,
-job applications, courses). This app does **not** touch them.
-
-- All 43 tables live in a dedicated `nitrate` Postgres schema.
-- The app connects as `nitrate_app`, a role explicitly revoked from `public`.
-  Verified: it gets `permission denied` on `public.clients`,
-  `public.exp_transactions`, `public.job_applications`, `public.profiles`,
-  `public.concerts`.
-- Connect through the Supavisor pooler at **`aws-1-ca-central-1`**.
-  `aws-0-…` does not resolve this tenant — this will waste an hour if you forget.
-  - App runtime: port **6543** (transaction mode, `prepare: false`)
-  - Migrations: port **5432** (session mode, supports DDL)
-
-**No Supabase Auth is used.** Sessions are this app's own (`nitrate.sessions`,
-scrypt password hashes, httpOnly cookie). There are no redirect URLs or Site URL
-settings to configure in Supabase, and the `nitrate` schema is not exposed via
-PostgREST.
-
-### Moving to a dedicated Supabase project later
-
-1. Create the project, then create the schema and role (see
-   `docs/DECISIONS.md` §"Database isolation" for the exact SQL).
-2. Point `DIRECT_DATABASE_URL` at it and run `npm run db:migrate`.
-3. Update `DATABASE_URL` and `DIRECT_DATABASE_URL` in Vercel and redeploy.
-
-Data does not move automatically. There is currently one test account
-(`ninaverity`) and one club, so starting clean is the easy path.
-
----
-
-## 3. Environment variables
-
-Set in Vercel for **production and preview**, and in `.env.local` for dev.
-`.env.local` is gitignored; `.env.example` documents every key.
-
-| Variable | Status | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | ✅ set | Pooled, port 6543 |
-| `DIRECT_DATABASE_URL` | ✅ set | Session mode, port 5432, migrations only |
-| `SESSION_SECRET` | ✅ set | 32 random bytes. Rotating it signs everyone out |
-| `TMDB_API_KEY` | ✅ set | v4 read token |
-| `MOVIE_PROVIDER` | ✅ set | `tmdb`. Set `offline` to force the local catalogue |
-| `CRON_SECRET` | ✅ set | Bearer token the weekly job must present |
-| `RESEND_API_KEY` | ✅ set | Verified working — a live send returned a provider message id |
-| `EMAIL_FROM` | ✅ set | `noreply@your-domain.example`, on a Resend-verified domain |
-| `NEXT_PUBLIC_SITE_URL` | ✅ set | **Every link in outgoing email is built from this.** Set explicitly in production rather than relying on Vercel's own variable, because mail rendered anywhere else silently emits `localhost` links |
-
----
-
-## 4. Access and email — both live
-
-**The site is public.** Vercel Deployment Protection is off; `/`, `/explore`,
-`/clubs`, `/login` and `/signup` all return 200 with no authentication. Friends
-can sign up from any device, phone included.
-
-**Email sends for real.** `your-domain.example` is verified in Resend with sending
-enabled, so mail goes out as `noreply@your-domain.example` and can reach any
-address. Verified by pushing a message through the real queue and getting a
-provider message id back.
-
-The one remaining caveat: accounts created with fake addresses (the original
-test account used `@nitrate.test`) will never receive anything. Real signups
-need deliverable addresses.
-
-## 5. Running it locally
+Use Node 20+ and the committed npm lockfile.
 
 ```bash
-npm install
-cp .env.example .env.local     # fill in the values from §3
+npm ci
+cp .env.example .env.local
+# Fill in values and confirm the target development database.
 npm run db:migrate
 npm run dev
 ```
 
-```bash
-npm run verify                 # typecheck → lint → 43 tests → production build
-```
+`.env.local`, `.vercel` and all real secrets stay untracked. `.env.example` is
+intentionally tracked. A provider-free build and unit suite can use the offline
+catalogue; real personal and club workflows require a database.
 
-The integration suite is opt-in and requires a distinct `TEST_DATABASE_URL`.
-It namespaces and cleans up everything it creates, but it still writes to that
-database. Use an isolated migrated branch or scratch project, then run
-`npm run test:integration`.
+## Environment
 
-### Deploying
-
-GitHub is connected to Vercel. A push to `main` starts the production deploy.
-The Vercel CLI remains available as a manual fallback with a deploy-scoped token:
-
-```bash
-npx vercel deploy --prod --token "$VERCEL_TOKEN" --yes
-```
-
-For every release, verify the local commit matches `origin/main`, wait for the
-Vercel production deployment to become Ready, and smoke-test the canonical URL.
-
----
-
-## 6. Known limits and gotchas
-
-**Not real-time.** Pages are dynamically server-rendered, so any load or
-navigation shows current data, and your own actions refresh your view. But if
-someone else spins the wheel while you are watching the club page, your screen
-does not move until you refresh. There are no websockets. Adding live updates
-(polling or SSE) is a real piece of work — see `docs/ROADMAP.md`.
-
-**Cron runs daily, not hourly.** Vercel Hobby rejects sub-daily schedules, so
-`vercel.json` runs `/api/cron/weekly-picks` once a day at 17:00 UTC. Because of
-that, weekly rounds trigger on the club's local **weekday** only — the stored
-`weeklyPickHour` is not used, and its picker is hidden. Upgrading to Pro would
-let you restore hourly precision.
-
-**Email links come from `NEXT_PUBLIC_SITE_URL`, not from the request.** Mail is
-rendered by a background worker with no incoming request to infer a host from,
-so `env.siteUrl` is the only source. If you send from a local machine or a
-script, the links will point at whatever that environment has — during setup
-this produced a real test email with unclickable `localhost:3000` links.
-
-**Next.js is pinned to the 15.5.x line.** Vercel refuses to build versions with
-open advisories; 15.1.6 was rejected outright. Do not downgrade.
-
-**Internal identifiers still say `nitrate`.** The Postgres schema, the
-`nitrate_app` role, the `nitrate_session` cookie, `nitrate-theme` localStorage
-key and the `nitrate-*` CSS animation names. This is deliberate: renaming them
-buys nothing a user can see and would mean a data migration plus signing
-everyone out. All *user-facing* naming comes from `src/lib/brand.ts`; to change
-the product's name, follow `docs/RENAMING.md`.
-
-**Avatars and club images live in Postgres** as `bytea`, served from
-`/media/[id]` with immutable caching. Fine at this scale; move to object storage
-if the table gets large.
-
-**The deploy token cannot change project settings.** It returns 403 on anything
-under Vercel project configuration. Deploys, env vars and logs all work.
-
----
-
-## 7. Operating it
-
-| Task | Where |
+| Variable | Purpose / requirement |
 | --- | --- |
-| Moderation queue | `/admin/reports` |
-| Suspend a user / change roles | `/admin/users` |
-| Inspect clubs | `/admin/clubs` |
-| Fix bad film metadata | `/admin/movies` |
-| Email outbox + manual flush | `/admin/email` |
-| Audit log of every mod action | `/admin/audit` |
-| Product metrics, club-vs-not retention | `/admin` |
+| `DATABASE_URL` | Application PostgreSQL connection; required for data workflows |
+| `DIRECT_DATABASE_URL` | Preferred migration connection; falls back to `DATABASE_URL` |
+| `SESSION_SECRET` | Required session configuration; use a random 32+ byte secret |
+| `TMDB_API_KEY` | TMDB v4 read token or v3 key; optional for offline operation |
+| `MOVIE_PROVIDER` | `tmdb` or `offline`; otherwise inferred from the TMDB key |
+| `TENOR_API_KEY` | Optional GIF search; absent key produces an unconfigured state |
+| `RESEND_API_KEY` | Optional real email transport; without it mail is logged by console transport |
+| `EMAIL_FROM` | Sender name/address; verify the domain with the email provider |
+| `CRON_SECRET` | Bearer secret; production cron fails closed when missing |
+| `NEXT_PUBLIC_SITE_URL` | Canonical origin for invites, metadata and outgoing links; set explicitly |
+| `TEST_DATABASE_URL` | Distinct disposable database for opt-in integration tests |
+| `TEST_DIRECT_DATABASE_URL` | Optional direct/session connection for test migrations |
+| `ALLOW_SYNTHETIC_FIXTURES` | `true` enables dev fixture routes; keep unset in production |
 
-Admin is gated on `users.role` being `admin` or `moderator`. To make yourself an
-admin the first time, run against the database:
+`env.siteUrl` falls back to `VERCEL_PROJECT_PRODUCTION_URL`, then localhost.
+Console transport does not prove real delivery. Never infer live email, Tenor
+or TMDB credentials from an example, an old handoff, or a successful build.
 
-```sql
-update nitrate.users set role = 'admin' where username = 'your_username';
+## Database isolation and migrations
+
+The recorded infrastructure uses Supabase project `rachel-tracker`
+(`zgafubhzhxikuknihmnu`, ca-central-1), shared with other apps. Treat the actual
+connection as authoritative and verify it before changing anything. Only the
+`nitrate` schema belongs to this application. The recorded app role is
+`nitrate_app`; application access isolation must be rechecked after role changes.
+For that project, the recorded pooler is `aws-1-ca-central-1`, transaction port
+6543 for app traffic and session port 5432 for DDL (`prepare: false`).
+
+`npm run db:migrate` reads `.env.local` when variables are absent and uses the
+`nitrate_migrations` journal. Never run a broad schema push on the shared project.
+The ordered migration journal currently includes:
+
+| Range | Changes |
+| --- | --- |
+| `0000`–`0004` | Baseline app, wheel/email, blind settings, round/activity and reveal activity |
+| `0005`–`0010` | Movie-night utility, history/shares, discovery, curation, library and Network |
+| `0011`–`0014` | Club ritual, cadence, live nomination uniqueness and invite links |
+| `0015_round_theme` | Optional per-round theme metadata |
+| `0016_club_wheel_overrides` | Manager pool/result attribution and result mode |
+| `0017_club_discussion_experience` | Review posts and GIF URLs |
+
+Use the repository's canonical names and `drizzle/meta/_journal.json`. Older
+local files named `0015_club_wheel_overrides` and
+`0016_club_discussion_experience` were reconciled with upstream; do not reapply
+them as extra migrations. Existing databases need journal/schema inspection,
+not an assumption that a successful deployment applied SQL. No migration runs
+as part of `next build` or Vercel startup.
+
+For tests, set an isolated `TEST_DATABASE_URL`, run `npm run db:migrate:test`,
+then `npm run test:integration`. The migration guard checks normalized host,
+port and database identities against app URLs; the integration setup additionally
+rejects a test URL identical to `DATABASE_URL`. These guards do not establish
+ownership of a database or detect every alias to the same target.
+
+## Verification and release
+
+```bash
+npm run verify
+npm run test:storage
+git diff --check
 ```
 
----
+The default suite does not run the writing database integration tests. Test
+counts belong in [STATUS](STATUS.md), where the date and coverage are explicit.
+CI uses Node 20 and runs `npm ci` plus `npm run verify` on pull requests and main.
 
-## 8. If something breaks
+GitHub `main` is connected to Vercel production. Before publishing runtime
+changes, inspect the database migration state, run appropriate verification,
+and preserve unrelated local work. After publishing, verify the GitHub SHA,
+Vercel `READY` state and matching SHA, then check the canonical site. A successful
+build cannot validate signed-in journeys, email delivery or schema state.
 
-1. **Check runtime errors first** — Vercel dashboard → project → Logs, or the
-   Vercel MCP `get_runtime_errors`. Two production bugs were found this way and
-   both were invisible to typecheck, lint and unit tests.
-2. **TMDB down?** The app degrades on purpose: a circuit breaker falls back to
-   the local catalogue and the UI says so. Nothing 500s.
-3. **Database unreachable?** Check the Supabase project is not paused, and that
-   you are using `aws-1-ca-central-1`.
-4. **Email not arriving?** `/admin/email` shows status, attempt count and the
-   provider error per message.
+For manual deployment, use the configured Vercel account/CLI. Do not paste
+credentials into commands, documentation, screenshots or reports. Deploy-scoped
+tokens may lack project-setting permissions.
+
+## Schedulers and updates
+
+`vercel.json` schedules `/api/cron/weekly-picks` at **17:00 UTC daily**. It opens
+due rounds by the club's local weekday, dispatches screening reminders, flushes
+queued email and prunes expired sessions/rate limits. The stored weekly hour
+is reserved; it does not create an hourly scheduler.
+
+`/api/cron/network-eligibility` exists but has no schedule in `vercel.json`.
+Network auto-unlock requires daily evidence over seven eligible days. Wire a
+reviewed scheduler before relying on automatic unlocks.
+
+Club pages use `ClubPulse`, not websockets: poll every 5 seconds, slow to 20
+seconds after two idle minutes, stop after ten, pause when hidden and resume on
+visibility/focus. Other pages generally reflect changes on refresh/navigation.
+
+## Administration and troubleshooting
+
+| Route | Operation |
+| --- | --- |
+| `/admin` | Product metrics |
+| `/admin/reports` | Moderation queue |
+| `/admin/users` | Suspension and roles |
+| `/admin/clubs` | Club inspection |
+| `/admin/movies` | Catalogue repair |
+| `/admin/email` | Outbox status and manual flush |
+| `/admin/audit` | Moderation audit log |
+| `/admin/network` | Eligibility evidence and feature controls |
+
+Admin/moderator access is enforced by the server. Bootstrap an administrator
+only for an explicitly identified account in the confirmed database. Never
+infer admin rights from a test username.
+
+For failures, inspect Vercel runtime logs first. Check database reachability,
+provider availability and outbox attempts. Media uploads are stored as PostgreSQL
+`bytea` and served through `/media/[id]` with immutable caching; a future move
+to object storage needs a deliberate migration. Avoid deleting test accounts
+or live club data as routine housekeeping.
+
+For a large local folder, use [STORAGE](STORAGE.md). Source, secrets and Git
+history are not cleanup targets.

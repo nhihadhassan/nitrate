@@ -1,8 +1,11 @@
 # Product
 
-## Register
+Reviewed 27 October 2026. See [capabilities](docs/FEATURES.md) and
+[verification limits](docs/STATUS.md) for the implementation record.
 
-product
+## Product type
+
+Social film diary and Movie Club application
 
 ## Users
 

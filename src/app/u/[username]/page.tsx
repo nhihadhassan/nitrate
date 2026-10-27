@@ -156,7 +156,7 @@ export default async function ProfileOverviewPage({ params }: Params) {
                       {formatDateOnly(entry.watchedDate, { month: 'short', day: 'numeric' })}
                     </time>
                     {tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
-                    {entry.reviewText ? <span className="truncate text-muted">{truncate(entry.reviewText, 76)}</span> : null}
+                    {entry.reviewText ? <span className="truncate text-muted">{entry.containsSpoilers ? 'Contains spoilers' : truncate(entry.reviewText, 76)}</span> : null}
                   </div>
                 </div>
               </li>

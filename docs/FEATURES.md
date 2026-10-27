@@ -1,7 +1,10 @@
 # Features
 
-What is actually built and working, as of 9 September 2026. Everything listed here
-is wired end to end — no mock buttons, no placeholder data.
+Source-backed capability inventory reviewed **27 October 2026**. These workflows
+are implemented; live availability depends on database migrations, credentials,
+permissions, feature gates and data. See [STATUS](STATUS.md) for verification
+coverage and known defects. Synthetic `/dev` fixtures are demonstrations, not
+live user data.
 
 ---
 
@@ -48,6 +51,7 @@ through signup drops the new member straight into that club.
 - A film's community average counts each person's *current* rating once, not
   once per viewing
 - Logging removes the film from your watchlist and offers an undo
+- Editing an entry retains its date, review, tags, visibility and viewing context
 
 ## Diary, reviews, lists, watchlist
 
@@ -59,6 +63,8 @@ through signup drops the new member straight into that club.
   collaboration invitations, likes and comments
 - Watchlist with sorting plus decade and genre filters, private notes, and
   automatic removal on log
+- Shared era/genre filter controls: a compact sheet on phones and visible
+  filter rows on larger screens, preserving sort/filter parameters
 
 ## Profiles
 
@@ -67,7 +73,8 @@ films front and centre, follower/following/film/club counts, a compact recent
 diary strip, recent writing, and tabs for Films, Diary, Reviews, Lists, Likes
 and Clubs. Stats: films, this year, rewatches, diary entries, hours watched,
 average rating, rating distribution, most-watched genres and most-watched
-director.
+director. The overview includes three recent diary entries with spoiler-aware
+review snippets.
 
 ## Social
 
@@ -98,10 +105,17 @@ directory.
 - Two ways to decide:
   - **Blind vote** — one vote per member, totals never sent to the client while
     open, winner reveal on close, ties broken by earliest nomination
-  - **Spin the wheel** — everyone submits one film, the server picks with
+  - **Spin the wheel** — members submit their configured number of picks, the server picks with
     `crypto.randomInt`, commits the winner behind a row lock, and the client
     animates to a result it did not choose. Spinning again replays the same
-    outcome; there are no re-rolls.
+    outcome. Authorized managers can explicitly replace the pool with 2–20 films
+    or select/correct a result before completion. Overrides are attributed and
+    manual results are presented as manual, rather than a random spin.
+- Optional curated or custom themes on a round, with suggestion cards and
+  matching-film inspiration; a theme guides choices without restricting picks
+- Explicit pick confirmation, changing a pick and participation controls
+- Reveal replay, skipping, reduced motion and visibility/time-budget recovery;
+  the chosen result offers a direct handoff into movie-night scheduling
 - Screenings with date, timezone, location, watch link, invite link, notes and
   RSVP (going / maybe / can't)
 - **A booked night stays editable.** Date, location, links and details can all
@@ -114,9 +128,17 @@ directory.
 - Post-screening flow: confirm attendance, log to your own diary without
   creating a duplicate, rate and review
 - **Blind club ratings** — before you submit you see only how many people have
-  rated; the average and the individual spread appear the moment you commit
-- Private per-screening discussion with replies, spoiler marking, deletion, and
-  a spoiler gate for anyone who has not logged the film
+  rated; the screening average and individual spread appear after you commit.
+  **Known gap:** `getClubStats().averageRating` still aggregates unrevealed
+  screenings. The intended blind contract is not fully met across dashboard
+  aggregates; see [STATUS](STATUS.md).
+- Private per-screening discussion after the night is marked watched: review
+  posts, replies, editing, deletion, emoji reactions and spoiler gates
+- Optional Tenor GIF search and attachments; search needs `TENOR_API_KEY`
+- Post-screening diary entry editing keeps the existing entry instead of
+  inventing another viewing; linked logging checks membership and the film
+- Completed movie nights reject manager result corrections
+- Club polling refreshes shared state while the page is active
 - Permanent club history with attendees, ratings, group rating and discussion
 - Club intelligence: "on everyone's radar", "nobody has seen", "from your queue"
 - Optional weekly cycle that opens submissions automatically and emails the club
@@ -184,6 +206,53 @@ Mobile controls use at least 44px touch targets, native scrollbars remain
 available, and muted text plus accent-button foregrounds retain readable
 contrast in both themes.
 
+
+## Movie-night coordination and PWA
+
+- Multi-option availability polls, member responses and confirmation into a night
+- Private watchlist notes and region-aware provider availability
+- Reminder preferences and daily reminder dispatch
+- Install metadata, production service worker and an offline fallback page;
+  this is not a complete offline data-editing system and push is not implemented
+
+## History, taste and sharing
+
+- Personal statistics, yearly recaps and club Yearbooks
+- Confidence-aware taste comparison based on shared ratings
+- Revocable snapshot sharing with stored privacy boundaries and generated cards
+- Settings for managing shared snapshots
+
+## Recommendations and personal discovery
+
+- People/film recommendation reasons and reversible feedback
+- Tonight suggestions using time, genre, availability and watchlist scope
+- A taste circle of up to five people, with optional circle feed filtering
+- Follow filmmakers and browse their known upcoming work; no speculative
+  release-date notifications
+
+## Curation, ownership and export
+
+- Collaborative list invitations, roles, stale-version protection and attribution
+- Save, pin and clone lists; transfer selected films into Movie Ideas
+- Ownership copies with format/edition and private details
+- Streamed account ZIP export via `/api/account/export`, including schema metadata
+  and cursor-based batches rather than buffering the whole archive
+
+## Network
+
+- Network hub, people, community lists, public clubs and community trends
+- Invite-only, request-to-join and open public-club policies with approval controls
+- Admin `auto` / `forced_on` / `forced_off` modes; auto unlock needs seven
+  eligible daily observations and stays unlocked unless disabled
+- People: 25 eligible public profiles with at least 15 ratings each; a displayed
+  match needs 10 shared ratings
+- Lists: 40 public lists of 10+ films from 10+ creators
+- Clubs: 8 public clubs with 3+ active members and 2 recent completed screenings
+- Trends: 50 monthly active users and 500 public logs/ratings from 25 contributors
+  within 90 days
+- Synthetic evidence does not count toward live eligibility. The evaluator
+  endpoint exists, but daily scheduling is still an operational gap
+
 ## Operations
 
 - GitHub `main` deploys to Vercel production automatically, with the CLI kept as
@@ -192,3 +261,6 @@ contrast in both themes.
   email, and prunes expired sessions and rate-limit counters.
 - The serverless runtime owns idle database connection teardown, avoiding
   misleading timer warnings after frozen instances resume.
+
+- Local storage reporting and guarded cleanup for main and nested worktree caches;
+  optional duplicate dependency cleanup preserves source, secrets and Git state.

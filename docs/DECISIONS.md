@@ -1,5 +1,8 @@
 # Decisions and history
 
+Living guidance reviewed 27 October 2026; dated incidents and deployment history
+below are historical evidence. Current checks live in [STATUS](STATUS.md).
+
 Why the code looks the way it does, and what happened along the way. Written so
 a future maintainer can tell a deliberate choice from an accident.
 
@@ -7,7 +10,7 @@ a future maintainer can tell a deliberate choice from an accident.
 
 ## Architectural commitments
 
-Three rules the codebase holds to. Breaking one should feel like a big deal.
+These commitments guide the codebase. Known exceptions belong in [STATUS](STATUS.md).
 
 ### 1. Authorisation lives in the query, not the component
 
@@ -60,12 +63,14 @@ briefly given one and started answering 200 to signed-out requests — no data
 leaked, but an auth-gated route should not render at all. Loading states live
 only on the public browse routes, which never redirect.
 
-### 5. Blind ratings hold on every surface
+### 5. Blind ratings must hold on every surface
 
 A club that rates blind must not see a film's group score anywhere before the
 member submits their own — not the club dashboard, the history list, the
 screening sidebar or the film page. `revealedScreeningIds` answers that question
-once and everything reads through it. Hiding the spread in one place while
+once and should constrain every aggregate. The 27 October source review found
+that `getClubStats().averageRating` still bypasses this rule; see
+[STATUS](STATUS.md). Hiding the spread in one place while
 printing the average two screens away is not a blind rating, it is a formality.
 
 ---
@@ -85,15 +90,17 @@ vote per person rather than one per viewing.
 **Community averages are maintained by delta**, with a jsonb histogram, so a film
 page never runs an aggregate over every rating row.
 
-**Votes and club ratings are blind at the transport layer.** While a round is
-open the server does not send totals to the client at all — there is nothing to
-inspect in devtools. Same for club ratings before you submit.
+**Blind visibility is enforced at the transport layer.** Open vote totals and
+screening rating spreads are gated by server responses. This contract still
+has an aggregate exception in `getClubStats().averageRating`, tracked in
+[STATUS](STATUS.md); do not infer complete coverage from a hidden UI control.
 
 **The wheel is server-authoritative.** `crypto.randomInt` picks, and the winner
 plus a seed are committed in one transaction behind a `SELECT … FOR UPDATE` and a
 conditional update. A refresh, a double click, or two people spinning at once all
 replay the same result. The client animates to an outcome it had no hand in
-choosing.
+choosing. Permission-gated manager pool and result overrides are explicit,
+attributed operations; corrections stop once the night is completed.
 
 **Email uses an outbox, not an inline send.** Mail is written in the same
 transaction as the thing that caused it, then drained by a worker that claims
@@ -464,3 +471,21 @@ of leaning on `VERCEL_PROJECT_PRODUCTION_URL`, which only exists inside Vercel.
   overhaul.
 - **Social gamification** (streaks, badges, leaderboards) anywhere, including
   in the 2.0 Network surfaces.
+
+## 27 October 2026 repository and storage maintenance
+
+The working folder was five commits behind GitHub and held local edits. Commit
+`8dfffc5` preserves those edits and reference images; merge `b608755` reconciles
+upstream themes and wheel/discussion work with the local browsing and safeguards.
+The canonical migration journal is upstream's `0000`–`0017`, including theme
+`0015`; duplicate local migration numbering must not be applied again.
+
+Reference PNGs moved from `public/` to `docs/design-reference/`. Storage tools
+remove only allowlisted generated outputs and opt-in dependencies; they retain
+worktree source, Git history, secrets and dirty files. Agent checkouts are
+excluded from TypeScript and from repository contents. See [STORAGE](STORAGE.md).
+
+Old claims of a fixed test count, 43 tables, no club polling, verified example
+email domains and a single disposable test account were removed from living
+operating guidance. Implemented capabilities and runtime verification are
+reported separately.
