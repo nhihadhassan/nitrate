@@ -5,7 +5,7 @@ import { env } from '@/env';
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      { userAgent: 'ClaudeBot', disallow: '/' },
+      { userAgent: ['ClaudeBot', 'Claude-SearchBot'], disallow: '/' },
       {
         userAgent: '*',
         allow: '/',
